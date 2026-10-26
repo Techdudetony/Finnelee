@@ -1,6 +1,6 @@
 # Finnelee: Personal Finance Web App
 
-**Finnelee** is a browser-based budgeting app that turns your transactions into charts, stats, forecasts and payoff plans. Everything runs on your machine; data is saved in the browser's `localStorage`, so there is no server or account to set up.
+**Finnelee** is a browser-based budgeting app that turns your transactions into charts, stats, forecasts and payoff plans. Everything runs on your machine: each person signs in to their own account, and their data is saved in the browser's `localStorage` under that account. There is no server to set up.
 
 ---
 
@@ -8,14 +8,16 @@
 
 | Page | What it does |
 |---|---|
-| **Dashboard** | This month's income, spending, net and savings rate; 6-month income vs. spending chart; spending-by-category donut; auto-generated insights ("Dining is up 32% vs last month"); upcoming bills. |
+| **Accounts** | Sign up / sign in with email and password. Each account has its own transactions, budgets, debts, goals and bills. |
+| **Welcome summary** | Pops up after signing in (or from "View summary"): safe-to-spend, spending vs budget, emergency fund coverage, goal progress, bills due this week and the top insight. |
+| **Dashboard** | A personal greeting ("Good evening, Antonio"), then this month's income, spending, net and savings rate; 6-month income vs. spending chart; spending-by-category donut; auto-generated insights ("Dining is up 32% vs last month"); upcoming bills. |
 | **Transactions** | Add, search, filter and delete income/expenses. Export to CSV. |
 | **Budget** | Monthly limit per category with progress bars, a **50/30/20 calculator** (needs / wants / savings) compared against your real spending, and a **debt-to-income (DTI) calculator**. |
 | **Debt Planner** | Enter your debts and an extra monthly payment; compares **Snowball** (smallest balance first) vs **Avalanche** (highest interest first): months to debt-free, total interest, payoff order, and a balance-over-time chart. |
 | **Forecast** | Projects savings growth with compound interest under conservative / expected / optimistic returns, and predicts next month's spending from your trend (linear regression). |
 | **Goals** | Savings goals (emergency fund, vacation...) with progress and the monthly amount needed to hit each deadline. |
 | **Bills** | Recurring bills with next due date, days until due, and monthly total. |
-| **Settings** | Backup/restore all data as a JSON file (`finnelee-backup-<date>.json`), reload sample data, or clear everything. |
+| **Settings** | Edit your display name, sign out, backup/restore all data as a JSON file (`finnelee-backup-<date>.json`), reload sample data, or clear everything. |
 
 The app ships with 6 months of realistic sample data so every chart has something to show on first run.
 
@@ -27,6 +29,7 @@ The app ships with 6 months of realistic sample data so every chart has somethin
 | **Vite** | Fast dev server and build tool; `npm run dev` starts in about a second. |
 | **Recharts** | Declarative React chart components (bar, line, area, pie). |
 | **localStorage** | Built-in browser storage. Zero setup; data survives page reloads. |
+| **Web Crypto (PBKDF2)** | Built-in browser API used to hash passwords, so they are never stored as plain text. |
 | **Plain CSS** with custom properties | Light/dark theme through CSS variables; no CSS framework to learn. |
 
 No router and no state library: tabs are a single `useState`, which keeps the code easy to follow. Both are natural upgrades later (see section 7).
@@ -34,8 +37,13 @@ No router and no state library: tabs are a single `useState`, which keeps the co
 ## 3. Architecture
 
 ```
+   main.jsx ─► <AuthProvider>  (who is signed in? see src/auth/)
+                      │
+                      ▼
+            App.jsx: loading screen │ AuthScreen │ FinanceApp key={user.id}
+                      │
             ┌──────────────────────────────────────────────┐
-            │                  App.jsx                     │
+            │            FinanceApp (in App.jsx)           │
             │  owns ALL data via useLocalStorage hooks     │
             │  (transactions, budgets, debts, goals, ...)  │
             └───────────────┬──────────────────────────────┘
@@ -49,7 +57,8 @@ No router and no state library: tabs are a single `useState`, which keeps the co
 
 Key ideas:
 
-1. **Single source of truth.** `App.jsx` holds every piece of data. Pages read it from `store` and update it with the matching setter (`setTransactions`, ...).
+0. **Accounts.** `AuthProvider` (React Context) knows who is signed in. `FinanceApp` is rendered with `key={user.id}`, so switching users remounts it and it reads that user's `finnelee.<userId>.*` storage keys.
+1. **Single source of truth.** `FinanceApp` in `App.jsx` holds every piece of data. Pages read it from `store` and update it with the matching setter (`setTransactions`, ...).
 2. **Persistence is automatic.** `useLocalStorage` works like `useState` but also writes every change to `localStorage`.
 3. **UI and math are separate.** Components render; `utils/finance.js` calculates. You can change a formula without touching the UI.
 4. **Derived data is computed, not stored.** Totals, charts and forecasts are recalculated from raw transactions with `useMemo`, so they never go stale.
@@ -62,8 +71,12 @@ finance-app/                    # project folder (the npm package is named "finn
 ├── package.json                # dependencies + npm scripts
 ├── vite.config.js              # Vite + React plugin
 └── src/
-    ├── main.jsx                # entry point: renders <App/>
-    ├── App.jsx                 # layout, tab navigation, all app state
+    ├── main.jsx                # entry point: renders <App/> inside <AuthProvider>
+    ├── App.jsx                 # auth gate, layout, tab navigation, all app state
+    ├── auth/
+    │   ├── authService.js      # sign up / in / out, password hashing (swap for a real backend later)
+    │   ├── AuthContext.jsx     # React Context + useAuth() hook
+    │   └── userStorage.js      # per-user storage keys + migration of pre-account data
     ├── styles.css              # design tokens (colors, spacing), light/dark theme
     ├── hooks/
     │   ├── useLocalStorage.js  # useState that persists to localStorage
@@ -71,11 +84,14 @@ finance-app/                    # project folder (the npm package is named "finn
     ├── utils/
     │   ├── format.js           # currency, percent, date helpers
     │   ├── colors.js           # chart palette (light + dark)
-    │   └── finance.js          # all financial math
+    │   ├── finance.js          # all financial math
+    │   └── insights.js         # plain-language insights (dashboard + summary)
     ├── data/
     │   ├── categories.js       # category lists + needs/wants grouping
     │   └── sampleData.js       # generates 6 months of demo data
     └── components/
+        ├── AuthScreen.jsx      # sign in / create account form
+        ├── WelcomeSummary.jsx  # post-login summary popup (native <dialog>)
         ├── StatCard.jsx        # KPI tile
         ├── ProgressBar.jsx     # bar with ok/warning/over states
         ├── ChartTooltip.jsx    # shared hover tooltip for charts
@@ -111,6 +127,8 @@ settings    = { startingSavings, annualReturn }
 - **Required monthly for a goal** = (target − saved) ÷ months until deadline
 - **DTI** = monthly debt payments ÷ gross monthly income (≤ 36% is generally considered healthy)
 - **Spending prediction**: least-squares line through the last 6 months, extended one month ahead
+- **Safe to spend** = this month's income − spent so far − bills still due this month − monthly goal savings
+- **Emergency fund months** = current savings ÷ average monthly essential ("needs") spending over the last 3 full months
 
 ## 7. Getting started
 
@@ -120,10 +138,15 @@ npm run dev        # open the printed URL (usually http://localhost:5173)
 npm run build      # production build into dist/
 ```
 
-## 8. Ideas for later
+## 8. Accounts: how they work and their limits
 
-- React Router for real URLs per page; Context or Zustand instead of prop passing
-- A backend (Supabase, Firebase, or Node + Postgres) with login for multi-device sync
-- Bank import via CSV upload or Plaid
-- Rename the storage keys from `fb.*` to `finnelee.*` (add a one-time migration that copies old keys so saved data isn't lost)
+- Users are stored under `finnelee.users`, with passwords hashed using PBKDF2 and a random salt per user.
+- Each user's data lives under `finnelee.<userId>.<slice>`.
+- The **first** account created in a browser adopts any data saved before accounts existed (the old `fb.*` keys), so nothing is lost.
+- ⚠️ This is browser-only auth: fine for learning and personal use, but accounts don't sync across devices and anyone with access to the computer can read localStorage. The plan to move to a real backend is in [ROADMAP.md](ROADMAP.md).
+
+## 9. Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for feature status, build order and the AI auto-categorization design. Smaller ideas:
+- React Router for real URLs per page
 - TypeScript and unit tests (Vitest) for `finance.js`
