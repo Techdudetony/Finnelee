@@ -24,9 +24,10 @@ export function AuthProvider({ children }) {
   // that receive these functions don't re-render unnecessarily.
   const signUp = useCallback(async ({ name, email, password, withSampleData }) => {
     const { user: newUser, isFirstUser } = await auth.signUp({ name, email, password });
-    // First account on this browser inherits any pre-accounts data; otherwise start fresh.
-    const migrated = isFirstUser && migrateLegacyData(newUser.id);
-    if (!migrated) seedUserData(newUser.id, withSampleData ? generateSampleData() : emptyData());
+    seedUserData(newUser.id, withSampleData ? generateSampleData() : emptyData());
+    // The first account on this browser also adopts any data saved before accounts
+    // existed. It's copied after seeding, so the old data wins wherever it exists.
+    if (isFirstUser) migrateLegacyData(newUser.id);
     setUser(newUser);
     setFreshLogin(true);
   }, []);

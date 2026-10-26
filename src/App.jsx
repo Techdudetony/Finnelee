@@ -4,6 +4,7 @@ import { userKey } from './auth/userStorage';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { emptyData } from './data/sampleData';
 import AuthScreen from './components/AuthScreen';
+import WelcomeSummary from './components/WelcomeSummary';
 import Dashboard from './components/Dashboard';
 import Transactions from './components/Transactions';
 import Budget from './components/Budget';
@@ -39,8 +40,14 @@ export default function App() {
 }
 
 function FinanceApp({ user }) {
-  const { signOut } = useAuth();
+  const { signOut, freshLogin, clearFreshLogin } = useAuth();
   const [page, setPage] = useState('dashboard');
+  // The summary pops up automatically right after signing in (not on every page refresh).
+  const [showSummary, setShowSummary] = useState(freshLogin);
+  const closeSummary = () => {
+    setShowSummary(false);
+    clearFreshLogin();
+  };
   const blank = emptyData(); // fallback values if a key is missing
 
   // Each slice of data is stored under this user's own keys: finnelee.<userId>.<slice>
@@ -91,14 +98,18 @@ function FinanceApp({ user }) {
             <div className="small">{user.name}</div>
             <div className="small muted profile-email">{user.email}</div>
           </div>
-          <button className="btn-icon" onClick={signOut} title="Sign out" aria-label="Sign out">⎋</button>
+          <button className="btn-icon small" onClick={signOut}>Sign out</button>
         </div>
       </aside>
 
       <main className="content">
-        <h1 className="page-title">{current.label}</h1>
-        <Component store={store} goTo={setPage} />
+        {/* The dashboard renders its own greeting, so skip the generic title there */}
+        {page !== 'dashboard' && <h1 className="page-title">{current.label}</h1>}
+        <Component store={store} goTo={setPage} openSummary={() => setShowSummary(true)} />
       </main>
+
+      {/* Conditional rendering: the popup only exists in the page while it's open */}
+      {showSummary && <WelcomeSummary store={store} goTo={setPage} onClose={closeSummary} />}
     </div>
   );
 }

@@ -183,3 +183,14 @@ tr:last-child td { border-bottom: 0; }
 @media (max-width: 760px) {
   .profile { margin-top: 10px; padding-top: 10px; }
 }
+
+/* ---------- Welcome summary popup (native <dialog>) ---------- */
+.summary-dialog {
+  width: min(640px, calc(100vw - 32px)); /* never wider than the screen minus a 16px gutter each side */
+  max-height: calc(100vh - 48px); overflow-y: auto;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); color: var(--text);
+  padding: 22px; box-shadow: 0 20px 50px rgb(0 0 0 / 0.25);
+}
+.summary-dialog::backdrop { background: rgb(0 0 0 / 0.45); } /* the dimmed page behind the popup */
+.summary-tile { background: var(--surface-2); border-radius: 10px; padding: 12px; }

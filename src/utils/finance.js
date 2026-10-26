@@ -226,3 +226,37 @@ export function monthsFromNowLabel(months, from = new Date()) {
   const d = new Date(from.getFullYear(), from.getMonth() + months, 1);
   return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 }
+
+// ---------------------------------------------------------------------------
+// Summary metrics (used by the welcome summary)
+// ---------------------------------------------------------------------------
+
+/**
+ * "Safe to spend" for the rest of this month:
+ *   income received − spent so far − bills still due this month − planned goal savings
+ * Bills "still due" are those whose due day is later this month (we assume earlier ones are paid).
+ */
+export function safeToSpend({ transactions, bills, goals }, today = new Date()) {
+  const { income, expenses } = monthTotals(transactions, monthKey(today));
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const billsLeft = sum(
+    bills.filter((b) => Math.min(Number(b.dueDay), lastDay) > today.getDate()),
+    (b) => b.amount
+  );
+  const plannedSavings = sum(goals.filter((g) => g.saved < g.target), (g) => requiredMonthly(g, today));
+  return { amount: income - expenses - billsLeft - plannedSavings, income, spent: expenses, billsLeft, plannedSavings };
+}
+
+/**
+ * Emergency fund readiness: how many months your savings could cover essential
+ * ("needs") spending, based on the average of the last 3 full months.
+ * The 3–6 month range is the common rule of thumb.
+ */
+export function emergencyFundMonths(savings, transactions, isEssential, today = new Date()) {
+  const keys = lastMonthKeys(4, today).slice(0, 3); // 3 full months before the current one
+  const monthly = keys.map((key) =>
+    sum(transactions.filter((t) => t.type === 'expense' && t.date.startsWith(key) && isEssential(t.category)), (t) => t.amount)
+  );
+  const avgEssential = sum(monthly) / keys.length;
+  return { months: avgEssential > 0 ? Number(savings) / avgEssential : null, avgEssential };
+}

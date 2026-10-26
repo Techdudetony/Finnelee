@@ -57,3 +57,9 @@ export const formatDate = (iso) =>
 /** Unique-enough id for list items. crypto.randomUUID exists in all modern browsers. */
 export const uid = () =>
   globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+/** Time-of-day greeting: "Good morning" before noon, "Good afternoon" until 5pm, then "Good evening". */
+export function greeting(date = new Date()) {
+  const h = date.getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
