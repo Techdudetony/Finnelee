@@ -7,11 +7,12 @@ import ChartTooltip from './ChartTooltip';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { getPalette } from '../utils/colors';
 import { categoryColor } from '../data/categories';
-import { formatCurrency, formatPercent, formatDate, monthKey, monthLabel } from '../utils/format';
+import { formatCurrency, formatPercent, formatDate, greeting, monthKey, monthLabel } from '../utils/format';
 import { monthlySeries, spendingByCategory, nextDueDate } from '../utils/finance';
+import { buildInsights } from '../utils/insights';
 
-export default function Dashboard({ store, goTo }) {
-  const { transactions, budgets, bills } = store;
+export default function Dashboard({ store, goTo, openSummary }) {
+  const { user, transactions, budgets, bills } = store;
   const palette = getPalette(useColorScheme());
   const thisMonth = monthKey(new Date());
 
@@ -34,6 +35,17 @@ export default function Dashboard({ store, goTo }) {
 
   return (
     <div className="stack">
+      <header className="row">
+        <div>
+          <h1 className="page-title" style={{ marginBottom: 2 }}>{greeting()}, {user.name} 👋</h1>
+          <p className="muted" style={{ margin: 0 }}>
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </p>
+        </div>
+        <span className="spacer" />
+        <button className="btn" onClick={openSummary}>📋 View summary</button>
+      </header>
+
       <div className="grid grid-stats">
         <StatCard label={`Income · ${current.label}`} value={formatCurrency(current.income)} hint={change(current.income, previous?.income)} />
         <StatCard label={`Spending · ${current.label}`} value={formatCurrency(current.expenses)} hint={change(current.expenses, previous?.expenses)} />
@@ -137,41 +149,4 @@ export default function Dashboard({ store, goTo }) {
       </div>
     </div>
   );
-}
-
-/** Turns raw numbers into short, readable observations. Plain function, so it's easy to extend. */
-function buildInsights(transactions, budgets, series) {
-  const out = [];
-  const [cur, prev] = [series.at(-1), series.at(-2)];
-  const curCats = spendingByCategory(transactions, cur.key);
-  const prevCats = Object.fromEntries(spendingByCategory(transactions, prev.key).map((c) => [c.category, c.amount]));
-
-  // Biggest category increase vs last month
-  const jumps = curCats
-    .filter((c) => prevCats[c.category] > 0)
-    .map((c) => ({ ...c, pct: c.amount / prevCats[c.category] - 1 }))
-    .sort((a, b) => b.pct - a.pct);
-  if (jumps[0]?.pct > 0.1) {
-    out.push(`📈 ${jumps[0].category} is up ${formatPercent(jumps[0].pct)} compared with ${prev.label}.`);
-  }
-
-  // Budgets already exceeded
-  const over = curCats.filter((c) => budgets[c.category] && c.amount > budgets[c.category]);
-  for (const c of over) {
-    out.push(`⚠️ ${c.category} is ${formatCurrency(c.amount - budgets[c.category])} over its ${formatCurrency(budgets[c.category])} budget.`);
-  }
-
-  // Average savings rate over the period
-  const withIncome = series.filter((m) => m.income > 0);
-  if (withIncome.length) {
-    const avg = withIncome.reduce((s, m) => s + m.savingsRate, 0) / withIncome.length;
-    out.push(
-      avg >= 0.2
-        ? `✅ You've saved ${formatPercent(avg)} of income on average. Great work!`
-        : `💡 Your average savings rate is ${formatPercent(avg)}. Trimming your top category could push it toward 20%.`
-    );
-  }
-
-  if (curCats[0]) out.push(`🏷️ Your largest expense this month is ${curCats[0].category} (${formatCurrency(curCats[0].amount)}).`);
-  return out.length ? out : ['Add some transactions to see insights here.'];
 }

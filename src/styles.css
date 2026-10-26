@@ -47,6 +47,7 @@ button, input, select { font: inherit; color: inherit; }
 /* ---------- Layout: sidebar + content. Grid makes the two-column split one line. ---------- */
 .layout { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
 .sidebar {
+  display: flex; flex-direction: column; /* lets the profile block sit at the bottom */
   background: var(--surface);
   border-right: 1px solid var(--border);
   padding: 20px 12px;
@@ -159,3 +160,37 @@ tr:last-child td { border-bottom: 0; }
 .list li:last-child { border-bottom: 0; }
 .insight { padding: 10px 12px; border-radius: 8px; background: var(--surface-2); font-size: 0.9rem; }
 .empty { color: var(--text-3); text-align: center; padding: 24px; }
+
+/* ---------- Accounts: sign-in page + sidebar profile ---------- */
+.auth-page { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
+.auth-card { width: 100%; max-width: 400px; padding: 28px; }
+.link-btn { border: 0; background: none; padding: 0; color: var(--accent); cursor: pointer; font-weight: 600; }
+.link-btn:hover { text-decoration: underline; }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.profile {
+  margin-top: auto; /* in a flex column, auto margin pushes this block to the bottom */
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 8px 0; border-top: 1px solid var(--border);
+}
+.profile-text { min-width: 0; flex: 1; }
+.profile-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* long emails get "…" */
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: var(--accent); color: var(--accent-text); font-weight: 700;
+}
+@media (max-width: 760px) {
+  .profile { margin-top: 10px; padding-top: 10px; }
+}
+
+/* ---------- Welcome summary popup (native <dialog>) ---------- */
+.summary-dialog {
+  width: min(640px, calc(100vw - 32px)); /* never wider than the screen minus a 16px gutter each side */
+  max-height: calc(100vh - 48px); overflow-y: auto;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); color: var(--text);
+  padding: 22px; box-shadow: 0 20px 50px rgb(0 0 0 / 0.25);
+}
+.summary-dialog::backdrop { background: rgb(0 0 0 / 0.45); } /* the dimmed page behind the popup */
+.summary-tile { background: var(--surface-2); border-radius: 10px; padding: 12px; }
