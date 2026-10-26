@@ -1,0 +1,177 @@
+import { useMemo } from 'react';
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell,
+} from 'recharts';
+import StatCard from './StatCard';
+import ChartTooltip from './ChartTooltip';
+import { useColorScheme } from '../hooks/useColorScheme';
+import { getPalette } from '../utils/colors';
+import { categoryColor } from '../data/categories';
+import { formatCurrency, formatPercent, formatDate, monthKey, monthLabel } from '../utils/format';
+import { monthlySeries, spendingByCategory, nextDueDate } from '../utils/finance';
+
+export default function Dashboard({ store, goTo }) {
+  const { transactions, budgets, bills } = store;
+  const palette = getPalette(useColorScheme());
+  const thisMonth = monthKey(new Date());
+
+  // useMemo caches a calculation and only re-runs it when its dependencies change.
+  // Without it, these loops would run on every render (e.g. every hover).
+  const series = useMemo(() => monthlySeries(transactions, 6), [transactions]);
+  const byCategory = useMemo(() => spendingByCategory(transactions, thisMonth), [transactions, thisMonth]);
+  const insights = useMemo(() => buildInsights(transactions, budgets, series), [transactions, budgets, series]);
+
+  const current = series[series.length - 1];
+  const previous = series[series.length - 2];
+  const upcoming = bills
+    .map((b) => ({ ...b, ...nextDueDate(b.dueDay) }))
+    .sort((a, b) => a.daysAway - b.daysAway)
+    .slice(0, 4);
+
+  // "+12% vs last month" helper; returns '' when there's nothing to compare against.
+  const change = (now, before) =>
+    before > 0 ? `${now >= before ? '▲' : '▼'} ${formatPercent(Math.abs(now / before - 1))} vs ${previous.label}` : '';
+
+  return (
+    <div className="stack">
+      <div className="grid grid-stats">
+        <StatCard label={`Income · ${current.label}`} value={formatCurrency(current.income)} hint={change(current.income, previous?.income)} />
+        <StatCard label={`Spending · ${current.label}`} value={formatCurrency(current.expenses)} hint={change(current.expenses, previous?.expenses)} />
+        <StatCard label="Net saved" value={formatCurrency(current.net)} hint={current.net >= 0 ? 'Money left over this month' : 'Spending exceeds income'} />
+        <StatCard label="Savings rate" value={formatPercent(current.savingsRate)} hint="Aim for 20% or more" />
+      </div>
+
+      <div className="grid grid-2">
+        <section className="card">
+          <h2>Income vs. spending</h2>
+          <p className="sub">Last 6 months</p>
+          <div className="chart">
+            {/* ResponsiveContainer makes the chart fill its parent's width/height. */}
+            <ResponsiveContainer>
+              <BarChart data={series} barGap={2} margin={{ left: 0, right: 8 }}>
+                <CartesianGrid vertical={false} stroke={palette.grid} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} />
+                <YAxis tickFormatter={(v) => formatCurrency(v, { compact: true })} tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} width={56} />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: palette.grid, opacity: 0.4 }} />
+                {/* radius=[top-left, top-right, bottom-right, bottom-left]: rounded tops only */}
+                <Bar dataKey="income" name="Income" fill={palette.series[0]} radius={[4, 4, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="expenses" name="Spending" fill={palette.series[1]} radius={[4, 4, 0, 0]} maxBarSize={28} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="legend">
+            <span><span className="dot" style={{ background: palette.series[0] }} />Income</span>
+            <span><span className="dot" style={{ background: palette.series[1] }} />Spending</span>
+          </div>
+        </section>
+
+        <section className="card">
+          <h2>Where your money went</h2>
+          <p className="sub">{monthLabel(thisMonth, true)} · {formatCurrency(current.expenses)} total</p>
+          {byCategory.length === 0 ? (
+            <p className="empty">No spending recorded this month yet.</p>
+          ) : (
+            <div className="row" style={{ alignItems: 'flex-start' }}>
+              <div style={{ width: 200, height: 200 }}>
+                <ResponsiveContainer>
+                  <PieChart>
+                    {/* innerRadius turns the pie into a donut; paddingAngle adds a gap between slices. */}
+                    <Pie data={byCategory} dataKey="amount" nameKey="category" innerRadius={58} outerRadius={92} paddingAngle={2} stroke="none">
+                      {byCategory.map((c) => (
+                        <Cell key={c.category} fill={categoryColor(c.category, palette)} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<ChartTooltip labelFormatter={(_, p) => p[0]?.name} />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              {/* The list doubles as the legend and gives exact numbers (no guessing slice sizes). */}
+              <ul className="list" style={{ flex: 1, minWidth: 180 }}>
+                {byCategory.map((c) => (
+                  <li key={c.category} className="small">
+                    <span className="dot" style={{ background: categoryColor(c.category, palette) }} />
+                    <span>{c.category}</span>
+                    <span className="spacer" />
+                    <span className="num">{formatCurrency(c.amount)}</span>
+                    <span className="muted num" style={{ width: 40 }}>{formatPercent(c.amount / current.expenses)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      </div>
+
+      <div className="grid grid-2">
+        <section className="card">
+          <h2>Insights</h2>
+          <p className="sub">Generated from your data</p>
+          <div className="stack" style={{ gap: 8 }}>
+            {insights.map((text, i) => (
+              <div key={i} className="insight">{text}</div>
+            ))}
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="row">
+            <h2>Upcoming bills</h2>
+            <span className="spacer" />
+            <button className="btn" onClick={() => goTo('bills')}>Manage</button>
+          </div>
+          <ul className="list">
+            {upcoming.length === 0 && <li className="empty">No recurring bills yet.</li>}
+            {upcoming.map((b) => (
+              <li key={b.id}>
+                <div>
+                  <div>{b.name}</div>
+                  <div className="small muted">{formatDate(b.date)}</div>
+                </div>
+                <span className="spacer" />
+                <span className="pill">{b.daysAway === 0 ? 'Today' : `in ${b.daysAway}d`}</span>
+                <strong className="num">{formatCurrency(b.amount)}</strong>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+/** Turns raw numbers into short, readable observations. Plain function, so it's easy to extend. */
+function buildInsights(transactions, budgets, series) {
+  const out = [];
+  const [cur, prev] = [series.at(-1), series.at(-2)];
+  const curCats = spendingByCategory(transactions, cur.key);
+  const prevCats = Object.fromEntries(spendingByCategory(transactions, prev.key).map((c) => [c.category, c.amount]));
+
+  // Biggest category increase vs last month
+  const jumps = curCats
+    .filter((c) => prevCats[c.category] > 0)
+    .map((c) => ({ ...c, pct: c.amount / prevCats[c.category] - 1 }))
+    .sort((a, b) => b.pct - a.pct);
+  if (jumps[0]?.pct > 0.1) {
+    out.push(`📈 ${jumps[0].category} is up ${formatPercent(jumps[0].pct)} compared with ${prev.label}.`);
+  }
+
+  // Budgets already exceeded
+  const over = curCats.filter((c) => budgets[c.category] && c.amount > budgets[c.category]);
+  for (const c of over) {
+    out.push(`⚠️ ${c.category} is ${formatCurrency(c.amount - budgets[c.category])} over its ${formatCurrency(budgets[c.category])} budget.`);
+  }
+
+  // Average savings rate over the period
+  const withIncome = series.filter((m) => m.income > 0);
+  if (withIncome.length) {
+    const avg = withIncome.reduce((s, m) => s + m.savingsRate, 0) / withIncome.length;
+    out.push(
+      avg >= 0.2
+        ? `✅ You've saved ${formatPercent(avg)} of income on average. Great work!`
+        : `💡 Your average savings rate is ${formatPercent(avg)}. Trimming your top category could push it toward 20%.`
+    );
+  }
+
+  if (curCats[0]) out.push(`🏷️ Your largest expense this month is ${curCats[0].category} (${formatCurrency(curCats[0].amount)}).`);
+  return out.length ? out : ['Add some transactions to see insights here.'];
+}
