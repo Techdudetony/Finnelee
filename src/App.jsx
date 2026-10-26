@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import { useAuth } from './auth/AuthContext';
+import { userKey } from './auth/userStorage';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { generateSampleData } from './data/sampleData';
+import { emptyData } from './data/sampleData';
+import AuthScreen from './components/AuthScreen';
 import Dashboard from './components/Dashboard';
 import Transactions from './components/Transactions';
 import Budget from './components/Budget';
@@ -22,24 +25,35 @@ const PAGES = [
   { id: 'settings', label: 'Settings', icon: '⚙️', Component: Settings },
 ];
 
+/** Top level: decides between a loading screen, the sign-in screen, and the app itself. */
 export default function App() {
+  const { user, loading } = useAuth();
+
+  if (loading) return <div className="auth-page muted">Loading…</div>;
+  if (!user) return <AuthScreen />;
+
+  // key={user.id} is important: when a different user signs in, React throws away
+  // the old FinanceApp (and all its state) and mounts a fresh one that reads the
+  // new user's storage keys. Without it, one user's data could leak into another's.
+  return <FinanceApp key={user.id} user={user} />;
+}
+
+function FinanceApp({ user }) {
+  const { signOut } = useAuth();
   const [page, setPage] = useState('dashboard');
+  const blank = emptyData(); // fallback values if a key is missing
 
-  // Demo data is built once (lazy init) and only used if localStorage is empty.
-  const [sample] = useState(() => generateSampleData());
-
-  // Each slice of data gets its own localStorage key. The "fb." prefix avoids
-  // clashing with other apps on the same origin (e.g. localhost:5173).
-  const [transactions, setTransactions] = useLocalStorage('fb.transactions', sample.transactions);
-  const [budgets, setBudgets] = useLocalStorage('fb.budgets', sample.budgets);
-  const [debts, setDebts] = useLocalStorage('fb.debts', sample.debts);
-  const [goals, setGoals] = useLocalStorage('fb.goals', sample.goals);
-  const [bills, setBills] = useLocalStorage('fb.bills', sample.bills);
-  const [settings, setSettings] = useLocalStorage('fb.settings', sample.settings);
+  // Each slice of data is stored under this user's own keys: finnelee.<userId>.<slice>
+  const [transactions, setTransactions] = useLocalStorage(userKey(user.id, 'transactions'), blank.transactions);
+  const [budgets, setBudgets] = useLocalStorage(userKey(user.id, 'budgets'), blank.budgets);
+  const [debts, setDebts] = useLocalStorage(userKey(user.id, 'debts'), blank.debts);
+  const [goals, setGoals] = useLocalStorage(userKey(user.id, 'goals'), blank.goals);
+  const [bills, setBills] = useLocalStorage(userKey(user.id, 'bills'), blank.bills);
+  const [settings, setSettings] = useLocalStorage(userKey(user.id, 'settings'), blank.settings);
 
   // Bundle everything into one object so every page gets the same single prop.
-  // (In a bigger app you'd reach for React Context to avoid passing this around.)
   const store = {
+    user,
     transactions, setTransactions,
     budgets, setBudgets,
     debts, setDebts,
@@ -70,6 +84,15 @@ export default function App() {
             </button>
           ))}
         </nav>
+        <div className="profile">
+          {/* First letter of the name as a simple avatar */}
+          <span className="avatar" aria-hidden>{user.name[0]?.toUpperCase()}</span>
+          <div className="profile-text">
+            <div className="small">{user.name}</div>
+            <div className="small muted profile-email">{user.email}</div>
+          </div>
+          <button className="btn-icon" onClick={signOut} title="Sign out" aria-label="Sign out">⎋</button>
+        </div>
       </aside>
 
       <main className="content">

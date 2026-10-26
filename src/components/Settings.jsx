@@ -1,10 +1,19 @@
 import { useRef, useState } from 'react';
 import { generateSampleData, emptyData } from '../data/sampleData';
 import { todayISO } from '../utils/format';
+import { useAuth } from '../auth/AuthContext';
 
 export default function Settings({ store }) {
   const fileInput = useRef(null); // useRef = a handle to a real DOM element (the hidden file input)
   const [message, setMessage] = useState('');
+  const { user, updateProfile, signOut } = useAuth();
+  const [name, setName] = useState(user.name);
+
+  const saveProfile = async (e) => {
+    e.preventDefault();
+    await updateProfile({ name });
+    setMessage('✓ Profile saved.');
+  };
 
   // Replace every slice of state at once. Works for sample data, empty data, or an imported backup.
   const loadAll = (data) => {
@@ -51,6 +60,16 @@ export default function Settings({ store }) {
 
   return (
     <div className="stack">
+      <section className="card">
+        <h2>Your profile</h2>
+        <p className="sub">Signed in as {user.email}. Your name is used in greetings.</p>
+        <form className="row" onSubmit={saveProfile}>
+          <input value={name} onChange={(e) => setName(e.target.value)} aria-label="Display name" style={{ flex: 1, minWidth: 160 }} />
+          <button className="btn btn-primary">Save</button>
+          <button type="button" className="btn" onClick={signOut}>Sign out</button>
+        </form>
+      </section>
+
       <section className="card">
         <h2>Backup &amp; restore</h2>
         <p className="sub">Your data lives only in this browser. Export a backup to move it or keep it safe.</p>
