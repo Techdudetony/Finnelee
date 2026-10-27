@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import CsvImport from './CsvImport';
 import { namesOf } from '../data/categories';
 import { formatCurrency, formatDate, monthLabel, todayISO, uid } from '../utils/format';
 
@@ -124,6 +125,8 @@ export default function Transactions({ store }) {
           </button>
         </form>
       </section>
+
+      <CsvImport store={store} />
 
       <section className="card">
         <div className="row" style={{ marginBottom: 12 }}>
