@@ -6,31 +6,32 @@
 
 ## 1. Features
 
-| Page | What it does |
-|---|---|
-| **Accounts** | Sign up / sign in with email and password. Each account has its own transactions, budgets, debts, goals and bills. |
-| **Welcome summary** | Pops up after signing in (or from "View summary"): safe-to-spend, spending vs budget, emergency fund coverage, goal progress, bills due this week and the top insight. |
-| **Dashboard** | A personal greeting ("Good evening, Antonio"), then this month's income, spending, net and savings rate; 6-month income vs. spending chart; spending-by-category donut; auto-generated insights ("Dining is up 32% vs last month"); upcoming bills. |
-| **Transactions** | Add, search, filter and delete income/expenses. Export to CSV. |
-| **Budget** | Monthly limit per category with progress bars, a **50/30/20 calculator** (needs / wants / savings) compared against your real spending, and a **debt-to-income (DTI) calculator**. |
-| **Debt Planner** | Enter your debts and an extra monthly payment; compares **Snowball** (smallest balance first) vs **Avalanche** (highest interest first): months to debt-free, total interest, payoff order, and a balance-over-time chart. |
-| **Forecast** | Projects savings growth with compound interest under conservative / expected / optimistic returns, and predicts next month's spending from your trend (linear regression). |
-| **Goals** | Savings goals (emergency fund, vacation...) with progress and the monthly amount needed to hit each deadline. |
-| **Bills** | Recurring bills with next due date, days until due, and monthly total. |
-| **Settings** | Edit your display name, sign out, backup/restore all data as a JSON file (`finnelee-backup-<date>.json`), reload sample data, or clear everything. |
+| Page                | What it does                                                                                                                                                                                                                                        |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Accounts**        | Sign up / sign in with email and password. Each account has its own transactions, budgets, debts, goals and bills.                                                                                                                                  |
+| **Welcome summary** | Pops up after signing in (or from "View summary"): safe-to-spend, spending vs budget, emergency fund coverage, goal progress, bills due this week and the top insight.                                                                              |
+| **Dashboard**       | A personal greeting ("Good evening, Antonio"), then this month's income, spending, net and savings rate; 6-month income vs. spending chart; spending-by-category donut; auto-generated insights ("Dining is up 32% vs last month"); upcoming bills. |
+| **Transactions**    | Add, search, filter and delete income/expenses. Export to CSV.                                                                                                                                                                                      |
+| **Budget**          | Monthly limit per category with progress bars, a **50/30/20 calculator** (needs / wants / savings) compared against your real spending, and a **debt-to-income (DTI) calculator**.                                                                  |
+| **Debt Planner**    | Enter your debts and an extra monthly payment; compares **Snowball** (smallest balance first) vs **Avalanche** (highest interest first): months to debt-free, total interest, payoff order, and a balance-over-time chart.                          |
+| **Forecast**        | Projects savings growth with compound interest under conservative / expected / optimistic returns, and predicts next month's spending from your trend (linear regression).                                                                          |
+| **Goals**           | Savings goals (emergency fund, vacation...) with progress and the monthly amount needed to hit each deadline.                                                                                                                                       |
+| **Bills**           | Recurring bills with next due date, days until due, and monthly total.                                                                                                                                                                              |
+| **Categories**      | Add, rename, recolor or delete your own income and expense categories, and mark each expense as a need or a want. Renaming updates every transaction, bill and budget that uses it; deleting moves them to "Other".                                 |
+| **Settings**        | Edit your display name, sign out, backup/restore all data as a JSON file (`finnelee-backup-<date>.json`), reload sample data, or clear everything.                                                                                                  |
 
 The app ships with 6 months of realistic sample data so every chart has something to show on first run.
 
 ## 2. Tech stack
 
-| Tool | Why |
-|---|---|
-| **React 18** | Component-based UI; state changes re-render the screen automatically. |
-| **Vite** | Fast dev server and build tool; `npm run dev` starts in about a second. |
-| **Recharts** | Declarative React chart components (bar, line, area, pie). |
-| **localStorage** | Built-in browser storage. Zero setup; data survives page reloads. |
-| **Web Crypto (PBKDF2)** | Built-in browser API used to hash passwords, so they are never stored as plain text. |
-| **Plain CSS** with custom properties | Light/dark theme through CSS variables; no CSS framework to learn. |
+| Tool                                 | Why                                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------ |
+| **React 18**                         | Component-based UI; state changes re-render the screen automatically.                |
+| **Vite**                             | Fast dev server and build tool; `npm run dev` starts in about a second.              |
+| **Recharts**                         | Declarative React chart components (bar, line, area, pie).                           |
+| **localStorage**                     | Built-in browser storage. Zero setup; data survives page reloads.                    |
+| **Web Crypto (PBKDF2)**              | Built-in browser API used to hash passwords, so they are never stored as plain text. |
+| **Plain CSS** with custom properties | Light/dark theme through CSS variables; no CSS framework to learn.                   |
 
 No router and no state library: tabs are a single `useState`, which keeps the code easy to follow. Both are natural upgrades later (see section 7).
 
@@ -85,9 +86,10 @@ finance-app/                    # project folder (the npm package is named "finn
     │   ├── format.js           # currency, percent, date helpers
     │   ├── colors.js           # chart palette (light + dark)
     │   ├── finance.js          # all financial math
-    │   └── insights.js         # plain-language insights (dashboard + summary)
+    │   ├── insights.js         # plain-language insights (dashboard + summary)
+    │   └── categoryOps.js      # rename/delete a category across all records (pure functions)
     ├── data/
-    │   ├── categories.js       # category lists + needs/wants grouping
+    │   ├── categories.js       # starter categories + helpers (names, colors, needs)
     │   └── sampleData.js       # generates 6 months of demo data
     └── components/
         ├── AuthScreen.jsx      # sign in / create account form
@@ -102,6 +104,7 @@ finance-app/                    # project folder (the npm package is named "finn
         ├── Forecast.jsx
         ├── Goals.jsx
         ├── Bills.jsx
+        ├── Categories.jsx      # category manager page
         └── Settings.jsx
 ```
 
@@ -115,6 +118,7 @@ budgets     = { Groceries: 500, Dining: 200, ... }          // monthly limit per
 debt        = { id, name, balance, apr, minPayment }        // apr is a yearly % (e.g. 22.9)
 goal        = { id, name, target, saved, deadline }         // deadline 'YYYY-MM-DD'
 bill        = { id, name, amount, dueDay, category }        // dueDay 1-31 of each month
+category    = { id, name, type: 'expense' | 'income', group: 'need' | 'want', colorIndex }  // colorIndex 0-7 or null (gray)
 settings    = { startingSavings, annualReturn }
 ```
 
@@ -148,5 +152,6 @@ npm run build      # production build into dist/
 ## 9. Roadmap
 
 See [ROADMAP.md](ROADMAP.md) for feature status, build order and the AI auto-categorization design. Smaller ideas:
+
 - React Router for real URLs per page
 - TypeScript and unit tests (Vitest) for `finance.js`
