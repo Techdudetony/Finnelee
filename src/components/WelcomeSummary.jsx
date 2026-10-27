@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useRef } from 'react';
 import ProgressBar from './ProgressBar';
-import { NEEDS } from '../data/categories';
+import { needsChecker } from '../data/categories';
 import { formatCurrency, formatDate, formatPercent, greeting, monthKey } from '../utils/format';
-import { emergencyFundMonths, monthlySeries, monthTotals, nextDueDate, safeToSpend } from '../utils/finance';
+import {
+  emergencyFundMonths,
+  monthlySeries,
+  monthTotals,
+  nextDueDate,
+  safeToSpend,
+} from '../utils/finance';
 import { buildInsights } from '../utils/insights';
 
 /**
@@ -12,7 +18,7 @@ import { buildInsights } from '../utils/insights';
  */
 export default function WelcomeSummary({ store, onClose, goTo }) {
   const dialogRef = useRef(null);
-  const { user, transactions, budgets, bills, goals, settings } = store;
+  const { user, transactions, budgets, bills, goals, settings, categories } = store;
 
   // Open the dialog once it's in the page. The `open` check matters in development:
   // StrictMode runs effects twice, and calling showModal() on an open dialog throws.
@@ -38,12 +44,17 @@ export default function WelcomeSummary({ store, onClose, goTo }) {
       budgetTotal,
       daysLeft: lastDay - today.getDate(),
       safe: safeToSpend({ transactions, bills, goals }, today),
-      emergency: emergencyFundMonths(settings.startingSavings, transactions, (c) => NEEDS.has(c), today),
+      emergency: emergencyFundMonths(
+        settings.startingSavings,
+        transactions,
+        needsChecker(categories),
+        today,
+      ),
       dueSoon,
       goals: { saved, target, count: goals.length },
       insight: buildInsights(transactions, budgets, monthlySeries(transactions, 6))[0],
     };
-  }, [transactions, budgets, bills, goals, settings]);
+  }, [transactions, budgets, bills, goals, settings, categories]);
 
   // Go to a page AND close the popup.
   const open = (page) => {
@@ -53,11 +64,20 @@ export default function WelcomeSummary({ store, onClose, goTo }) {
 
   return (
     // onClose fires on Esc as well as on our buttons, so parent state stays in sync.
-    <dialog ref={dialogRef} className="summary-dialog" onClose={onClose} aria-labelledby="summary-title">
+    <dialog
+      ref={dialogRef}
+      className="summary-dialog"
+      onClose={onClose}
+      aria-labelledby="summary-title"
+    >
       <div className="row" style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}>
-        <h2 id="summary-title" style={{ fontSize: '1.3rem' }}>{greeting()}, {user.name} 👋</h2>
+        <h2 id="summary-title" style={{ fontSize: '1.3rem' }}>
+          {greeting()}, {user.name} 👋
+        </h2>
         <span className="spacer" />
-        <button className="btn-icon" onClick={onClose} aria-label="Close summary">✕</button>
+        <button className="btn-icon" onClick={onClose} aria-label="Close summary">
+          ✕
+        </button>
       </div>
       <p className="sub">Here's where things stand today.</p>
 
@@ -71,33 +91,53 @@ export default function WelcomeSummary({ store, onClose, goTo }) {
         <SummaryTile
           label="Spent this month"
           value={formatCurrency(s.month.expenses)}
-          hint={s.budgetTotal ? `${formatPercent(s.month.expenses / s.budgetTotal)} of budget · ${s.daysLeft} days left` : `${s.daysLeft} days left in the month`}
+          hint={
+            s.budgetTotal
+              ? `${formatPercent(s.month.expenses / s.budgetTotal)} of budget · ${s.daysLeft} days left`
+              : `${s.daysLeft} days left in the month`
+          }
         />
         <SummaryTile
           label="Emergency fund"
           value={s.emergency.months == null ? '—' : `${s.emergency.months.toFixed(1)} months`}
-          hint={s.emergency.months == null ? 'Add expenses to calculate' : 'of essential costs covered (aim for 3–6)'}
+          hint={
+            s.emergency.months == null
+              ? 'Add expenses to calculate'
+              : 'of essential costs covered (aim for 3–6)'
+          }
           tone={s.emergency.months != null && s.emergency.months < 3 ? 'warning' : undefined}
         />
       </div>
 
       {s.budgetTotal > 0 && (
         <div style={{ marginTop: 16 }}>
-          <div className="row small"><strong>Monthly budget</strong><span className="spacer" />{formatCurrency(s.month.expenses)} of {formatCurrency(s.budgetTotal)}</div>
+          <div className="row small">
+            <strong>Monthly budget</strong>
+            <span className="spacer" />
+            {formatCurrency(s.month.expenses)} of {formatCurrency(s.budgetTotal)}
+          </div>
           <ProgressBar value={s.month.expenses} max={s.budgetTotal} />
         </div>
       )}
 
       {s.goals.count > 0 && (
         <div style={{ marginTop: 14 }}>
-          <div className="row small"><strong>Savings goals ({s.goals.count})</strong><span className="spacer" />{formatCurrency(s.goals.saved)} of {formatCurrency(s.goals.target)}</div>
+          <div className="row small">
+            <strong>Savings goals ({s.goals.count})</strong>
+            <span className="spacer" />
+            {formatCurrency(s.goals.saved)} of {formatCurrency(s.goals.target)}
+          </div>
           <ProgressBar value={s.goals.saved} max={s.goals.target} mode="target" />
         </div>
       )}
 
-      <h3 className="small" style={{ margin: '18px 0 4px' }}>Bills due in the next 7 days</h3>
+      <h3 className="small" style={{ margin: '18px 0 4px' }}>
+        Bills due in the next 7 days
+      </h3>
       {s.dueSoon.length === 0 ? (
-        <p className="small muted" style={{ margin: 0 }}>Nothing due this week. 🎉</p>
+        <p className="small muted" style={{ margin: 0 }}>
+          Nothing due this week. 🎉
+        </p>
       ) : (
         <ul className="list">
           {s.dueSoon.map((b) => (
@@ -111,11 +151,19 @@ export default function WelcomeSummary({ store, onClose, goTo }) {
         </ul>
       )}
 
-      {s.insight && <div className="insight" style={{ marginTop: 16 }}>{s.insight}</div>}
+      {s.insight && (
+        <div className="insight" style={{ marginTop: 16 }}>
+          {s.insight}
+        </div>
+      )}
 
       <div className="row" style={{ marginTop: 18, justifyContent: 'flex-end' }}>
-        <button className="btn" onClick={() => open('transactions')}>Add a transaction</button>
-        <button className="btn btn-primary" onClick={onClose} autoFocus>Go to dashboard</button>
+        <button className="btn" onClick={() => open('transactions')}>
+          Add a transaction
+        </button>
+        <button className="btn btn-primary" onClick={onClose} autoFocus>
+          Go to dashboard
+        </button>
       </div>
     </dialog>
   );
@@ -125,7 +173,9 @@ function SummaryTile({ label, value, hint, tone }) {
   return (
     <div className="summary-tile">
       <div className="stat-label">{label}</div>
-      <div className={`stat-value ${tone ? `status-${tone}` : ''}`} style={{ fontSize: '1.3rem' }}>{value}</div>
+      <div className={`stat-value ${tone ? `status-${tone}` : ''}`} style={{ fontSize: '1.3rem' }}>
+        {value}
+      </div>
       <div className="stat-hint">{hint}</div>
     </div>
   );

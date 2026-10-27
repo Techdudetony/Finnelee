@@ -2,14 +2,23 @@
 //   finnelee.<userId>.transactions, finnelee.<userId>.budgets, ...
 // so two people sharing a browser never see each other's numbers.
 
-export const DATA_SLICES = ['transactions', 'budgets', 'debts', 'goals', 'bills', 'settings'];
+export const DATA_SLICES = [
+  'transactions',
+  'budgets',
+  'debts',
+  'goals',
+  'bills',
+  'settings',
+  'categories',
+];
 
 export const userKey = (userId, slice) => `finnelee.${userId}.${slice}`;
 
 /** Write a full data set (e.g. sample data or an empty set) into a user's keys. */
 export function seedUserData(userId, data) {
   for (const slice of DATA_SLICES) {
-    if (data[slice] !== undefined) localStorage.setItem(userKey(userId, slice), JSON.stringify(data[slice]));
+    if (data[slice] !== undefined)
+      localStorage.setItem(userKey(userId, slice), JSON.stringify(data[slice]));
   }
 }
 

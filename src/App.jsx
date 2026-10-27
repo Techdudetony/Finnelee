@@ -12,6 +12,7 @@ import DebtPlanner from './components/DebtPlanner';
 import Forecast from './components/Forecast';
 import Goals from './components/Goals';
 import Bills from './components/Bills';
+import Categories from './components/Categories';
 import Settings from './components/Settings';
 
 // Navigation config. Adding a page = add a row here + a component.
@@ -23,6 +24,7 @@ const PAGES = [
   { id: 'forecast', label: 'Forecast', icon: '📈', Component: Forecast },
   { id: 'goals', label: 'Goals', icon: '🏁', Component: Goals },
   { id: 'bills', label: 'Bills', icon: '📅', Component: Bills },
+  { id: 'categories', label: 'Categories', icon: '🏷️', Component: Categories },
   { id: 'settings', label: 'Settings', icon: '⚙️', Component: Settings },
 ];
 
@@ -51,22 +53,38 @@ function FinanceApp({ user }) {
   const blank = emptyData(); // fallback values if a key is missing
 
   // Each slice of data is stored under this user's own keys: finnelee.<userId>.<slice>
-  const [transactions, setTransactions] = useLocalStorage(userKey(user.id, 'transactions'), blank.transactions);
+  const [transactions, setTransactions] = useLocalStorage(
+    userKey(user.id, 'transactions'),
+    blank.transactions,
+  );
   const [budgets, setBudgets] = useLocalStorage(userKey(user.id, 'budgets'), blank.budgets);
   const [debts, setDebts] = useLocalStorage(userKey(user.id, 'debts'), blank.debts);
   const [goals, setGoals] = useLocalStorage(userKey(user.id, 'goals'), blank.goals);
   const [bills, setBills] = useLocalStorage(userKey(user.id, 'bills'), blank.bills);
   const [settings, setSettings] = useLocalStorage(userKey(user.id, 'settings'), blank.settings);
+  // Accounts created before custom categories existed fall back to the starter set.
+  const [categories, setCategories] = useLocalStorage(
+    userKey(user.id, 'categories'),
+    blank.categories,
+  );
 
   // Bundle everything into one object so every page gets the same single prop.
   const store = {
     user,
-    transactions, setTransactions,
-    budgets, setBudgets,
-    debts, setDebts,
-    goals, setGoals,
-    bills, setBills,
-    settings, setSettings,
+    transactions,
+    setTransactions,
+    budgets,
+    setBudgets,
+    debts,
+    setDebts,
+    goals,
+    setGoals,
+    bills,
+    setBills,
+    settings,
+    setSettings,
+    categories,
+    setCategories,
   };
 
   const current = PAGES.find((p) => p.id === page) ?? PAGES[0];
@@ -93,12 +111,16 @@ function FinanceApp({ user }) {
         </nav>
         <div className="profile">
           {/* First letter of the name as a simple avatar */}
-          <span className="avatar" aria-hidden>{user.name[0]?.toUpperCase()}</span>
+          <span className="avatar" aria-hidden>
+            {user.name[0]?.toUpperCase()}
+          </span>
           <div className="profile-text">
             <div className="small">{user.name}</div>
             <div className="small muted profile-email">{user.email}</div>
           </div>
-          <button className="btn-icon small" onClick={signOut}>Sign out</button>
+          <button className="btn-icon small" onClick={signOut}>
+            Sign out
+          </button>
         </div>
       </aside>
 

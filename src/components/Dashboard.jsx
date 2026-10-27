@@ -1,26 +1,48 @@
 import { useMemo } from 'react';
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
 import StatCard from './StatCard';
 import ChartTooltip from './ChartTooltip';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { getPalette } from '../utils/colors';
 import { categoryColor } from '../data/categories';
-import { formatCurrency, formatPercent, formatDate, greeting, monthKey, monthLabel } from '../utils/format';
+import {
+  formatCurrency,
+  formatPercent,
+  formatDate,
+  greeting,
+  monthKey,
+  monthLabel,
+} from '../utils/format';
 import { monthlySeries, spendingByCategory, nextDueDate } from '../utils/finance';
 import { buildInsights } from '../utils/insights';
 
 export default function Dashboard({ store, goTo, openSummary }) {
-  const { user, transactions, budgets, bills } = store;
+  const { user, transactions, budgets, bills, categories } = store;
   const palette = getPalette(useColorScheme());
   const thisMonth = monthKey(new Date());
 
   // useMemo caches a calculation and only re-runs it when its dependencies change.
   // Without it, these loops would run on every render (e.g. every hover).
   const series = useMemo(() => monthlySeries(transactions, 6), [transactions]);
-  const byCategory = useMemo(() => spendingByCategory(transactions, thisMonth), [transactions, thisMonth]);
-  const insights = useMemo(() => buildInsights(transactions, budgets, series), [transactions, budgets, series]);
+  const byCategory = useMemo(
+    () => spendingByCategory(transactions, thisMonth),
+    [transactions, thisMonth],
+  );
+  const insights = useMemo(
+    () => buildInsights(transactions, budgets, series),
+    [transactions, budgets, series],
+  );
 
   const current = series[series.length - 1];
   const previous = series[series.length - 2];
@@ -31,26 +53,52 @@ export default function Dashboard({ store, goTo, openSummary }) {
 
   // "+12% vs last month" helper; returns '' when there's nothing to compare against.
   const change = (now, before) =>
-    before > 0 ? `${now >= before ? '▲' : '▼'} ${formatPercent(Math.abs(now / before - 1))} vs ${previous.label}` : '';
+    before > 0
+      ? `${now >= before ? '▲' : '▼'} ${formatPercent(Math.abs(now / before - 1))} vs ${previous.label}`
+      : '';
 
   return (
     <div className="stack">
       <header className="row">
         <div>
-          <h1 className="page-title" style={{ marginBottom: 2 }}>{greeting()}, {user.name} 👋</h1>
+          <h1 className="page-title" style={{ marginBottom: 2 }}>
+            {greeting()}, {user.name} 👋
+          </h1>
           <p className="muted" style={{ margin: 0 }}>
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            {new Date().toLocaleDateString('en-US', {
+              weekday: 'long',
+              month: 'long',
+              day: 'numeric',
+            })}
           </p>
         </div>
         <span className="spacer" />
-        <button className="btn" onClick={openSummary}>📋 View summary</button>
+        <button className="btn" onClick={openSummary}>
+          📋 View summary
+        </button>
       </header>
 
       <div className="grid grid-stats">
-        <StatCard label={`Income · ${current.label}`} value={formatCurrency(current.income)} hint={change(current.income, previous?.income)} />
-        <StatCard label={`Spending · ${current.label}`} value={formatCurrency(current.expenses)} hint={change(current.expenses, previous?.expenses)} />
-        <StatCard label="Net saved" value={formatCurrency(current.net)} hint={current.net >= 0 ? 'Money left over this month' : 'Spending exceeds income'} />
-        <StatCard label="Savings rate" value={formatPercent(current.savingsRate)} hint="Aim for 20% or more" />
+        <StatCard
+          label={`Income · ${current.label}`}
+          value={formatCurrency(current.income)}
+          hint={change(current.income, previous?.income)}
+        />
+        <StatCard
+          label={`Spending · ${current.label}`}
+          value={formatCurrency(current.expenses)}
+          hint={change(current.expenses, previous?.expenses)}
+        />
+        <StatCard
+          label="Net saved"
+          value={formatCurrency(current.net)}
+          hint={current.net >= 0 ? 'Money left over this month' : 'Spending exceeds income'}
+        />
+        <StatCard
+          label="Savings rate"
+          value={formatPercent(current.savingsRate)}
+          hint="Aim for 20% or more"
+        />
       </div>
 
       <div className="grid grid-2">
@@ -62,24 +110,55 @@ export default function Dashboard({ store, goTo, openSummary }) {
             <ResponsiveContainer>
               <BarChart data={series} barGap={2} margin={{ left: 0, right: 8 }}>
                 <CartesianGrid vertical={false} stroke={palette.grid} />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} />
-                <YAxis tickFormatter={(v) => formatCurrency(v, { compact: true })} tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} width={56} />
+                <XAxis
+                  dataKey="label"
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: palette.axis, fontSize: 12 }}
+                />
+                <YAxis
+                  tickFormatter={(v) => formatCurrency(v, { compact: true })}
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: palette.axis, fontSize: 12 }}
+                  width={56}
+                />
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: palette.grid, opacity: 0.4 }} />
                 {/* radius=[top-left, top-right, bottom-right, bottom-left]: rounded tops only */}
-                <Bar dataKey="income" name="Income" fill={palette.series[0]} radius={[4, 4, 0, 0]} maxBarSize={28} />
-                <Bar dataKey="expenses" name="Spending" fill={palette.series[1]} radius={[4, 4, 0, 0]} maxBarSize={28} />
+                <Bar
+                  dataKey="income"
+                  name="Income"
+                  fill={palette.series[0]}
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={28}
+                />
+                <Bar
+                  dataKey="expenses"
+                  name="Spending"
+                  fill={palette.series[1]}
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={28}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
           <div className="legend">
-            <span><span className="dot" style={{ background: palette.series[0] }} />Income</span>
-            <span><span className="dot" style={{ background: palette.series[1] }} />Spending</span>
+            <span>
+              <span className="dot" style={{ background: palette.series[0] }} />
+              Income
+            </span>
+            <span>
+              <span className="dot" style={{ background: palette.series[1] }} />
+              Spending
+            </span>
           </div>
         </section>
 
         <section className="card">
           <h2>Where your money went</h2>
-          <p className="sub">{monthLabel(thisMonth, true)} · {formatCurrency(current.expenses)} total</p>
+          <p className="sub">
+            {monthLabel(thisMonth, true)} · {formatCurrency(current.expenses)} total
+          </p>
           {byCategory.length === 0 ? (
             <p className="empty">No spending recorded this month yet.</p>
           ) : (
@@ -88,9 +167,20 @@ export default function Dashboard({ store, goTo, openSummary }) {
                 <ResponsiveContainer>
                   <PieChart>
                     {/* innerRadius turns the pie into a donut; paddingAngle adds a gap between slices. */}
-                    <Pie data={byCategory} dataKey="amount" nameKey="category" innerRadius={58} outerRadius={92} paddingAngle={2} stroke="none">
+                    <Pie
+                      data={byCategory}
+                      dataKey="amount"
+                      nameKey="category"
+                      innerRadius={58}
+                      outerRadius={92}
+                      paddingAngle={2}
+                      stroke="none"
+                    >
                       {byCategory.map((c) => (
-                        <Cell key={c.category} fill={categoryColor(c.category, palette)} />
+                        <Cell
+                          key={c.category}
+                          fill={categoryColor(c.category, categories, palette)}
+                        />
                       ))}
                     </Pie>
                     <Tooltip content={<ChartTooltip labelFormatter={(_, p) => p[0]?.name} />} />
@@ -101,11 +191,16 @@ export default function Dashboard({ store, goTo, openSummary }) {
               <ul className="list" style={{ flex: 1, minWidth: 180 }}>
                 {byCategory.map((c) => (
                   <li key={c.category} className="small">
-                    <span className="dot" style={{ background: categoryColor(c.category, palette) }} />
+                    <span
+                      className="dot"
+                      style={{ background: categoryColor(c.category, categories, palette) }}
+                    />
                     <span>{c.category}</span>
                     <span className="spacer" />
                     <span className="num">{formatCurrency(c.amount)}</span>
-                    <span className="muted num" style={{ width: 40 }}>{formatPercent(c.amount / current.expenses)}</span>
+                    <span className="muted num" style={{ width: 40 }}>
+                      {formatPercent(c.amount / current.expenses)}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -120,7 +215,9 @@ export default function Dashboard({ store, goTo, openSummary }) {
           <p className="sub">Generated from your data</p>
           <div className="stack" style={{ gap: 8 }}>
             {insights.map((text, i) => (
-              <div key={i} className="insight">{text}</div>
+              <div key={i} className="insight">
+                {text}
+              </div>
             ))}
           </div>
         </section>
@@ -129,7 +226,9 @@ export default function Dashboard({ store, goTo, openSummary }) {
           <div className="row">
             <h2>Upcoming bills</h2>
             <span className="spacer" />
-            <button className="btn" onClick={() => goTo('bills')}>Manage</button>
+            <button className="btn" onClick={() => goTo('bills')}>
+              Manage
+            </button>
           </div>
           <ul className="list">
             {upcoming.length === 0 && <li className="empty">No recurring bills yet.</li>}

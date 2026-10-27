@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { generateSampleData, emptyData } from '../data/sampleData';
+import { DEFAULT_CATEGORIES } from '../data/categories';
 import { todayISO } from '../utils/format';
 import { useAuth } from '../auth/AuthContext';
 
@@ -23,11 +24,17 @@ export default function Settings({ store }) {
     store.setGoals(data.goals ?? []);
     store.setBills(data.bills ?? []);
     store.setSettings(data.settings ?? emptyData().settings);
+    // Backups made before custom categories existed don't have this field.
+    store.setCategories(data.categories ?? DEFAULT_CATEGORIES.map((c) => ({ ...c })));
   };
 
   const exportBackup = () => {
-    const { transactions, budgets, debts, goals, bills, settings } = store;
-    const json = JSON.stringify({ transactions, budgets, debts, goals, bills, settings }, null, 2);
+    const { transactions, budgets, debts, goals, bills, settings, categories } = store;
+    const json = JSON.stringify(
+      { transactions, budgets, debts, goals, bills, settings, categories },
+      null,
+      2,
+    );
     const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
@@ -52,7 +59,11 @@ export default function Settings({ store }) {
 
   // window.confirm is a quick built-in yes/no dialog for destructive actions.
   const reset = (kind) => {
-    const ok = window.confirm(kind === 'sample' ? 'Replace all data with sample data?' : 'Delete ALL data? This cannot be undone.');
+    const ok = window.confirm(
+      kind === 'sample'
+        ? 'Replace all data with sample data?'
+        : 'Delete ALL data? This cannot be undone.',
+    );
     if (!ok) return;
     loadAll(kind === 'sample' ? generateSampleData() : emptyData());
     setMessage(kind === 'sample' ? '✓ Sample data loaded.' : '✓ All data cleared.');
@@ -64,19 +75,38 @@ export default function Settings({ store }) {
         <h2>Your profile</h2>
         <p className="sub">Signed in as {user.email}. Your name is used in greetings.</p>
         <form className="row" onSubmit={saveProfile}>
-          <input value={name} onChange={(e) => setName(e.target.value)} aria-label="Display name" style={{ flex: 1, minWidth: 160 }} />
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-label="Display name"
+            style={{ flex: 1, minWidth: 160 }}
+          />
           <button className="btn btn-primary">Save</button>
-          <button type="button" className="btn" onClick={signOut}>Sign out</button>
+          <button type="button" className="btn" onClick={signOut}>
+            Sign out
+          </button>
         </form>
       </section>
 
       <section className="card">
         <h2>Backup &amp; restore</h2>
-        <p className="sub">Your data lives only in this browser. Export a backup to move it or keep it safe.</p>
+        <p className="sub">
+          Your data lives only in this browser. Export a backup to move it or keep it safe.
+        </p>
         <div className="row">
-          <button className="btn btn-primary" onClick={exportBackup}>Export backup (.json)</button>
-          <button className="btn" onClick={() => fileInput.current.click()}>Import backup</button>
-          <input ref={fileInput} type="file" accept="application/json" onChange={importBackup} hidden />
+          <button className="btn btn-primary" onClick={exportBackup}>
+            Export backup (.json)
+          </button>
+          <button className="btn" onClick={() => fileInput.current.click()}>
+            Import backup
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="application/json"
+            onChange={importBackup}
+            hidden
+          />
         </div>
       </section>
 
@@ -84,8 +114,12 @@ export default function Settings({ store }) {
         <h2>Reset</h2>
         <p className="sub">Start fresh with your own numbers, or reload the demo data.</p>
         <div className="row">
-          <button className="btn" onClick={() => reset('sample')}>Load sample data</button>
-          <button className="btn btn-danger" onClick={() => reset('clear')}>Clear all data</button>
+          <button className="btn" onClick={() => reset('sample')}>
+            Load sample data
+          </button>
+          <button className="btn btn-danger" onClick={() => reset('clear')}>
+            Clear all data
+          </button>
         </div>
       </section>
 

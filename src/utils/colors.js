@@ -4,17 +4,38 @@
 
 export const PALETTE = {
   light: {
-    series: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'],
+    series: [
+      '#2a78d6',
+      '#eb6834',
+      '#1baf7a',
+      '#eda100',
+      '#e87ba4',
+      '#008300',
+      '#6250d6',
+      '#e34948',
+    ],
     other: '#8a8984', // gray for "Other" / neutral reference lines
     grid: '#e6e5e0',
     axis: '#52514e',
   },
   dark: {
-    series: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'],
+    series: [
+      '#3987e5',
+      '#d95926',
+      '#199e70',
+      '#c98500',
+      '#d55181',
+      '#008300',
+      '#9085e9',
+      '#e66767',
+    ],
     other: '#8a8984',
     grid: '#383835',
     axis: '#c3c2b7',
   },
 };
+
+// Human-friendly names for the 8 series slots, in the same order (used in color pickers).
+export const SERIES_NAMES = ['Blue', 'Orange', 'Aqua', 'Yellow', 'Pink', 'Green', 'Violet', 'Red'];
 
 export const getPalette = (scheme) => PALETTE[scheme] ?? PALETTE.light;

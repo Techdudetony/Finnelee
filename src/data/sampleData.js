@@ -1,4 +1,8 @@
 import { toISODate, uid } from '../utils/format';
+import { DEFAULT_CATEGORIES } from './categories';
+
+// Each user gets their own copy of the starter categories.
+const starterCategories = () => DEFAULT_CATEGORIES.map((c) => ({ ...c }));
 
 /**
  * Seeded pseudo-random number generator (mulberry32).
@@ -46,7 +50,7 @@ export function generateSampleData(today = new Date()) {
     // Variable spending: [category, description, times per month, min, max]
     const variable = [
       ['Groceries', 'Grocery store', 4, 70, 150],
-      ['Dining', 'Restaurant', 3 + back % 3, 18, 65], // dining creeps up in recent months
+      ['Dining', 'Restaurant', 3 + (back % 3), 18, 65], // dining creeps up in recent months
       ['Transport', 'Gas', 3, 35, 60],
       ['Entertainment', 'Movies / events', 1, 15, 80],
       ['Shopping', 'Online shopping', 2, 20, 140],
@@ -65,8 +69,15 @@ export function generateSampleData(today = new Date()) {
   return {
     transactions,
     budgets: {
-      Housing: 1550, Groceries: 500, Dining: 200, Transport: 200, Utilities: 260,
-      Entertainment: 100, Shopping: 200, Health: 80, Other: 100,
+      Housing: 1550,
+      Groceries: 500,
+      Dining: 200,
+      Transport: 200,
+      Utilities: 260,
+      Entertainment: 100,
+      Shopping: 200,
+      Health: 80,
+      Other: 100,
     },
     debts: [
       // Picked so the strategies differ: snowball hits the store card first, avalanche the credit card.
@@ -75,17 +86,36 @@ export function generateSampleData(today = new Date()) {
       { id: uid(), name: 'Car loan', balance: 9800, apr: 6.5, minPayment: 260 },
     ],
     goals: [
-      { id: uid(), name: 'Emergency fund', target: 10000, saved: 3800, deadline: `${today.getFullYear() + 1}-06-30` },
-      { id: uid(), name: 'Vacation', target: 2500, saved: 650, deadline: `${today.getFullYear() + 1}-03-31` },
+      {
+        id: uid(),
+        name: 'Emergency fund',
+        target: 10000,
+        saved: 3800,
+        deadline: `${today.getFullYear() + 1}-06-30`,
+      },
+      {
+        id: uid(),
+        name: 'Vacation',
+        target: 2500,
+        saved: 650,
+        deadline: `${today.getFullYear() + 1}-03-31`,
+      },
     ],
     bills: [
       { id: uid(), name: 'Rent', amount: 1550, dueDay: 1, category: 'Housing' },
-      { id: uid(), name: 'Streaming services', amount: 22.99, dueDay: 3, category: 'Entertainment' },
+      {
+        id: uid(),
+        name: 'Streaming services',
+        amount: 22.99,
+        dueDay: 3,
+        category: 'Entertainment',
+      },
       { id: uid(), name: 'Electric & water', amount: 150, dueDay: 8, category: 'Utilities' },
       { id: uid(), name: 'Internet', amount: 65, dueDay: 12, category: 'Utilities' },
       { id: uid(), name: 'Car insurance', amount: 128, dueDay: 22, category: 'Transport' },
     ],
     settings: { startingSavings: 3800, annualReturn: 5 },
+    categories: starterCategories(),
   };
 }
 
@@ -97,4 +127,5 @@ export const emptyData = () => ({
   goals: [],
   bills: [],
   settings: { startingSavings: 0, annualReturn: 5 },
+  categories: starterCategories(),
 });
