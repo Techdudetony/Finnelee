@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import StatCard from './StatCard';
+import RecurringSuggestions from './RecurringSuggestions';
 import { namesOf } from '../data/categories';
 import { formatCurrency, formatDate, todayISO, uid } from '../utils/format';
 import { nextDueDate } from '../utils/finance';
@@ -59,6 +60,8 @@ export default function Bills({ store }) {
           hint={`${dueThisWeek.length} bill(s)`}
         />
       </div>
+
+      <RecurringSuggestions store={store} />
 
       <section className="card">
         <h2>Add recurring bill</h2>
