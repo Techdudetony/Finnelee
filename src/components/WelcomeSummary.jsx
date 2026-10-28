@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react';
 import ProgressBar from './ProgressBar';
 import { needsChecker } from '../data/categories';
-import { formatCurrency, formatDate, formatPercent, greeting, monthKey } from '../utils/format';
+import { formatCurrency, formatDate, formatPercent, greeting, greetingIcon, monthKey } from '../utils/format';
+import Icon from './Icon';
+import Status, { Notice } from './Status';
 import {
   emergencyFundMonths,
   monthlySeries,
@@ -72,11 +74,12 @@ export default function WelcomeSummary({ store, onClose, goTo }) {
     >
       <div className="row" style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}>
         <h2 id="summary-title" style={{ fontSize: '1.3rem' }}>
-          {greeting()}, {user.name} 👋
+          <Icon name={greetingIcon()} size={22} />
+          {greeting()}, {user.name}
         </h2>
         <span className="spacer" />
         <button className="btn-icon" onClick={onClose} aria-label="Close summary">
-          ✕
+          <Icon name="close" />
         </button>
       </div>
       <p className="sub">Here's where things stand today.</p>
@@ -135,9 +138,9 @@ export default function WelcomeSummary({ store, onClose, goTo }) {
         Bills due in the next 7 days
       </h3>
       {s.dueSoon.length === 0 ? (
-        <p className="small muted" style={{ margin: 0 }}>
-          Nothing due this week. 🎉
-        </p>
+        <Status tone="good" icon="celebrate" as="p" style={{ margin: 0 }}>
+          Nothing due this week.
+        </Status>
       ) : (
         <ul className="list">
           {s.dueSoon.map((b) => (
@@ -152,9 +155,9 @@ export default function WelcomeSummary({ store, onClose, goTo }) {
       )}
 
       {s.insight && (
-        <div className="insight" style={{ marginTop: 16 }}>
-          {s.insight}
-        </div>
+        <Notice icon={s.insight.icon} tone={s.insight.tone} style={{ marginTop: 16 }}>
+          {s.insight.text}
+        </Notice>
       )}
 
       <div className="row" style={{ marginTop: 18, justifyContent: 'flex-end' }}>

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import CsvImport from './CsvImport';
+import Icon from './Icon';
 import { namesOf } from '../data/categories';
 import { formatCurrency, formatDate, monthLabel, todayISO, uid } from '../utils/format';
 
@@ -205,7 +206,7 @@ export default function Transactions({ store }) {
                       onClick={() => remove(t.id)}
                       aria-label={`Delete ${t.description}`}
                     >
-                      ✕
+                      <Icon name="close" />
                     </button>
                   </td>
                 </tr>

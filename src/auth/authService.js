@@ -1,6 +1,6 @@
 // Local authentication: accounts live in this browser's localStorage.
 //
-// ⚠️ Learning note: this is NOT production security. Anyone with access to this browser
+// Learning note: this is NOT production security. Anyone with access to this browser
 // can read localStorage. Real apps keep users on a server (e.g. Supabase, Firebase,
 // Auth0) and the browser only holds a session token. Every function below is async
 // and returns plain objects on purpose, so you can later swap the bodies for real

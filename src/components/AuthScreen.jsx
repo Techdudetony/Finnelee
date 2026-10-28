@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { BrandMark } from './Icon';
+import Status from './Status';
 import { useAuth } from '../auth/AuthContext';
 
 // One form that switches between "Sign in" and "Create account" modes.
@@ -32,7 +34,7 @@ export default function AuthScreen() {
   return (
     <div className="auth-page">
       <form className="card auth-card" onSubmit={submit}>
-        <div className="brand" style={{ padding: 0 }}><span aria-hidden>💰</span> Finnelee</div>
+        <div className="brand" style={{ padding: 0 }}><BrandMark /> Finnelee</div>
         <h1 className="page-title" style={{ margin: '12px 0 4px' }}>{isSignUp ? 'Create your account' : 'Welcome back'}</h1>
         <p className="sub">{isSignUp ? 'Your budget, goals and stats stay private to your account.' : 'Sign in to see your finances.'}</p>
 
@@ -56,7 +58,7 @@ export default function AuthScreen() {
             </label>
           )}
           {/* role="alert" makes screen readers announce the error as soon as it appears */}
-          {error && <p className="status status-critical" role="alert" style={{ margin: 0 }}>⚠ {error}</p>}
+          {error && <Status tone="critical" as="p" role="alert" style={{ margin: 0 }}>{error}</Status>}
           <button className="btn btn-primary" disabled={busy}>
             {busy ? 'Please wait…' : isSignUp ? 'Create account' : 'Sign in'}
           </button>

@@ -14,18 +14,19 @@ import Goals from './components/Goals';
 import Bills from './components/Bills';
 import Categories from './components/Categories';
 import Settings from './components/Settings';
+import Icon, { BrandMark } from './components/Icon';
 
 // Navigation config. Adding a page = add a row here + a component.
 const PAGES = [
-  { id: 'dashboard', label: 'Dashboard', icon: '📊', Component: Dashboard },
-  { id: 'transactions', label: 'Transactions', icon: '🧾', Component: Transactions },
-  { id: 'budget', label: 'Budget', icon: '🎯', Component: Budget },
-  { id: 'debt', label: 'Debt Planner', icon: '💳', Component: DebtPlanner },
-  { id: 'forecast', label: 'Forecast', icon: '📈', Component: Forecast },
-  { id: 'goals', label: 'Goals', icon: '🏁', Component: Goals },
-  { id: 'bills', label: 'Bills', icon: '📅', Component: Bills },
-  { id: 'categories', label: 'Categories', icon: '🏷️', Component: Categories },
-  { id: 'settings', label: 'Settings', icon: '⚙️', Component: Settings },
+  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', Component: Dashboard },
+  { id: 'transactions', label: 'Transactions', icon: 'transactions', Component: Transactions },
+  { id: 'budget', label: 'Budget', icon: 'budget', Component: Budget },
+  { id: 'debt', label: 'Debt Planner', icon: 'debt', Component: DebtPlanner },
+  { id: 'forecast', label: 'Forecast', icon: 'forecast', Component: Forecast },
+  { id: 'goals', label: 'Goals', icon: 'goals', Component: Goals },
+  { id: 'bills', label: 'Bills', icon: 'bills', Component: Bills },
+  { id: 'categories', label: 'Categories', icon: 'categories', Component: Categories },
+  { id: 'settings', label: 'Settings', icon: 'settings', Component: Settings },
 ];
 
 /** Top level: decides between a loading screen, the sign-in screen, and the app itself. */
@@ -94,7 +95,7 @@ function FinanceApp({ user }) {
     <div className="layout">
       <aside className="sidebar">
         <div className="brand">
-          <span aria-hidden>💰</span> Finnelee
+          <BrandMark /> Finnelee
         </div>
         <nav className="nav" aria-label="Main">
           {PAGES.map((p) => (
@@ -104,7 +105,7 @@ function FinanceApp({ user }) {
               aria-current={p.id === page ? 'page' : undefined}
               onClick={() => setPage(p.id)}
             >
-              <span aria-hidden>{p.icon}</span>
+              <Icon name={p.icon} />
               <span>{p.label}</span>
             </button>
           ))}

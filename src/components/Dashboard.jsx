@@ -12,6 +12,8 @@ import {
   Cell,
 } from 'recharts';
 import StatCard from './StatCard';
+import Icon from './Icon';
+import { Notice } from './Status';
 import ChartTooltip from './ChartTooltip';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { getPalette } from '../utils/colors';
@@ -21,6 +23,7 @@ import {
   formatPercent,
   formatDate,
   greeting,
+  greetingIcon,
   monthKey,
   monthLabel,
 } from '../utils/format';
@@ -54,7 +57,10 @@ export default function Dashboard({ store, goTo, openSummary }) {
   // "+12% vs last month" helper; returns '' when there's nothing to compare against.
   const change = (now, before) =>
     before > 0
-      ? `${now >= before ? '▲' : '▼'} ${formatPercent(Math.abs(now / before - 1))} vs ${previous.label}`
+      ? <>
+          <Icon name={now >= before ? 'up' : 'down'} size={14} label={now >= before ? 'Up' : 'Down'} />{' '}
+          {formatPercent(Math.abs(now / before - 1))} vs {previous.label}
+        </>
       : '';
 
   return (
@@ -62,7 +68,8 @@ export default function Dashboard({ store, goTo, openSummary }) {
       <header className="row">
         <div>
           <h1 className="page-title" style={{ marginBottom: 2 }}>
-            {greeting()}, {user.name} 👋
+            <Icon name={greetingIcon()} size={26} />
+            {greeting()}, {user.name}
           </h1>
           <p className="muted" style={{ margin: 0 }}>
             {new Date().toLocaleDateString('en-US', {
@@ -74,7 +81,8 @@ export default function Dashboard({ store, goTo, openSummary }) {
         </div>
         <span className="spacer" />
         <button className="btn" onClick={openSummary}>
-          📋 View summary
+          <Icon name="summary" />
+          View summary
         </button>
       </header>
 
@@ -214,10 +222,10 @@ export default function Dashboard({ store, goTo, openSummary }) {
           <h2>Insights</h2>
           <p className="sub">Generated from your data</p>
           <div className="stack" style={{ gap: 8 }}>
-            {insights.map((text, i) => (
-              <div key={i} className="insight">
-                {text}
-              </div>
+            {insights.map((item, i) => (
+              <Notice key={i} icon={item.icon} tone={item.tone}>
+                {item.text}
+              </Notice>
             ))}
           </div>
         </section>
