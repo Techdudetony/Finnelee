@@ -53,7 +53,7 @@ button, input, select { font: inherit; color: inherit; }
   padding: 20px 12px;
   position: sticky; top: 0; height: 100vh; /* sidebar stays put while content scrolls */
 }
-.brand { font-weight: 700; font-size: 1.1rem; padding: 0 8px 20px; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; padding: 0 8px 20px; }
 .nav { display: flex; flex-direction: column; gap: 4px; }
 .nav-item {
   display: flex; gap: 10px; align-items: center;
@@ -136,6 +136,10 @@ tr:last-child td { border-bottom: 0; }
 .progress { height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
 .progress > span { display: block; height: 100%; border-radius: 99px; transition: width 0.3s; }
 .status { font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+
+/* ---------- Icons (see components/Icon.jsx) ---------- */
+.icon { flex-shrink: 0; vertical-align: -0.2em; }
+.status > .icon, .btn > .icon, h1 > .icon, h2 > .icon { margin-right: 6px; }
 .status-good { color: var(--good); }
 .status-warning { color: #b07800; }
 .status-critical { color: var(--critical); }
@@ -158,7 +162,8 @@ tr:last-child td { border-bottom: 0; }
 .list { list-style: none; margin: 0; padding: 0; }
 .list li { display: flex; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
 .list li:last-child { border-bottom: 0; }
-.insight { padding: 10px 12px; border-radius: 8px; background: var(--surface-2); font-size: 0.9rem; }
+.insight { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 8px; background: var(--surface-2); font-size: 0.9rem; }
+.insight > .icon { margin-top: 1px; }
 .empty { color: var(--text-3); text-align: center; padding: 24px; }
 
 /* ---------- Accounts: sign-in page + sidebar profile ---------- */
