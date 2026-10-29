@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import Icon from './Icon';
+import { Notice } from './Status';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { getPalette, SERIES_NAMES } from '../utils/colors';
 import { deleteCategory, renameCategory, usageCount } from '../utils/categoryOps';
@@ -20,14 +22,14 @@ export default function Categories({ store }) {
     e.preventDefault();
     const name = form.name.trim();
     if (!name) return;
-    if (nameTaken(name)) return setMessage(`⚠ "${name}" already exists.`);
+    if (nameTaken(name)) return setMessage({ tone: 'warning', text: `"${name}" already exists.` });
     const colorIndex = form.colorIndex === '' ? null : Number(form.colorIndex);
     setCategories((prev) => [
       ...prev,
       { id: uid(), name, type: form.type, group: form.group, colorIndex },
     ]);
     setForm(emptyForm);
-    setMessage(`✓ Added "${name}".`);
+    setMessage({ tone: 'good', text: `Added "${name}".` });
   };
 
   // Change simple fields (group, color) on one category.
@@ -39,18 +41,18 @@ export default function Categories({ store }) {
     const name = newName.trim();
     if (!name || name === cat.name) return true;
     if (nameTaken(name, cat.id)) {
-      setMessage(`⚠ "${name}" already exists.`);
+      setMessage({ tone: 'warning', text: `"${name}" already exists.` });
       return false; // tells the row to put the old name back
     }
     applyDataChange(renameCategory(store, cat.name, name));
     updateField(cat.id, 'name', name);
-    setMessage(`✓ Renamed "${cat.name}" to "${name}".`);
+    setMessage({ tone: 'good', text: `Renamed "${cat.name}" to "${name}".` });
     return true;
   };
 
   const remove = (cat) => {
     const sameType = categories.filter((c) => c.type === cat.type && c.id !== cat.id);
-    if (sameType.length === 0) return setMessage(`⚠ You need at least one ${cat.type} category.`);
+    if (sameType.length === 0) return setMessage({ tone: 'warning', text: `You need at least one ${cat.type} category.` });
     // Prefer a catch-all "Other" category as the new home for this category's records.
     const fallback = sameType.find((c) => c.name.toLowerCase().startsWith('other')) ?? sameType[0];
     const used = usageCount(store, cat.name);
@@ -60,7 +62,7 @@ export default function Categories({ store }) {
     if (!window.confirm(question)) return;
     applyDataChange(deleteCategory(store, cat.name, fallback.name));
     setCategories((prev) => prev.filter((c) => c.id !== cat.id));
-    setMessage(`✓ Deleted "${cat.name}".`);
+    setMessage({ tone: 'good', text: `Deleted "${cat.name}".` });
   };
 
   // Save the updated records returned by the pure functions in categoryOps.js.
@@ -123,9 +125,9 @@ export default function Categories({ store }) {
       </section>
 
       {message && (
-        <p className="insight" role="status" style={{ margin: 0 }}>
-          {message}
-        </p>
+        <Notice as="p" tone={message.tone} role="status" style={{ margin: 0 }}>
+          {message.text}
+        </Notice>
       )}
 
       <CategoryTable title="Expense categories" type="expense" {...rowProps} />
@@ -211,7 +213,7 @@ function CategoryRow({ cat, used, palette, onRename, onUpdate, onDelete }) {
           onClick={() => onDelete(cat)}
           aria-label={`Delete ${cat.name}`}
         >
-          ✕
+          <Icon name="close" />
         </button>
       </td>
     </tr>

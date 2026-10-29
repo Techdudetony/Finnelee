@@ -10,6 +10,7 @@ import {
   validateFile,
 } from '../utils/csvImport';
 import { formatCurrency, formatDate } from '../utils/format';
+import Status from './Status';
 
 const PREVIEW_ROWS = 20;
 
@@ -23,11 +24,10 @@ const FIELD_LABELS = {
   category: 'Category',
 };
 
-// Text and an icon first, color second, so the status reads without color.
 const STATUS = {
-  ok: { text: '✓ Ready', className: 'status-good' },
-  duplicate: { text: '⚠ Duplicate', className: 'status-warning' },
-  error: { text: '✕ Error', className: 'status-critical' },
+  ok: { tone: 'good', text: 'Ready' },
+  duplicate: { tone: 'warning', text: 'Duplicate' },
+  error: { tone: 'critical', text: 'Error' },
 };
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -146,10 +146,10 @@ export default function CsvImport({ store }) {
           </label>
           {/* role="alert" makes screen readers announce the error as soon as it appears */}
           {error && (
-            <p className="status status-critical" role="alert" style={{ marginBottom: 0 }}>
-              ⚠ {file && `${file.name} (${formatSize(file.size)}): `}
+            <Status tone="critical" as="p" role="alert" style={{ marginBottom: 0 }}>
+              {file && `${file.name} (${formatSize(file.size)}): `}
               {error}
-            </p>
+            </Status>
           )}
         </>
       )}
@@ -188,17 +188,17 @@ export default function CsvImport({ store }) {
           </div>
 
           {problem ? (
-            <p className="status status-warning" role="status" style={{ margin: 0 }}>
-              ⚠ {problem}
-            </p>
+            <Status tone="warning" as="p" role="status" style={{ margin: 0 }}>
+              {problem}
+            </Status>
           ) : (
             <>
               {/* role="status" announces the new counts politely whenever the mapping changes */}
               <p className="small" role="status" style={{ margin: 0 }}>
                 {plural(counts.total, 'row')} ·{' '}
-                <span className="status status-good">✓ {counts.ok} ready</span> ·{' '}
-                <span className="status status-warning">⚠ {plural(counts.duplicate, 'duplicate')}</span> ·{' '}
-                <span className="status status-critical">✕ {plural(counts.error, 'error')}</span>
+                <Status tone="good">{counts.ok} ready</Status> ·{' '}
+                <Status tone="warning">{plural(counts.duplicate, 'duplicate')}</Status> ·{' '}
+                <Status tone="critical">{plural(counts.error, 'error')}</Status>
               </p>
               {counts.duplicate > 0 && (
                 <p className="small muted" style={{ margin: 0 }}>
@@ -240,9 +240,7 @@ export default function CsvImport({ store }) {
                       <tr key={item.line}>
                         <td className="num muted">{item.line}</td>
                         <td>
-                          <span className={`status ${STATUS[item.status].className}`}>
-                            {STATUS[item.status].text}
-                          </span>
+                          <Status tone={STATUS[item.status].tone}>{STATUS[item.status].text}</Status>
                           {item.reason && <div className="small muted">{item.reason}</div>}
                         </td>
                         {item.tx ? (
@@ -301,7 +299,7 @@ export default function CsvImport({ store }) {
       {step === 'done' && (
         <div className="stack">
           <p role="status" style={{ margin: 0 }}>
-            <span className="status status-good">✓ Done.</span> Imported{' '}
+            <Status tone="good">Done.</Status> Imported{' '}
             <strong>{plural(result.imported, 'transaction')}</strong> from {file.name}.
           </p>
           {(result.skipped > 0 || result.errors > 0) && (

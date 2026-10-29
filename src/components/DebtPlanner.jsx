@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import ChartTooltip from './ChartTooltip';
+import Icon from './Icon';
+import Status from './Status';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { getPalette } from '../utils/colors';
 import { formatCurrency, uid } from '../utils/format';
@@ -64,7 +66,7 @@ export default function DebtPlanner({ store }) {
                     </td>
                   ))}
                   <td className="num">
-                    <button className="btn-icon" onClick={() => setDebts((p) => p.filter((x) => x.id !== d.id))} aria-label={`Delete ${d.name}`}>✕</button>
+                    <button className="btn-icon" onClick={() => setDebts((p) => p.filter((x) => x.id !== d.id))} aria-label={`Delete ${d.name}`}><Icon name="close" /></button>
                   </td>
                 </tr>
               ))}
@@ -93,12 +95,12 @@ export default function DebtPlanner({ store }) {
               <input type="range" min="0" max="2000" step="25" value={extra} onChange={(e) => setExtra(+e.target.value)} aria-label="Extra payment slider" />
               <input type="number" min="0" value={extra} onChange={(e) => setExtra(+e.target.value || 0)} style={{ width: 100 }} aria-label="Extra payment" />
             </div>
-            {stuck && <p className="status status-critical">⚠ A minimum payment doesn't cover its monthly interest. Without extra payments that debt never shrinks.</p>}
+            {stuck && <Status tone="critical" as="p">A minimum payment doesn't cover its monthly interest. Without extra payments that debt never shrinks.</Status>}
           </section>
 
           <div className="grid grid-2">
-            <StrategyCard title="❄️ Snowball" subtitle="Smallest balance first. Quick wins keep you motivated." result={snowball} color={palette.series[0]} />
-            <StrategyCard title="🏔️ Avalanche" subtitle="Highest APR first. Pays the least interest." result={avalanche} color={palette.series[1]} />
+            <StrategyCard icon="snowball" title="Snowball" subtitle="Smallest balance first. Quick wins keep you motivated." result={snowball} color={palette.series[0]} />
+            <StrategyCard icon="avalanche" title="Avalanche" subtitle="Highest APR first. Pays the least interest." result={avalanche} color={palette.series[1]} />
           </div>
 
           <section className="card">
@@ -132,10 +134,13 @@ export default function DebtPlanner({ store }) {
   );
 }
 
-function StrategyCard({ title, subtitle, result, color }) {
+function StrategyCard({ icon, title, subtitle, result, color }) {
   return (
     <section className="card" style={{ borderTop: `3px solid ${color}` }}>
-      <h2>{title}</h2>
+      <h2>
+        <Icon name={icon} />
+        {title}
+      </h2>
       <p className="sub">{subtitle}</p>
       {result.finished ? (
         <>
@@ -151,7 +156,7 @@ function StrategyCard({ title, subtitle, result, color }) {
           </ol>
         </>
       ) : (
-        <p className="status status-critical">⚠ Not paid off within 50 years. Increase payments.</p>
+        <Status tone="critical" as="p">Not paid off within 50 years. Increase payments.</Status>
       )}
     </section>
   );

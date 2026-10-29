@@ -1,3 +1,5 @@
+import Status from './Status';
+
 /**
  * Progress toward a limit or target.
  *  mode="limit"  (budgets): filling up is BAD  -> warning at 85%, critical above 100%
@@ -11,11 +13,11 @@ export default function ProgressBar({ value, max, mode = 'limit', color }) {
   let status;
   if (mode === 'limit') {
     status =
-      ratio > 1 ? { cls: 'critical', text: '⚠ Over' }
-      : ratio >= 0.85 ? { cls: 'warning', text: '● Near limit' }
-      : { cls: 'good', text: '✓ On track' };
+      ratio > 1 ? { cls: 'critical', text: 'Over' }
+      : ratio >= 0.85 ? { cls: 'warning', text: 'Near limit' }
+      : { cls: 'good', text: 'On track' };
   } else {
-    status = ratio >= 1 ? { cls: 'good', text: '✓ Reached' } : null;
+    status = ratio >= 1 ? { cls: 'good', text: 'Reached' } : null;
   }
 
   return (
@@ -30,7 +32,7 @@ export default function ProgressBar({ value, max, mode = 'limit', color }) {
       >
         <span style={{ width, background: color ?? `var(--${status?.cls === 'good' || !status ? 'accent' : status.cls})` }} />
       </div>
-      {status && <span className={`status status-${status.cls}`}>{status.text}</span>}
+      {status && <Status tone={status.cls}>{status.text}</Status>}
     </div>
   );
 }

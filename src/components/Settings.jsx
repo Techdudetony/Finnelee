@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Notice } from './Status';
 import { generateSampleData, emptyData } from '../data/sampleData';
 import { DEFAULT_CATEGORIES } from '../data/categories';
 import { todayISO } from '../utils/format';
@@ -13,7 +14,7 @@ export default function Settings({ store }) {
   const saveProfile = async (e) => {
     e.preventDefault();
     await updateProfile({ name });
-    setMessage('✓ Profile saved.');
+    setMessage({ tone: 'good', text: 'Profile saved.' });
   };
 
   // Replace every slice of state at once. Works for sample data, empty data, or an imported backup.
@@ -50,9 +51,9 @@ export default function Settings({ store }) {
       const data = JSON.parse(await file.text()); // File.text() returns a Promise, hence async/await
       if (!Array.isArray(data.transactions)) throw new Error('Missing transactions');
       loadAll(data);
-      setMessage(`✓ Imported ${data.transactions.length} transactions.`);
+      setMessage({ tone: 'good', text: `Imported ${data.transactions.length} transactions.` });
     } catch (err) {
-      setMessage(`⚠ Could not import: ${err.message}`);
+      setMessage({ tone: 'critical', text: `Could not import: ${err.message}` });
     }
     e.target.value = ''; // allow re-selecting the same file later
   };
@@ -66,7 +67,7 @@ export default function Settings({ store }) {
     );
     if (!ok) return;
     loadAll(kind === 'sample' ? generateSampleData() : emptyData());
-    setMessage(kind === 'sample' ? '✓ Sample data loaded.' : '✓ All data cleared.');
+    setMessage({ tone: 'good', text: kind === 'sample' ? 'Sample data loaded.' : 'All data cleared.' });
   };
 
   return (
@@ -123,7 +124,11 @@ export default function Settings({ store }) {
         </div>
       </section>
 
-      {message && <p className="insight">{message}</p>}
+      {message && (
+        <Notice as="p" tone={message.tone} role="status">
+          {message.text}
+        </Notice>
+      )}
     </div>
   );
 }
