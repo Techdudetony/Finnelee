@@ -10,7 +10,7 @@ How the suggested features map to what's built, and the order to build the rest.
 | --------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Financial Dashboard         | 🟡     | Income, spending, cash flow, savings rate and charts exist. Missing **net worth**, which needs accounts and assets to be tracked.                     |
 | Smart Budget Builder        | 🟡     | Category limits and 50/30/20 exist. Missing **zero-based budgeting** and **rollover balances**.                                                       |
-| Transaction Tracking        | ✅     | Manual entry, categories, search/filter, CSV export, and CSV import with duplicate checks.                                                            |
+| Transaction Tracking        | ✅     | Manual entry, categories, search/filter, CSV export, and CSV/PDF statement import with duplicate checks.                                              |
 | Savings Goal Simulator      | 🟡     | Goals show the monthly amount needed. Missing a **predicted completion date** and **side-by-side contribution scenarios**.                            |
 | Debt Payoff Planner         | ✅     | Snowball vs avalanche, interest saved, payoff order and timeline.                                                                                     |
 | Bill & Subscription Tracker | 🟡     | Upcoming bills, monthly/yearly totals, and bill suggestions from recurring charges. Missing **renewal reminders** and **subscription cost analysis**. |
@@ -32,6 +32,7 @@ How the suggested features map to what's built, and the order to build the rest.
 | Monthly financial review               | 🟡     | The welcome summary covers "today". A month-end recap is still to do.                                                |
 | Custom categories                      | ✅     | Categories page: add, rename, recolor, delete, need/want group. Stored per user.                                     |
 | Notifications and reminders            | 🟡     | In-app "due soon" only. Email or push needs a backend.                                                               |
+| Statement import                       | 🟡     | CSV exports and text-based PDF statements, with per-row fixes. Missing **OCR for scanned PDFs**.                     |
 | Data export                            | ✅     | CSV (transactions) and JSON backup/restore (everything).                                                             |
 | Accessible UI                          | 🟡     | Labels, keyboard focus, text status next to colors (with icons), native dialog. Missing a **table view for charts**. |
 | User accounts, greeting, login summary | ✅     | Added in the `feature/user-accounts` branch.                                                                         |
