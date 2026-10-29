@@ -3,7 +3,7 @@ import Icon from './Icon';
 import { Notice } from './Status';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { getPalette, SERIES_NAMES } from '../utils/colors';
-import { deleteCategory, renameCategory, usageCount } from '../utils/categoryOps';
+import { deleteCategory, fallbackRollsOver, renameCategory, usageCount } from '../utils/categoryOps';
 import { uid } from '../utils/format';
 
 const emptyForm = { name: '', type: 'expense', group: 'want', colorIndex: '' };
@@ -36,7 +36,7 @@ export default function Categories({ store }) {
   const updateField = (id, field, value) =>
     setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, [field]: value } : c)));
 
-  // Renaming also rewrites every transaction, bill and budget that used the old name.
+  // Renaming also rewrites every transaction, bill, budget and rollover setting that used the old name.
   const rename = (cat, newName) => {
     const name = newName.trim();
     if (!name || name === cat.name) return true;
@@ -56,9 +56,12 @@ export default function Categories({ store }) {
     // Prefer a catch-all "Other" category as the new home for this category's records.
     const fallback = sameType.find((c) => c.name.toLowerCase().startsWith('other')) ?? sameType[0];
     const used = usageCount(store, cat.name);
-    const question = used
+    let question = used
       ? `Delete "${cat.name}"? Its ${used} transaction(s) and bill(s) will move to "${fallback.name}".`
       : `Delete "${cat.name}"?`;
+    // A rolling-over fallback keeps its balance, but this month's moved spending counts against it.
+    if (used && fallbackRollsOver(store.settings, fallback.name))
+      question += ` "${fallback.name}" rolls over: its balance so far is kept, and from this month on these transactions count against its budget.`;
     if (!window.confirm(question)) return;
     applyDataChange(deleteCategory(store, cat.name, fallback.name));
     setCategories((prev) => prev.filter((c) => c.id !== cat.id));
@@ -66,10 +69,11 @@ export default function Categories({ store }) {
   };
 
   // Save the updated records returned by the pure functions in categoryOps.js.
-  const applyDataChange = ({ transactions, bills, budgets }) => {
+  const applyDataChange = ({ transactions, bills, budgets, settings }) => {
     store.setTransactions(transactions);
     store.setBills(bills);
     store.setBudgets(budgets);
+    store.setSettings(settings); // limit history and rollover live in settings.budgeting
   };
 
   const rowProps = { store, palette, onRename: rename, onUpdate: updateField, onDelete: remove };
