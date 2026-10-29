@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import Icon from './Icon';
 import StatCard from './StatCard';
+import Status from './Status';
 import RecurringSuggestions from './RecurringSuggestions';
 import { namesOf } from '../data/categories';
 import { formatCurrency, formatDate, todayISO, uid } from '../utils/format';
@@ -130,13 +132,13 @@ export default function Bills({ store }) {
                   </td>
                   <td className="muted">{formatDate(b.date)}</td>
                   <td>
-                    <span className={`status ${b.daysAway <= 3 ? 'status-warning' : 'muted'}`}>
-                      {b.daysAway === 0
-                        ? '● Due today'
-                        : b.daysAway <= 3
-                          ? `● In ${b.daysAway} days`
-                          : `In ${b.daysAway} days`}
-                    </span>
+                    {b.daysAway <= 3 ? (
+                      <Status tone="warning" icon="clock">
+                        {b.daysAway === 0 ? 'Due today' : `In ${b.daysAway} days`}
+                      </Status>
+                    ) : (
+                      <span className="status muted">In {b.daysAway} days</span>
+                    )}
                   </td>
                   <td className="num">{formatCurrency(b.amount)}</td>
                   <td className="num" style={{ whiteSpace: 'nowrap' }}>
@@ -148,7 +150,7 @@ export default function Bills({ store }) {
                       onClick={() => setBills((p) => p.filter((x) => x.id !== b.id))}
                       aria-label={`Delete ${b.name}`}
                     >
-                      ✕
+                      <Icon name="close" />
                     </button>
                   </td>
                 </tr>

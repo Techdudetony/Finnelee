@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import Icon from './Icon';
 import ProgressBar from './ProgressBar';
+import Status from './Status';
 import { formatCurrency, formatDate, uid } from '../utils/format';
 import { monthsUntil, requiredMonthly } from '../utils/finance';
 
@@ -63,7 +65,7 @@ function GoalCard({ goal, onContribute, onDelete }) {
       <div className="row">
         <h2>{goal.name}</h2>
         <span className="spacer" />
-        <button className="btn-icon" onClick={onDelete} aria-label={`Delete ${goal.name}`}>✕</button>
+        <button className="btn-icon" onClick={onDelete} aria-label={`Delete ${goal.name}`}><Icon name="close" /></button>
       </div>
       <p className="sub">By {formatDate(goal.deadline)} · {months} months left</p>
       <div className="row small" style={{ marginBottom: 6 }}>
@@ -72,7 +74,7 @@ function GoalCard({ goal, onContribute, onDelete }) {
       </div>
       <ProgressBar value={goal.saved} max={goal.target} mode="target" />
       <p className="small" style={{ margin: '12px 0' }}>
-        {done ? '🎉 Goal reached!' : <>Save <strong>{formatCurrency(needed)}</strong> per month to stay on track.</>}
+        {done ? <Status tone="good" icon="celebrate">Goal reached!</Status> : <>Save <strong>{formatCurrency(needed)}</strong> per month to stay on track.</>}
       </p>
       <form className="row" onSubmit={submit}>
         <input type="number" step="any" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} style={{ flex: 1 }} aria-label={`Contribute to ${goal.name}`} />

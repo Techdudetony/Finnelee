@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
-import CsvImport from './CsvImport';
+import Icon from './Icon';
+import TransactionImport from './TransactionImport';
 import { namesOf } from '../data/categories';
 import { formatCurrency, formatDate, monthLabel, todayISO, uid } from '../utils/format';
+import { downloadCSV } from '../utils/csvExport';
 
 // The blank form. Keeping it as a function means each reset gets a fresh object and today's date.
 // The default category is the user's first expense category (their list can change).
@@ -126,7 +128,7 @@ export default function Transactions({ store }) {
         </form>
       </section>
 
-      <CsvImport store={store} />
+      <TransactionImport store={store} />
 
       <section className="card">
         <div className="row" style={{ marginBottom: 12 }}>
@@ -137,7 +139,7 @@ export default function Transactions({ store }) {
             <strong className="amount-income">{formatCurrency(totals.income)}</strong> · Out{' '}
             <strong>{formatCurrency(totals.expense)}</strong>
           </span>
-          <button className="btn" onClick={() => exportCSV(visible)} disabled={!visible.length}>
+          <button className="btn" onClick={() => downloadCSV(visible)} disabled={!visible.length}>
             Export CSV
           </button>
         </div>
@@ -205,7 +207,7 @@ export default function Transactions({ store }) {
                       onClick={() => remove(t.id)}
                       aria-label={`Delete ${t.description}`}
                     >
-                      ✕
+                      <Icon name="close" />
                     </button>
                   </td>
                 </tr>
@@ -217,21 +219,4 @@ export default function Transactions({ store }) {
       </section>
     </div>
   );
-}
-
-/** Builds a CSV string and triggers a browser download, no server needed. */
-function exportCSV(rows) {
-  // Wrap every value in quotes and double any inner quotes: the CSV escaping rule.
-  const esc = (v) => `"${String(v).replace(/"/g, '""')}"`;
-  const lines = [
-    ['date', 'description', 'category', 'type', 'amount'].join(','),
-    ...rows.map((t) => [t.date, t.description, t.category, t.type, t.amount].map(esc).join(',')),
-  ];
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob); // temporary URL pointing at the in-memory file
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `transactions-${todayISO()}.csv`;
-  a.click();
-  URL.revokeObjectURL(url); // free the memory
 }

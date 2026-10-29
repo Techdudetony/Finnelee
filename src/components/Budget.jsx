@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import ProgressBar from './ProgressBar';
 import StatCard from './StatCard';
+import Status from './Status';
 import { namesOf, needsChecker } from '../data/categories';
 import { formatCurrency, formatPercent, monthKey, monthLabel } from '../utils/format';
 import { debtToIncome, fiftyThirtyTwenty, monthTotals, spendingByCategory } from '../utils/finance';
@@ -176,9 +177,9 @@ function DtiCalculator({ defaultDebt }) {
   const { ratio, rating } = debtToIncome(Number(debt), Number(gross));
 
   const ratingInfo = {
-    healthy: { cls: 'good', text: '✓ Healthy (36% or less)' },
-    caution: { cls: 'warning', text: '● Caution (36–43%)' },
-    high: { cls: 'critical', text: '⚠ High (over 43%)' },
+    healthy: { cls: 'good', text: 'Healthy (36% or less)' },
+    caution: { cls: 'warning', text: 'Caution (36–43%)' },
+    high: { cls: 'critical', text: 'High (over 43%)' },
   }[rating];
 
   return (
@@ -198,7 +199,7 @@ function DtiCalculator({ defaultDebt }) {
       <div className="stat-value" style={{ marginTop: 18 }}>
         {formatPercent(ratio, 1)}
       </div>
-      <div className={`status status-${ratingInfo.cls}`}>{ratingInfo.text}</div>
+      <Status tone={ratingInfo.cls} as="div">{ratingInfo.text}</Status>
       <p className="small muted">
         To reach 36% you would need monthly debt payments of {formatCurrency(gross * 0.36)} or less,
         or a gross income of {formatCurrency(debt / 0.36)}.

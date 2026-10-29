@@ -11,12 +11,12 @@
 | **Accounts**        | Sign up / sign in with email and password. Each account has its own transactions, budgets, debts, goals and bills.                                                                                                                                  |
 | **Welcome summary** | Pops up after signing in (or from "View summary"): safe-to-spend, spending vs budget, emergency fund coverage, goal progress, bills due this week and the top insight.                                                                              |
 | **Dashboard**       | A personal greeting ("Good evening, Antonio"), then this month's income, spending, net and savings rate; 6-month income vs. spending chart; spending-by-category donut; auto-generated insights ("Dining is up 32% vs last month"); upcoming bills. |
-| **Transactions**    | Add, search, filter and delete income/expenses. Export to CSV.                                                                                                                                                                                      |
+| **Transactions**    | Add, search, filter and delete income/expenses. **Import a CSV export or PDF statement** from your bank (preview, fix rows, duplicate check) and export to CSV.                                                                                     |
 | **Budget**          | Monthly limit per category with progress bars, a **50/30/20 calculator** (needs / wants / savings) compared against your real spending, and a **debt-to-income (DTI) calculator**.                                                                  |
 | **Debt Planner**    | Enter your debts and an extra monthly payment; compares **Snowball** (smallest balance first) vs **Avalanche** (highest interest first): months to debt-free, total interest, payoff order, and a balance-over-time chart.                          |
 | **Forecast**        | Projects savings growth with compound interest under conservative / expected / optimistic returns, and predicts next month's spending from your trend (linear regression).                                                                          |
 | **Goals**           | Savings goals (emergency fund, vacation...) with progress and the monthly amount needed to hit each deadline.                                                                                                                                       |
-| **Bills**           | Recurring bills with next due date, days until due, and monthly total.                                                                                                                                                                              |
+| **Bills**           | Recurring bills with next due date, days until due, and monthly total. **Suggests bills** it spots in your transactions (same merchant, about the same amount, once a month).                                                                       |
 | **Categories**      | Add, rename, recolor or delete your own income and expense categories, and mark each expense as a need or a want. Renaming updates every transaction, bill and budget that uses it; deleting moves them to "Other".                                 |
 | **Settings**        | Edit your display name, sign out, backup/restore all data as a JSON file (`finnelee-backup-<date>.json`), reload sample data, or clear everything.                                                                                                  |
 
@@ -32,6 +32,9 @@ The app ships with 6 months of realistic sample data so every chart has somethin
 | **localStorage**                     | Built-in browser storage. Zero setup; data survives page reloads.                    |
 | **Web Crypto (PBKDF2)**              | Built-in browser API used to hash passwords, so they are never stored as plain text. |
 | **Plain CSS** with custom properties | Light/dark theme through CSS variables; no CSS framework to learn.                   |
+| **Inline SVG icons**                 | One `Icon` component draws every icon, so it matches the theme color and font size.  |
+| **PDF.js** (`pdfjs-dist`)            | Reads the text of PDF statements in the browser. Loaded only when you pick a PDF.    |
+| **Vitest**                           | Unit tests for the pure `utils/` functions; runs with `npm test`.                    |
 
 No router and no state library: tabs are a single `useState`, which keeps the code easy to follow. Both are natural upgrades later (see section 7).
 
@@ -71,6 +74,8 @@ finance-app/                    # project folder (the npm package is named "finn
 ├── index.html                  # HTML shell; React mounts into <div id="root">
 ├── package.json                # dependencies + npm scripts
 ├── vite.config.js              # Vite + React plugin
+├── public/
+│   └── favicon.svg             # browser tab icon (same drawing as BrandMark)
 └── src/
     ├── main.jsx                # entry point: renders <App/> inside <AuthProvider>
     ├── App.jsx                 # auth gate, layout, tab navigation, all app state
@@ -87,7 +92,14 @@ finance-app/                    # project folder (the npm package is named "finn
     │   ├── colors.js           # chart palette (light + dark)
     │   ├── finance.js          # all financial math
     │   ├── insights.js         # plain-language insights (dashboard + summary)
-    │   └── categoryOps.js      # rename/delete a category across all records (pure functions)
+    │   ├── categoryOps.js      # rename/delete a category across all records (pure functions)
+    │   ├── csvImport.js        # CSV parsing, column guessing, shared preview + duplicate check
+    │   ├── csvExport.js        # transactions -> CSV text / download
+    │   ├── pdfText.js          # PDF.js wrapper: PDF pages -> lines of text cells
+    │   ├── pdfStatement.js     # statement lines -> import drafts (dates, amounts, money in/out)
+    │   ├── merchant.js         # merchant names from bank descriptions ('NETFLIX.COM 866...' -> 'netflix')
+    │   ├── recurring.js        # finds monthly charges to suggest as bills
+    │   └── *.test.js           # Vitest unit tests, next to the file they test
     ├── data/
     │   ├── categories.js       # starter categories + helpers (names, colors, needs)
     │   └── sampleData.js       # generates 6 months of demo data
@@ -97,6 +109,11 @@ finance-app/                    # project folder (the npm package is named "finn
         ├── StatCard.jsx        # KPI tile
         ├── ProgressBar.jsx     # bar with ok/warning/over states
         ├── ChartTooltip.jsx    # shared hover tooltip for charts
+        ├── Icon.jsx            # SVG icon set + BrandMark logo
+        ├── Status.jsx          # colored status text / notice box with an icon
+        ├── TransactionImport.jsx # "Import transactions" card (CSV or PDF) on Transactions
+        ├── ImportPreview.jsx   # preview table with per-row edit, shared by CSV and PDF
+        ├── RecurringSuggestions.jsx # "Looks like a bill" card on Bills
         ├── Dashboard.jsx
         ├── Transactions.jsx
         ├── Budget.jsx
@@ -119,7 +136,7 @@ debt        = { id, name, balance, apr, minPayment }        // apr is a yearly %
 goal        = { id, name, target, saved, deadline }         // deadline 'YYYY-MM-DD'
 bill        = { id, name, amount, dueDay, category }        // dueDay 1-31 of each month
 category    = { id, name, type: 'expense' | 'income', group: 'need' | 'want', colorIndex }  // colorIndex 0-7 or null (gray)
-settings    = { startingSavings, annualReturn }
+settings    = { startingSavings, annualReturn, dismissedRecurring }  // dismissedRecurring: merchant keys hidden from bill suggestions
 ```
 
 ## 6. Key formulas
@@ -133,6 +150,7 @@ settings    = { startingSavings, annualReturn }
 - **Spending prediction**: least-squares line through the last 6 months, extended one month ahead
 - **Safe to spend** = this month's income − spent so far − bills still due this month − monthly goal savings
 - **Emergency fund months** = current savings ÷ average monthly essential ("needs") spending over the last 3 full months
+- **Recurring charge**: 3+ charges from one merchant in back-to-back months, within ±4 days of the same day of the month and ±10% of the latest amount, with the last one in the past 45 days
 
 ## 7. Getting started
 
@@ -140,7 +158,16 @@ settings    = { startingSavings, annualReturn }
 npm install
 npm run dev        # open the printed URL (usually http://localhost:5173)
 npm run build      # production build into dist/
+npm test           # run the unit tests once
 ```
+
+### Importing transactions (CSV or PDF)
+
+1. On **Transactions**, use the **Import transactions** card to pick a bank export: a `.csv` (up to 5 MB / 10,000 rows) or a `.pdf` statement (up to 10 MB / 50 pages). Files are read in the browser and never uploaded.
+2. **CSV:** check the column mapping. Finnelee guesses date, description and amount (or debit/credit) from the headers; change any that are wrong, and pick whether negative or positive amounts mean money out.
+   **PDF:** Finnelee finds the transaction table, the statement period and whether it's a bank or card statement. Balances, totals and other lines it skipped are listed so nothing disappears silently. The PDF needs selectable text; scanned statements aren't supported yet.
+3. Review the preview. **Check** rows are guesses to confirm (for example a card payment, or money in/out it couldn't tell). **Duplicate** rows match a saved transaction or an earlier row. Both are skipped unless you tick them. **Error** rows say what's wrong. Use the edit button to fix any row.
+4. Click **Import**. Categories come from what you filed that merchant under before, then the CSV's category column, then "Other". For a PDF, **Download as CSV** saves what was extracted.
 
 ## 8. Accounts: how they work and their limits
 
@@ -154,4 +181,5 @@ npm run build      # production build into dist/
 See [ROADMAP.md](ROADMAP.md) for feature status, build order and the AI auto-categorization design. Smaller ideas:
 
 - React Router for real URLs per page
-- TypeScript and unit tests (Vitest) for `finance.js`
+- TypeScript, and Vitest tests for `finance.js`
+- Lazy-load the chart pages to shrink the bundle (Recharts makes it ~650 KB)

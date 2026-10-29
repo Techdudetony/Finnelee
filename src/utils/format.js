@@ -63,3 +63,6 @@ export function greeting(date = new Date()) {
   const h = date.getHours();
   return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
 }
+
+/** Icon name to go with greeting(): sun in the day, moon in the evening. */
+export const greetingIcon = (date = new Date()) => (date.getHours() < 17 ? 'sun' : 'moon');
