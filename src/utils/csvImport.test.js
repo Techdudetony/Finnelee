@@ -1,17 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import {
   MAX_ROWS,
+  applyEdits,
   buildPreview,
+  fileKind,
   guessMapping,
   mappingProblem,
   parseAmount,
   parseCSV,
   parseDateCell,
+  previewDrafts,
   selectForImport,
   summarize,
+  toDrafts,
   validateFile,
 } from './csvImport';
+import { transactionsToCSV } from './csvExport';
 import { DEFAULT_CATEGORIES } from '../data/categories';
+
+const CONTEXT = { categories: DEFAULT_CATEGORIES, transactions: [] };
 
 // Parse + guess + preview in one go, the way the import card uses them.
 const preview = (csv, { categories = DEFAULT_CATEGORIES, transactions = [], mapping = {} } = {}) => {
@@ -288,7 +295,7 @@ describe('buildPreview: duplicates', () => {
 describe('summarize and selectForImport', () => {
   const items = preview('Date,Description,Amount\n1/1/2026,A,-1\n1/1/2026,A,-1\n,B,-2\n1/3/2026,C,-3');
 
-  it('counts each status', () => expect(summarize(items)).toEqual({ total: 4, ok: 2, duplicate: 1, error: 1 }));
+  it('counts each status', () => expect(summarize(items)).toEqual({ total: 4, ok: 2, review: 0, duplicate: 1, error: 1 }));
 
   it('skips duplicates and errors by default', () => {
     const txs = selectForImport(items);
@@ -301,5 +308,119 @@ describe('summarize and selectForImport', () => {
 
   it('includes duplicates the user approved', () => {
     expect(selectForImport(items, new Set([3])).map((t) => t.description)).toEqual(['A', 'A', 'C']);
+  });
+});
+
+describe('file kinds', () => {
+  it('accepts PDFs up to 10 MB', () => {
+    expect(fileKind('Statement.PDF')).toBe('pdf');
+    expect(fileKind('bank.csv')).toBe('csv');
+    expect(fileKind('bank.xlsx')).toBeNull();
+    expect(validateFile({ name: 'statement.pdf', size: 8 * 1024 * 1024 })).toBeNull();
+    expect(validateFile({ name: 'statement.pdf', size: 11 * 1024 * 1024 })).toMatch(/10 MB/);
+  });
+});
+
+describe('corrections and review rows', () => {
+  const csv =
+    'Date,Description,Amount\n1/1/2026,Coffee,-4.5\n2026-02-30,Typo date,-5\n1/3/2026,Mystery,-9';
+
+  it('applies corrections before validation, so a fixed row becomes ready', () => {
+    const edits = {
+      3: { date: '2026-02-28', description: 'Bakery', amount: '5', type: 'expense' },
+    };
+    const items = preview(csv, { mapping: {} });
+    expect(items[1].status).toBe('error');
+    const parsed = parseCSV(csv);
+    const fixed = buildPreview(parsed, guessMapping(parsed.headers, parsed.rows), CONTEXT, edits);
+    expect(fixed[1]).toMatchObject({
+      status: 'ok',
+      tx: { date: '2026-02-28', description: 'Bakery', amount: 5 },
+    });
+  });
+
+  it('lets a correction change the type, which also changes the category', () => {
+    const drafts = toDrafts(parseCSV(csv), guessMapping(['Date', 'Description', 'Amount'], []));
+    const [first] = previewDrafts(
+      applyEdits(drafts, {
+        2: { date: '2026-01-01', description: 'Coffee', amount: '4.50', type: 'income' },
+      }),
+      CONTEXT,
+    );
+    expect(first.tx).toMatchObject({ type: 'income', category: 'Other Income' });
+  });
+
+  it('turns an unreadable corrected amount into an error', () => {
+    const drafts = toDrafts(parseCSV(csv), guessMapping(['Date', 'Description', 'Amount'], []));
+    const [first] = previewDrafts(
+      applyEdits(drafts, {
+        2: { date: '2026-01-01', description: 'Coffee', amount: 'abc', type: 'expense' },
+      }),
+      CONTEXT,
+    );
+    expect(first).toMatchObject({ status: 'error', reason: `Can't read the amount "abc"` });
+  });
+
+  it('keeps review rows out unless ticked, and a correction confirms them', () => {
+    const drafts = [
+      {
+        line: 1,
+        page: 1,
+        date: '2026-10-01',
+        description: 'Gym',
+        money: { amount: 40, type: 'expense' },
+        category: '',
+      },
+      {
+        line: 2,
+        page: 1,
+        date: '2026-10-02',
+        description: 'Transfer',
+        money: { amount: 100, type: 'expense' },
+        category: '',
+        review: "Couldn't tell if this is money in or out",
+      },
+    ];
+    const items = previewDrafts(drafts, CONTEXT);
+    expect(items.map((i) => [i.page, i.status])).toEqual([
+      [1, 'ok'],
+      [1, 'review'],
+    ]);
+    expect(summarize(items)).toMatchObject({ ok: 1, review: 1 });
+    expect(selectForImport(items).map((t) => t.description)).toEqual(['Gym']);
+    expect(selectForImport(items, new Set([2])).map((t) => t.description)).toEqual([
+      'Gym',
+      'Transfer',
+    ]);
+
+    const edit = {
+      2: { date: '2026-10-02', description: 'Transfer', amount: '100', type: 'income' },
+    };
+    expect(previewDrafts(applyEdits(drafts, edit), CONTEXT)[1].status).toBe('ok');
+  });
+});
+
+describe('transactionsToCSV', () => {
+  it('round-trips through the importer', () => {
+    const rows = [
+      {
+        id: '1',
+        date: '2026-10-01',
+        description: 'Smith, "Jr" Deli',
+        category: 'Dining',
+        type: 'expense',
+        amount: 12.5,
+      },
+      {
+        id: '2',
+        date: '2026-10-02',
+        description: 'Paycheck',
+        category: 'Salary',
+        type: 'income',
+        amount: 2100,
+      },
+    ];
+    const items = preview(transactionsToCSV(rows));
+    expect(items.map((i) => i.tx)).toEqual(rows.map(({ id: _id, ...tx }) => tx));
   });
 });

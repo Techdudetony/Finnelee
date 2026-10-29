@@ -1,21 +1,28 @@
-// CSV import: turns a bank or card export into Finnelee transactions.
+// Transaction import: turns a bank or card export into Finnelee transactions.
 // Everything here is pure (text in, plain objects out), so the React card only
 // handles the file picker and clicks, and every rule can be unit-tested.
 //
-// Pipeline: validateFile -> parseCSV -> guessMapping -> buildPreview -> selectForImport
+// CSV: validateFile -> parseCSV -> guessMapping -> buildPreview -> selectForImport
+// PDF: validateFile -> pdfText -> pdfStatement (drafts) -> previewDrafts -> selectForImport
 
 import { merchantCategoryMap, normalizeMerchant } from './merchant';
 import { toISODate, uid } from './format';
 
-export const MAX_FILE_BYTES = 5 * 1024 * 1024; // years of a typical bank export
+const MB = 1048576;
+const MAX_BYTES = { csv: 5 * MB, pdf: 10 * MB };
 export const MAX_ROWS = 10_000;
+
+/** 'csv', 'pdf' or null, from the file name. */
+export const fileKind = (name) =>
+  /\.csv$/i.test(name) ? 'csv' : /\.pdf$/i.test(name) ? 'pdf' : null;
 
 /** Checks a File's name and size before reading it. Returns an error message or null. */
 export function validateFile({ name = '', size = 0 }) {
-  if (!/\.csv$/i.test(name)) return 'Choose a .csv file.';
+  const kind = fileKind(name);
+  if (!kind) return 'Choose a .csv or .pdf file.';
   if (size === 0) return 'This file is empty.';
-  if (size > MAX_FILE_BYTES)
-    return `This file is ${(size / 1048576).toFixed(1)} MB; the limit is 5 MB. Split it into smaller files.`;
+  if (size > MAX_BYTES[kind])
+    return `This file is ${(size / MB).toFixed(1)} MB; the limit for ${kind.toUpperCase()} files is ${MAX_BYTES[kind] / MB} MB.`;
   return null;
 }
 
@@ -306,72 +313,121 @@ export const duplicateKey = (t) =>
     t.type,
   ].join('|');
 
+// ---------- Drafts: the shared shape for CSV and PDF rows ----------
+// draft = { line, page?, date, description, money: { amount, type } | { error }, category, review? }
+// `date` and `description` are raw text until previewDrafts validates them.
+// `review` is set when the importer guessed something the user should confirm.
+
+/** CSV rows + column mapping -> drafts. */
+export const toDrafts = (parsed, mapping) =>
+  parsed.rows.map(({ line, cells }) => {
+    const cell = (i) => (i >= 0 ? (cells[i] ?? '').trim() : '');
+    return {
+      line,
+      date: cell(mapping.date),
+      description: cell(mapping.description),
+      money: readMoney(cell, mapping),
+      category: cell(mapping.category),
+    };
+  });
+
 /**
- * Applies a column mapping to parsed rows. Returns one item per CSV row, in file order:
- *   { line, status: 'ok' | 'duplicate' | 'error', tx?, reason? }
+ * Applies the user's corrections: { [line]: { date, description, amount, type } }.
+ * A corrected row counts as confirmed, so its `review` flag is dropped.
+ */
+export function applyEdits(drafts, edits = {}) {
+  return drafts.map((draft) => {
+    const edit = edits[draft.line];
+    if (!edit) return draft;
+    const { review: _confirmed, ...rest } = draft;
+    const value = parseAmount(edit.amount);
+    const money =
+      value === null
+        ? { error: `Can't read the amount "${edit.amount}"` }
+        : value === 0
+          ? { error: 'Amount is zero' }
+          : { amount: Math.abs(value), type: edit.type };
+    return { ...rest, date: edit.date, description: edit.description, money };
+  });
+}
+
+/** The first reason a draft can't become a transaction, or null. */
+function draftError(d) {
+  if (!d.date) return 'Missing date';
+  if (!parseDateCell(d.date)) return `Invalid date "${d.date}"`;
+  if (!d.description.trim()) return 'Missing description';
+  return d.money.error ?? null;
+}
+
+/**
+ * Validates drafts and returns one preview item per row, in order:
+ *   { line, page?, status: 'ok' | 'review' | 'duplicate' | 'error', tx?, reason?, draft? }
  * Duplicates are checked against saved transactions AND earlier rows of the same file.
  * Nothing is saved here: the caller decides what to import.
  */
-export function buildPreview(parsed, mapping, { categories, transactions }) {
+export function previewDrafts(drafts, { categories, transactions }, parseErrors = []) {
   const pickCategory = categoryPicker(categories, transactions);
   const existing = new Set(transactions.map(duplicateKey));
-  const firstSeen = new Map(); // duplicate key -> line of the first row in this file with it
-  const items = parsed.errors.map((e) => ({ line: e.line, status: 'error', reason: e.reason }));
+  const firstSeen = new Map(); // duplicate key -> line of the first row with it
+  const items = parseErrors.map((e) => ({ line: e.line, status: 'error', reason: e.reason }));
 
-  for (const { line, cells } of parsed.rows) {
-    const cell = (i) => (i >= 0 ? (cells[i] ?? '').trim() : '');
-    const error = rowError(cell, mapping);
+  for (const draft of drafts) {
+    const { line, page } = draft;
+    const base = page ? { line, page, draft } : { line, draft };
+    const error = draftError(draft);
     if (error) {
-      items.push({ line, status: 'error', reason: error });
+      items.push({ ...base, status: 'error', reason: error });
       continue;
     }
-    const description = cell(mapping.description).replace(/\s+/g, ' '); // embedded newlines -> spaces
-    const { amount, type } = readMoney(cell, mapping);
-    const category = pickCategory(normalizeMerchant(description), type, cell(mapping.category));
+    const description = draft.description.replace(/\s+/g, ' ').trim(); // embedded newlines -> spaces
+    const { amount, type } = draft.money;
+    const category = pickCategory(normalizeMerchant(description), type, draft.category);
     if (!category) {
       items.push({
-        line,
+        ...base,
         status: 'error',
         reason: `No ${type} category exists. Add one on the Categories page.`,
       });
       continue;
     }
-    const tx = { date: parseDateCell(cell(mapping.date)), description, category, type, amount };
+    const tx = { date: parseDateCell(draft.date), description, category, type, amount };
     const key = duplicateKey(tx);
+    const label = page ? 'row' : 'line';
     if (existing.has(key))
-      items.push({ line, status: 'duplicate', tx, reason: 'Matches a saved transaction' });
+      items.push({ ...base, status: 'duplicate', tx, reason: 'Matches a saved transaction' });
     else if (firstSeen.has(key))
-      items.push({ line, status: 'duplicate', tx, reason: `Same as line ${firstSeen.get(key)}` });
-    else items.push({ line, status: 'ok', tx });
+      items.push({
+        ...base,
+        status: 'duplicate',
+        tx,
+        reason: `Same as ${label} ${firstSeen.get(key)}`,
+      });
+    else if (draft.review) items.push({ ...base, status: 'review', tx, reason: draft.review });
+    else items.push({ ...base, status: 'ok', tx });
     if (!firstSeen.has(key)) firstSeen.set(key, line);
   }
   return items.sort((a, b) => a.line - b.line);
 }
 
-/** The first reason a row can't become a transaction, or null. */
-function rowError(cell, mapping) {
-  const rawDate = cell(mapping.date);
-  if (!rawDate) return 'Missing date';
-  if (!parseDateCell(rawDate)) return `Invalid date "${rawDate}"`;
-  if (!cell(mapping.description)) return 'Missing description';
-  return readMoney(cell, mapping).error ?? null;
-}
+/** CSV shortcut: mapping + corrections + validation in one call. */
+export const buildPreview = (parsed, mapping, context, edits = {}) =>
+  previewDrafts(applyEdits(toDrafts(parsed, mapping), edits), context, parsed.errors);
 
 /** Counts for the preview header. */
-export const summarize = (items) => ({
-  total: items.length,
-  ok: items.filter((i) => i.status === 'ok').length,
-  duplicate: items.filter((i) => i.status === 'duplicate').length,
-  error: items.filter((i) => i.status === 'error').length,
-});
+export function summarize(items) {
+  const counts = { total: items.length, ok: 0, review: 0, duplicate: 0, error: 0 };
+  for (const i of items) counts[i.status]++;
+  return counts;
+}
+
+/** Rows that are only imported when the user ticks them. */
+export const needsApproval = (item) => item.status === 'duplicate' || item.status === 'review';
 
 /**
- * The transactions to save: every 'ok' row plus the duplicates the user chose to keep
- * (by line number). Ids are created here, at import time, with the app's uid() helper.
+ * The transactions to save: every 'ok' row plus the duplicate/review rows the user ticked
+ * (by line number). Ids are created here, at import time.
  */
-export const selectForImport = (items, includedDuplicateLines = new Set()) =>
+export const selectForImport = (items, includedLines = new Set()) =>
   items
-    .filter(
-      (i) => i.status === 'ok' || (i.status === 'duplicate' && includedDuplicateLines.has(i.line)),
-    )
+    .filter((i) => i.status === 'ok' || (needsApproval(i) && includedLines.has(i.line)))
     .map((i) => ({ id: uid(), ...i.tx }));

@@ -6,35 +6,36 @@ How the suggested features map to what's built, and the order to build the rest.
 
 ## Core features
 
-| Feature                     | Status | What exists / what's missing                                                                                                      |
-| --------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| Financial Dashboard         | 🟡     | Income, spending, cash flow, savings rate and charts exist. Missing **net worth**, which needs accounts and assets to be tracked. |
-| Smart Budget Builder        | 🟡     | Category limits and 50/30/20 exist. Missing **zero-based budgeting** and **rollover balances**.                                   |
-| Transaction Tracking        | 🟡     | Manual entry, categories, search/filter and CSV export exist. Missing **CSV import** and **recurring expense detection**.         |
-| Savings Goal Simulator      | 🟡     | Goals show the monthly amount needed. Missing a **predicted completion date** and **side-by-side contribution scenarios**.        |
-| Debt Payoff Planner         | ✅     | Snowball vs avalanche, interest saved, payoff order and timeline.                                                                 |
-| Bill & Subscription Tracker | 🟡     | Upcoming bills and monthly/yearly totals exist. Missing **renewal reminders** and **subscription cost analysis**.                 |
-| AI Financial Insights       | 🟡     | Rule-based insights exist (category jumps, budget overruns, savings rate). LLM explanations need a backend (Phase 3).             |
-| What-If Simulator           | ⬜     | Model a job change, purchase, emergency expense or income change against the forecast.                                            |
-| Bank Account Connections    | ⬜     | Needs a backend plus an aggregator such as Plaid (Phase 4).                                                                       |
-| Household Budgeting         | ⬜     | Needs real server accounts to share data between people (Phase 3).                                                                |
-| Financial Health Score      | ⬜     | The inputs already exist: savings rate, DTI, emergency fund months and budget adherence.                                          |
-| Progress & Milestones       | ⬜     | Savings streaks, achievements, monthly reviews, goal celebrations.                                                                |
+| Feature                     | Status | What exists / what's missing                                                                                                                          |
+| --------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Financial Dashboard         | 🟡     | Income, spending, cash flow, savings rate and charts exist. Missing **net worth**, which needs accounts and assets to be tracked.                     |
+| Smart Budget Builder        | 🟡     | Category limits and 50/30/20 exist. Missing **zero-based budgeting** and **rollover balances**.                                                       |
+| Transaction Tracking        | ✅     | Manual entry, categories, search/filter, CSV export, and CSV import with duplicate checks.                                                            |
+| Savings Goal Simulator      | 🟡     | Goals show the monthly amount needed. Missing a **predicted completion date** and **side-by-side contribution scenarios**.                            |
+| Debt Payoff Planner         | ✅     | Snowball vs avalanche, interest saved, payoff order and timeline.                                                                                     |
+| Bill & Subscription Tracker | 🟡     | Upcoming bills, monthly/yearly totals, and bill suggestions from recurring charges. Missing **renewal reminders** and **subscription cost analysis**. |
+| AI Financial Insights       | 🟡     | Rule-based insights exist (category jumps, budget overruns, savings rate). LLM explanations need a backend (Phase 3).                                 |
+| What-If Simulator           | ⬜     | Model a job change, purchase, emergency expense or income change against the forecast.                                                                |
+| Bank Account Connections    | ⬜     | Needs a backend plus an aggregator such as Plaid (Phase 4).                                                                                           |
+| Household Budgeting         | ⬜     | Needs real server accounts to share data between people (Phase 3).                                                                                    |
+| Financial Health Score      | ⬜     | The inputs already exist: savings rate, DTI, emergency fund months and budget adherence.                                                              |
+| Progress & Milestones       | ⬜     | Savings streaks, achievements, monthly reviews, goal celebrations.                                                                                    |
 
 ## Supporting features
 
-| Feature                                | Status | Notes                                                                                                   |
-| -------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
-| Safe-to-spend amount                   | ✅     | Shown in the welcome summary: income − spent − bills still due − goal savings.                          |
-| Payday planner                         | ⬜     | Weekly, biweekly, irregular or multiple income schedules.                                               |
-| Recurring expense detector             | ⬜     | Find repeating merchants and amounts and suggest them as bills.                                         |
-| Emergency fund readiness               | ✅     | Months of essential spending your savings cover, in the welcome summary.                                |
-| Monthly financial review               | 🟡     | The welcome summary covers "today". A month-end recap is still to do.                                   |
-| Custom categories                      | ✅     | Categories page: add, rename, recolor, delete, need/want group. Stored per user.                        |
-| Notifications and reminders            | 🟡     | In-app "due soon" only. Email or push needs a backend.                                                  |
-| Data export                            | ✅     | CSV (transactions) and JSON backup/restore (everything).                                                |
-| Accessible UI                          | 🟡     | Labels, keyboard focus, text status next to colors, native dialog. Missing a **table view for charts**. |
-| User accounts, greeting, login summary | ✅     | Added in the `feature/user-accounts` branch.                                                            |
+| Feature                                | Status | Notes                                                                                                                |
+| -------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------- |
+| Safe-to-spend amount                   | ✅     | Shown in the welcome summary: income − spent − bills still due − goal savings.                                       |
+| Payday planner                         | ⬜     | Weekly, biweekly, irregular or multiple income schedules.                                                            |
+| Recurring expense detector             | ✅     | Bills page suggests monthly charges (same merchant, ±10% amount, ±4 days). Add or dismiss each one.                  |
+| Emergency fund readiness               | ✅     | Months of essential spending your savings cover, in the welcome summary.                                             |
+| Monthly financial review               | 🟡     | The welcome summary covers "today". A month-end recap is still to do.                                                |
+| Custom categories                      | ✅     | Categories page: add, rename, recolor, delete, need/want group. Stored per user.                                     |
+| Notifications and reminders            | 🟡     | In-app "due soon" only. Email or push needs a backend.                                                               |
+| Data export                            | ✅     | CSV (transactions) and JSON backup/restore (everything).                                                             |
+| Accessible UI                          | 🟡     | Labels, keyboard focus, text status next to colors (with icons), native dialog. Missing a **table view for charts**. |
+| User accounts, greeting, login summary | ✅     | Added in the `feature/user-accounts` branch.                                                                         |
+| Custom icon set                        | ✅     | SVG icons replace emojis everywhere (`components/Icon.jsx`), plus a Finnelee logo and favicon.                       |
 
 ## Build order
 
@@ -43,7 +44,7 @@ How the suggested features map to what's built, and the order to build the rest.
 **Phase 2: no backend needed.** Each item is a self-contained branch:
 
 1. ~~Custom categories~~ ✅ done
-2. CSV import + recurring expense detector
+2. ~~CSV import + recurring expense detector~~ ✅ done
 3. Zero-based budgets + rollover balances
 4. Net worth (accounts and assets)
 5. Goal simulator (completion dates, scenarios) and the What-If simulator
