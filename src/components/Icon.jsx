@@ -86,6 +86,8 @@ const ICONS = {
 
   // Actions and small marks
   close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
+  edit: <path d="M4.5 19.5h4l10.3-10.3a2.1 2.1 0 0 0-3-3L5.5 16.5v3M14.5 7.5l3 3" />,
+  upload: <path d="M12 15.5V4.5M7.5 9 12 4.5 16.5 9M4.5 15v3a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-3" />,
   up: <path d="m7 14 5-5 5 5" />,
   down: <path d="m7 10 5 5 5-5" />,
   summary: (
