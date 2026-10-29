@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { userKey } from './auth/userStorage';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { emptyData } from './data/sampleData';
+import { syncBudgets } from './utils/budgeting';
 import AuthScreen from './components/AuthScreen';
 import WelcomeSummary from './components/WelcomeSummary';
 import Dashboard from './components/Dashboard';
@@ -15,7 +16,7 @@ import Bills from './components/Bills';
 import Categories from './components/Categories';
 import Settings from './components/Settings';
 import Icon, { BrandMark } from './components/Icon';
-
+ 
 // Navigation config. Adding a page = add a row here + a component.
 const PAGES = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', Component: Dashboard },
@@ -28,20 +29,20 @@ const PAGES = [
   { id: 'categories', label: 'Categories', icon: 'categories', Component: Categories },
   { id: 'settings', label: 'Settings', icon: 'settings', Component: Settings },
 ];
-
+ 
 /** Top level: decides between a loading screen, the sign-in screen, and the app itself. */
 export default function App() {
   const { user, loading } = useAuth();
-
+ 
   if (loading) return <div className="auth-page muted">Loading…</div>;
   if (!user) return <AuthScreen />;
-
+ 
   // key={user.id} is important: when a different user signs in, React throws away
   // the old FinanceApp (and all its state) and mounts a fresh one that reads the
   // new user's storage keys. Without it, one user's data could leak into another's.
   return <FinanceApp key={user.id} user={user} />;
 }
-
+ 
 function FinanceApp({ user }) {
   const { signOut, freshLogin, clearFreshLogin } = useAuth();
   const [page, setPage] = useState('dashboard');
@@ -52,7 +53,7 @@ function FinanceApp({ user }) {
     clearFreshLogin();
   };
   const blank = emptyData(); // fallback values if a key is missing
-
+ 
   // Each slice of data is stored under this user's own keys: finnelee.<userId>.<slice>
   const [transactions, setTransactions] = useLocalStorage(
     userKey(user.id, 'transactions'),
@@ -68,7 +69,13 @@ function FinanceApp({ user }) {
     userKey(user.id, 'categories'),
     blank.categories,
   );
-
+ 
+  // A limit planned for next month becomes the active one once that month arrives.
+  // syncBudgets returns the same object when nothing changed, so this doesn't loop.
+  useEffect(() => {
+    setBudgets((prev) => syncBudgets(prev, settings));
+  }, [settings, setBudgets]);
+ 
   // Bundle everything into one object so every page gets the same single prop.
   const store = {
     user,
@@ -87,10 +94,10 @@ function FinanceApp({ user }) {
     categories,
     setCategories,
   };
-
+ 
   const current = PAGES.find((p) => p.id === page) ?? PAGES[0];
   const { Component } = current; // Capitalized so JSX treats it as a component
-
+ 
   return (
     <div className="layout">
       <aside className="sidebar">
@@ -124,15 +131,16 @@ function FinanceApp({ user }) {
           </button>
         </div>
       </aside>
-
+ 
       <main className="content">
         {/* The dashboard renders its own greeting, so skip the generic title there */}
         {page !== 'dashboard' && <h1 className="page-title">{current.label}</h1>}
         <Component store={store} goTo={setPage} openSummary={() => setShowSummary(true)} />
       </main>
-
+ 
       {/* Conditional rendering: the popup only exists in the page while it's open */}
       {showSummary && <WelcomeSummary store={store} goTo={setPage} onClose={closeSummary} />}
     </div>
   );
 }
+ 

@@ -6,19 +6,19 @@
 
 ## 1. Features
 
-| Page                | What it does                                                                                                                                                                                                                                        |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Accounts**        | Sign up / sign in with email and password. Each account has its own transactions, budgets, debts, goals and bills.                                                                                                                                  |
-| **Welcome summary** | Pops up after signing in (or from "View summary"): safe-to-spend, spending vs budget, emergency fund coverage, goal progress, bills due this week and the top insight.                                                                              |
-| **Dashboard**       | A personal greeting ("Good evening, Antonio"), then this month's income, spending, net and savings rate; 6-month income vs. spending chart; spending-by-category donut; auto-generated insights ("Dining is up 32% vs last month"); upcoming bills. |
-| **Transactions**    | Add, search, filter and delete income/expenses. **Import a CSV export or PDF statement** from your bank (preview, fix rows, duplicate check) and export to CSV.                                                                                     |
-| **Budget**          | Monthly limit per category with progress bars, a **50/30/20 calculator** (needs / wants / savings) compared against your real spending, and a **debt-to-income (DTI) calculator**.                                                                  |
-| **Debt Planner**    | Enter your debts and an extra monthly payment; compares **Snowball** (smallest balance first) vs **Avalanche** (highest interest first): months to debt-free, total interest, payoff order, and a balance-over-time chart.                          |
-| **Forecast**        | Projects savings growth with compound interest under conservative / expected / optimistic returns, and predicts next month's spending from your trend (linear regression).                                                                          |
-| **Goals**           | Savings goals (emergency fund, vacation...) with progress and the monthly amount needed to hit each deadline.                                                                                                                                       |
-| **Bills**           | Recurring bills with next due date, days until due, and monthly total. **Suggests bills** it spots in your transactions (same merchant, about the same amount, once a month).                                                                       |
-| **Categories**      | Add, rename, recolor or delete your own income and expense categories, and mark each expense as a need or a want. Renaming updates every transaction, bill and budget that uses it; deleting moves them to "Other".                                 |
-| **Settings**        | Edit your display name, sign out, backup/restore all data as a JSON file (`finnelee-backup-<date>.json`), reload sample data, or clear everything.                                                                                                  |
+| Page                | What it does                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Accounts**        | Sign up / sign in with email and password. Each account has its own transactions, budgets, debts, goals and bills.                                                                                                                                                                                                                                                                             |
+| **Welcome summary** | Pops up after signing in (or from "View summary"): safe-to-spend, spending vs budget, emergency fund coverage, goal progress, bills due this week and the top insight.                                                                                                                                                                                                                         |
+| **Dashboard**       | A personal greeting ("Good evening, Antonio"), then this month's income, spending, net and savings rate; 6-month income vs. spending chart; spending-by-category donut; auto-generated insights ("Dining is up 32% vs last month"); upcoming bills.                                                                                                                                            |
+| **Transactions**    | Add, search, filter and delete income/expenses. **Import a CSV export or PDF statement** from your bank (preview, fix rows, duplicate check) and export to CSV.                                                                                                                                                                                                                                |
+| **Budget**          | **Zero-based budgeting**: planned income − category allocations − goal contributions = Left to assign. Optional **rollover** per category (leftover or overspending carries into next month). Plan this month and next; browse past months read-only. Also a **50/30/20 calculator** (needs / wants / savings) compared against your real spending, and a **debt-to-income (DTI) calculator**. |
+| **Debt Planner**    | Enter your debts and an extra monthly payment; compares **Snowball** (smallest balance first) vs **Avalanche** (highest interest first): months to debt-free, total interest, payoff order, and a balance-over-time chart.                                                                                                                                                                     |
+| **Forecast**        | Projects savings growth with compound interest under conservative / expected / optimistic returns, and predicts next month's spending from your trend (linear regression).                                                                                                                                                                                                                     |
+| **Goals**           | Savings goals (emergency fund, vacation...) with progress and the monthly amount needed to hit each deadline.                                                                                                                                                                                                                                                                                  |
+| **Bills**           | Recurring bills with next due date, days until due, and monthly total. **Suggests bills** it spots in your transactions (same merchant, about the same amount, once a month).                                                                                                                                                                                                                  |
+| **Categories**      | Add, rename, recolor or delete your own income and expense categories, and mark each expense as a need or a want. Renaming updates every transaction, bill and budget that uses it; deleting moves them to "Other".                                                                                                                                                                            |
+| **Settings**        | Edit your display name, sign out, backup/restore all data as a JSON file (`finnelee-backup-<date>.json`), reload sample data, or clear everything.                                                                                                                                                                                                                                             |
 
 The app ships with 6 months of realistic sample data so every chart has something to show on first run.
 
@@ -99,6 +99,7 @@ finance-app/                    # project folder (the npm package is named "finn
     │   ├── pdfStatement.js     # statement lines -> import drafts (dates, amounts, money in/out)
     │   ├── merchant.js         # merchant names from bank descriptions ('NETFLIX.COM 866...' -> 'netflix')
     │   ├── recurring.js        # finds monthly charges to suggest as bills
+    │   ├── budgeting.js        # limit history, next-month plans, rollover, Left to assign
     │   └── *.test.js           # Vitest unit tests, next to the file they test
     ├── data/
     │   ├── categories.js       # starter categories + helpers (names, colors, needs)
@@ -136,7 +137,16 @@ debt        = { id, name, balance, apr, minPayment }        // apr is a yearly %
 goal        = { id, name, target, saved, deadline }         // deadline 'YYYY-MM-DD'
 bill        = { id, name, amount, dueDay, category }        // dueDay 1-31 of each month
 category    = { id, name, type: 'expense' | 'income', group: 'need' | 'want', colorIndex }  // colorIndex 0-7 or null (gray)
-settings    = { startingSavings, annualReturn, dismissedRecurring }  // dismissedRecurring: merchant keys hidden from bill suggestions
+settings    = { startingSavings, annualReturn, dismissedRecurring, budgeting }  // dismissedRecurring: merchant keys hidden from bill suggestions
+
+// settings.budgeting: every part optional (older backups have none). See utils/budgeting.js.
+budgeting   = {
+  limits:        { Groceries: [{ from: null, limit: 450 }, { from: '2026-11', limit: 500 }] }, // limit changes; each applies until the next
+  plannedIncome: { '2026-11': 5200 },                                                          // confirmed amounts only
+  rollover:      { Groceries: [{ from: '2026-09', to: null, opening: 0 }] },                   // periods; to: null = still on
+}
+// `budgets` stays this month's limits. A next-month plan is a `limits` entry dated next month;
+// when that month arrives, App.jsx copies it into `budgets` (syncBudgets).
 ```
 
 ## 6. Key formulas
@@ -150,6 +160,11 @@ settings    = { startingSavings, annualReturn, dismissedRecurring }  // dismisse
 - **Spending prediction**: least-squares line through the last 6 months, extended one month ahead
 - **Safe to spend** = this month's income − spent so far − bills still due this month − monthly goal savings
 - **Emergency fund months** = current savings ÷ average monthly essential ("needs") spending over the last 3 full months
+- **Limit in a month** = the category's latest limit change on or before that month (no changes yet: `budgets`)
+- **Carryover** (rollover on) = opening balance + Σ (limit − spent) for each earlier month since rollover was turned on. Can be negative.
+- **Available** = allocation + carryover; **Remaining** = available − spent
+- **Left to assign** = planned income − Σ category allocations − Σ monthly goal contributions. Carryover is not income; savings counts once, through goals.
+- **Suggested income** = average income of the last 3 full months, until you confirm an amount
 - **Recurring charge**: 3+ charges from one merchant in back-to-back months, within ±4 days of the same day of the month and ±10% of the latest amount, with the last one in the past 45 days
 
 ## 7. Getting started
@@ -168,6 +183,13 @@ npm test           # run the unit tests once
    **PDF:** Finnelee finds the transaction table, the statement period and whether it's a bank or card statement. Balances, totals and other lines it skipped are listed so nothing disappears silently. The PDF needs selectable text; scanned statements aren't supported yet.
 3. Review the preview. **Check** rows are guesses to confirm (for example a card payment, or money in/out it couldn't tell). **Duplicate** rows match a saved transaction or an earlier row. Both are skipped unless you tick them. **Error** rows say what's wrong. Use the edit button to fix any row.
 4. Click **Import**. Categories come from what you filed that merchant under before, then the CSV's category column, then "Other". For a PDF, **Download as CSV** saves what was extracted.
+
+### Zero-based budgets and rollover
+
+- **Plan** this month and next with the ‹ › switcher; past months are read-only history. A next-month allocation never changes this month's limit.
+- **Planned income** starts as a suggestion (3-month average). Type an amount or use the suggestion to confirm it; a confirmed amount is never replaced automatically.
+- **Roll over** toggles take effect this month: on = starts at $0; off = no carryover from this month; on again in the same month = undo (balance comes back); on again in a later month = fresh start at $0.
+- **Deleting a category** moves its transactions to the fallback. If the fallback rolls over, its balance so far is kept (a new period opens with that balance) and the moved spending counts against it from this month on.
 
 ## 8. Accounts: how they work and their limits
 
