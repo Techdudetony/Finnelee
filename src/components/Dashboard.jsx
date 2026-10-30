@@ -12,6 +12,7 @@ import {
   Cell,
 } from 'recharts';
 import StatCard from './StatCard';
+import CountUp from './CountUp';
 import Icon from './Icon';
 import { Notice } from './Status';
 import ChartTooltip from './ChartTooltip';
@@ -110,27 +111,33 @@ export default function Dashboard({ store, goTo, openSummary }) {
       <div className="grid grid-stats">
         <StatCard
           label={`Income · ${current.label}`}
-          value={formatCurrency(current.income)}
+          value={<CountUp value={current.income} format={formatCurrency} />}
           hint={change(current.income, previous?.income)}
         />
         <StatCard
           label={`Spending · ${current.label}`}
-          value={formatCurrency(current.expenses)}
+          value={<CountUp value={current.expenses} format={formatCurrency} />}
           hint={change(current.expenses, previous?.expenses)}
         />
         <StatCard
           label="Net saved"
-          value={formatCurrency(current.net)}
+          value={<CountUp value={current.net} format={formatCurrency} />}
           hint={current.net >= 0 ? 'Money left over this month' : 'Spending exceeds income'}
         />
         <StatCard
           label="Savings rate"
-          value={formatPercent(current.savingsRate)}
+          value={<CountUp value={current.savingsRate} format={formatPercent} />}
           hint="Aim for 20% or more"
         />
         <StatCard
           label="Net worth"
-          value={readAccounts(accounts).length ? formatCurrency(netWorthTotals(accounts, debts).netWorth) : '—'}
+          value={
+            readAccounts(accounts).length ? (
+              <CountUp value={netWorthTotals(accounts, debts).netWorth} format={formatCurrency} />
+            ) : (
+              '—'
+            )
+          }
           hint={
             <button className="link-btn" onClick={() => goTo('networth')}>
               {readAccounts(accounts).length ? 'See details' : 'Add your accounts'}

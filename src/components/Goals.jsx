@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Icon from './Icon';
+import { useNewItems } from '../hooks/useNewItems';
 import ProgressBar from './ProgressBar';
 import Status from './Status';
 import { formatCurrency, formatDate, uid } from '../utils/format';
@@ -9,6 +10,7 @@ const emptyGoal = { name: '', target: '', saved: '', deadline: '' };
 
 export default function Goals({ store }) {
   const { goals, setGoals } = store;
+  const isNew = useNewItems(goals); // a goal added after the page opened fades in
   const [form, setForm] = useState(emptyGoal);
 
   const addGoal = (e) => {
@@ -41,13 +43,13 @@ export default function Goals({ store }) {
 
       <div className="grid grid-2">
         {goals.length === 0 && <p className="empty card">No goals yet. Add one above.</p>}
-        {goals.map((g) => <GoalCard key={g.id} goal={g} onContribute={contribute} onDelete={() => setGoals((p) => p.filter((x) => x.id !== g.id))} />)}
+        {goals.map((g) => <GoalCard key={g.id} isNew={isNew(g.id)} goal={g} onContribute={contribute} onDelete={() => setGoals((p) => p.filter((x) => x.id !== g.id))} />)}
       </div>
     </div>
   );
 }
 
-function GoalCard({ goal, onContribute, onDelete }) {
+function GoalCard({ goal, isNew, onContribute, onDelete }) {
   // Each card has its own input state; lifting it to the parent would be unnecessary.
   const [amount, setAmount] = useState('');
   const months = monthsUntil(goal.deadline);
@@ -61,7 +63,7 @@ function GoalCard({ goal, onContribute, onDelete }) {
   };
 
   return (
-    <section className="card">
+    <section className={`card ${isNew ? 'row-new' : ''}`}>
       <div className="row">
         <h2>{goal.name}</h2>
         <span className="spacer" />
