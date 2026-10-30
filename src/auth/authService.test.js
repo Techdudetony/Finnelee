@@ -115,6 +115,21 @@ describe('resetPassword', () => {
     await expect(resetPassword({ email: ANA.email, recoveryKey, newPassword: 'new-password' }, after)).resolves.toBeTruthy();
     expect(localStorage.getItem('finnelee.recoveryAttempts')).toBe('{}'); // success clears the counter
   });
+
+  it('lets only one of two overlapping resets with the same key win (two tabs)', async () => {
+    const { recoveryKey } = await signUp(ANA);
+    await signOut();
+    // Both start before either finishes, like two tabs submitting at once.
+    const results = await Promise.allSettled([
+      resetPassword({ email: ANA.email, recoveryKey, newPassword: 'tab-one-password' }),
+      resetPassword({ email: ANA.email, recoveryKey, newPassword: 'tab-two-password' }),
+    ]);
+    const won = results.filter((r) => r.status === 'fulfilled');
+    expect(won).toHaveLength(1);
+    expect(results.find((r) => r.status === 'rejected').reason.message).toMatch(/another tab/);
+    // The key the winner showed is the one that works.
+    await expect(resetPassword({ email: ANA.email, recoveryKey: won[0].value.recoveryKey, newPassword: 'third-password' })).resolves.toBeTruthy();
+  });
 });
 
 describe('createRecoveryKey (Settings)', () => {
