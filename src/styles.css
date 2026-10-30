@@ -286,6 +286,10 @@ input[aria-invalid='true'] { border-color: var(--critical); }
   transition: background-color var(--dur-fast), color var(--dur-fast);
 }
 .btn-icon:hover { background: var(--surface-2); color: var(--critical); }
+/* Touch screens and phones: icon-only buttons get a full 44 × 44 tap area (WCAG 2.5.5). */
+@media (pointer: coarse), (max-width: 760px) {
+  .btn-icon { min-width: 44px; min-height: 44px; }
+}
 .menu-button:hover, .drawer-close:hover { color: var(--text); }
 
 /* ---------- Tables (kept calm: no motion except a new row's one-time fade) ---------- */
