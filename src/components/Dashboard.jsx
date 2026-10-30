@@ -14,6 +14,7 @@ import {
 import StatCard from './StatCard';
 import CountUp from './CountUp';
 import Icon from './Icon';
+import EmptyState from './EmptyState';
 import { Notice } from './Status';
 import ChartTooltip from './ChartTooltip';
 import { useColorScheme } from '../hooks/useColorScheme';
@@ -205,7 +206,9 @@ export default function Dashboard({ store, goTo, openSummary }) {
             {monthLabel(thisMonth, true)} · {formatCurrency(current.expenses)} total
           </p>
           {byCategory.length === 0 ? (
-            <p className="empty">No spending recorded this month yet.</p>
+            <EmptyState icon="categories" title="No spending this month yet">
+              Expenses you add show up here, grouped by category.
+            </EmptyState>
           ) : (
             <div className="row" style={{ alignItems: 'flex-start' }}>
               <div style={{ width: 200, height: 200 }}>
@@ -276,7 +279,11 @@ export default function Dashboard({ store, goTo, openSummary }) {
             </button>
           </div>
           <ul className="list">
-            {upcoming.length === 0 && <li className="empty">No recurring bills yet.</li>}
+            {upcoming.length === 0 && (
+              <EmptyState as="li" icon="bills" title="No recurring bills yet" compact>
+                Add rent, subscriptions and other repeats on the Bills page.
+              </EmptyState>
+            )}
             {upcoming.map((b) => (
               <li key={b.id}>
                 <div>

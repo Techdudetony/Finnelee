@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Icon from './Icon';
+import EmptyState from './EmptyState';
 import { useNewItems } from '../hooks/useNewItems';
 import ProgressBar from './ProgressBar';
 import Status from './Status';
@@ -42,7 +43,11 @@ export default function Goals({ store }) {
       </section>
 
       <div className="grid grid-2">
-        {goals.length === 0 && <p className="empty card">No goals yet. Add one above.</p>}
+        {goals.length === 0 && (
+          <EmptyState icon="goals" title="No goals yet" className="card">
+            Add one above, like an emergency fund or a trip.
+          </EmptyState>
+        )}
         {goals.map((g) => <GoalCard key={g.id} isNew={isNew(g.id)} goal={g} onContribute={contribute} onDelete={() => setGoals((p) => p.filter((x) => x.id !== g.id))} />)}
       </div>
     </div>

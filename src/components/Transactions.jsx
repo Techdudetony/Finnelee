@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import Icon from './Icon';
+import EmptyState from './EmptyState';
 import { useNewItems } from '../hooks/useNewItems';
 import TransactionImport from './TransactionImport';
 import { namesOf } from '../data/categories';
@@ -216,7 +217,16 @@ export default function Transactions({ store }) {
               ))}
             </tbody>
           </table>
-          {visible.length === 0 && <p className="empty">No transactions match.</p>}
+          {visible.length === 0 &&
+            (transactions.length === 0 ? (
+              <EmptyState icon="transactions" title="No transactions yet">
+                Add one above, or import a CSV or PDF bank statement.
+              </EmptyState>
+            ) : (
+              <EmptyState icon="transactions" title="No transactions match" compact>
+                Try a different search, month or category.
+              </EmptyState>
+            ))}
         </div>
       </section>
     </div>

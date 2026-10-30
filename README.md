@@ -68,6 +68,17 @@ Key ideas:
 3. **UI and math are separate.** Components render; `utils/finance.js` calculates. You can change a formula without touching the UI.
 4. **Derived data is computed, not stored.** Totals, charts and forecasts are recalculated from raw transactions with `useMemo`, so they never go stale.
 
+### Look and feel (design system)
+
+The visual direction is **Aurora Glass with Kinetic Calm restraint**: deep green-ink and soft mint surfaces, a faint aurora glow behind the top of each page, and solid, quiet cards so numbers stay easy to read.
+
+- **Tokens** live at the top of `styles.css`: colors (light and dark), radius, shadows, and type. Components only use tokens, so a theme change is a token change.
+- **Glass is rare on purpose:** only the sidebar, the phone top bar and dialog backdrops are translucent. Everything that holds data is a solid surface.
+- **Type:** Bricolage Grotesque for headings and big numbers, Instrument Sans for text, JetBrains Mono for codes and small labels. All three are **self-hosted** through Fontsource packages (imported in `main.jsx`), so the app never calls a font CDN and works offline.
+- **Contrast:** text and link colors meet WCAG AA (4.5:1) in both themes. Status colors (good / warning / critical) always come with an icon and words.
+- **Chart colors are unchanged** (`utils/colors.js`), so custom category colors look the same as before.
+- **Empty and loading states:** `EmptyState` shows an icon, a title and one line on what will appear; a branded splash covers the session check; `.spinner` and `.skeleton` cover work in progress.
+
 ### Motion and accessibility
 
 - **Tokens** in `styles.css`: `--ease`, `--dur-fast` (150ms), `--dur` (250ms), `--dur-slow` (600ms). Animations use `transform` and `opacity` only, so they stay smooth.
@@ -93,7 +104,7 @@ finance-app/                    # project folder (the npm package is named "finn
     │   ├── authService.js      # sign up / in / out, password hashing, recovery keys (swap for a real backend later)
     │   ├── AuthContext.jsx     # React Context + useAuth() hook
     │   └── userStorage.js      # per-user storage keys + migration of pre-account data
-    ├── styles.css              # design tokens (colors, spacing), light/dark theme
+    ├── styles.css              # design system: tokens (color, type, depth), light/dark theme, components
     ├── hooks/
     │   ├── useLocalStorage.js  # useState that persists to localStorage
     │   ├── useColorScheme.js   # detects light/dark mode for chart colors
@@ -124,6 +135,7 @@ finance-app/                    # project folder (the npm package is named "finn
         ├── RecoveryKeyDialog.jsx # shows a new recovery key once; can't close until saved
         ├── WelcomeSummary.jsx  # post-login summary popup (native <dialog>)
         ├── StatCard.jsx        # KPI tile
+        ├── EmptyState.jsx      # icon + title + hint for sections with nothing in them yet
         ├── CountUp.jsx         # animated number (screen readers get the final value)
         ├── ProgressBar.jsx     # bar with ok/warning/over states
         ├── ChartTooltip.jsx    # shared hover tooltip for charts
