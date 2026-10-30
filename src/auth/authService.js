@@ -158,6 +158,12 @@ export async function signUp({ name, email, password }) {
  * been seen). Everything is computed first and saved in ONE write, so the account never
  * ends up half-changed. Returns { user, recoveryKey } with the NEW key to show once.
  */
+// Two tabs can run these at once. Each one re-reads the account right before its single
+// write and gives up if the key changed in between (compare-and-swap). That check and the
+// write run with no `await` between them, so another tab can't slip in. Without it, both
+// tabs would "succeed" and one of them would show a key that already doesn't work.
+const KEY_CHANGED = 'Your recovery key was just changed in another tab. Reload and try again.';
+
 export async function resetPassword({ email, recoveryKey, newPassword }, now = Date.now()) {
   const key = normalizeEmail(email);
   const attempts = readAttempts();
@@ -186,8 +192,11 @@ export async function resetPassword({ email, recoveryKey, newPassword }, now = D
 
   const { hash, salt } = await hashPassword(newPassword);
   const next = await newRecoveryFields();
-  const updated = { ...user, passwordHash: hash, salt, ...next.fields };
-  writeUsers({ ...users, [key]: updated }); // the one write: new password + new key together
+  // Hashing took time, so another tab may have used this key meanwhile: check again.
+  const current = readUsers();
+  if (current[key]?.recoveryHash !== user.recoveryHash) throw new Error(KEY_CHANGED);
+  const updated = { ...current[key], passwordHash: hash, salt, ...next.fields };
+  writeUsers({ ...current, [key]: updated }); // the one write: new password + new key together
   const { [key]: _cleared, ...otherAttempts } = attempts; // _cleared: success resets the counter
   writeAttempts(otherAttempts);
   localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: updated.id }));
@@ -206,8 +215,10 @@ export async function createRecoveryKey(userId, password) {
   const { hash } = await hashPassword(password, user.salt);
   if (hash !== user.passwordHash) throw new Error('Password is incorrect.');
   const { recoveryKey, fields } = await newRecoveryFields();
-  const updated = { ...user, ...fields };
-  writeUsers({ ...users, [key]: updated });
+  const current = readUsers(); // same re-check as resetPassword
+  if (current[key]?.recoveryHash !== user.recoveryHash) throw new Error(KEY_CHANGED);
+  const updated = { ...current[key], ...fields };
+  writeUsers({ ...current, [key]: updated });
   return { user: publicUser(updated), recoveryKey };
 }
 
