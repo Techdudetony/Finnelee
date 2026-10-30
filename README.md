@@ -115,6 +115,8 @@ finance-app/                    # project folder (the npm package is named "finn
     │   ├── recurring.js        # finds monthly charges to suggest as bills
     │   ├── budgeting.js        # limit history, next-month plans, rollover, Left to assign
     │   ├── netWorth.js         # accounts, net worth totals, monthly snapshots, savings source
+    │   ├── obligations.js      # links one debt across Debt Planner, Net Worth and Bills; Mark paid; payments owed
+    │   ├── health.js           # Financial Health score (5 pillars), spending estimates, 14-day runway
     │   └── *.test.js           # Vitest unit tests, next to the file they test
     ├── data/
     │   ├── categories.js       # starter categories + helpers (names, colors, needs)
@@ -156,6 +158,10 @@ goal        = { id, name, target, saved, deadline }         // deadline 'YYYY-MM
 bill        = { id, name, amount, dueDay, category }        // dueDay 1-31 of each month
 account     = { id, name, type: 'asset' | 'liability', kind, balance, updated: 'YYYY-MM-DD', source: 'manual' }
 // liability accounts are only for debts NOT in the Debt Planner (those count automatically)
+// Optional, read by utils/obligations.js + health.js (older records have none; missing = unknown):
+//   debt/account/bill.dueDay 1-31 · account.monthlyPayment · account.debtId (same as that debt)
+//   bill.payFor: { type: 'debt' | 'account', id } · paidMonths: { 'YYYY-MM': { markedOn, txId? } }
+//   settings.paySchedule: { cadence, next, amount, days? } · settings.noDebtsConfirmed: true
 category    = { id, name, type: 'expense' | 'income', group: 'need' | 'want', colorIndex }  // colorIndex 0-7 or null (gray)
 settings    = { startingSavings, annualReturn, savingsSource, dismissedRecurring, budgeting, netWorthHistory }
 // savingsSource: 'manual' (default) | 'accounts' (cash + savings accounts feed Forecast + emergency fund)
@@ -187,6 +193,8 @@ budgeting   = {
 - **Limit in a month** = the category's latest limit change on or before that month (no changes yet: `budgets`)
 - **Carryover** (rollover on) = opening balance + Σ (limit − spent) for each earlier month since rollover was turned on. Can be negative.
 - **Available** = allocation + carryover; **Remaining** = available − spent
+- **Financial Health** (educational indicator, not a credit score) = equal-weight average of the scored pillars: savings rate vs 20%, emergency months vs 6, budgets on track last month, recently updated cash vs bills due in 14 days, and debt payments vs recorded income. Pillars without enough data are left out; fewer than 3 scored gives no score.
+- **Estimated spendable amount** = recently updated cash (≤ 7 days) − bills and debt payments owed before the next payday (or in 14 days) − goal savings still planned. Each linked obligation counts once; an unknown payment makes it "Estimate incomplete".
 - **Left to assign** = planned income − Σ category allocations − Σ monthly goal contributions. Carryover is not income; savings counts once, through goals.
 - **Suggested income** = average income of the last 3 full months, until you confirm an amount
 - **Recurring charge**: 3+ charges from one merchant in back-to-back months, within ±4 days of the same day of the month and ±10% of the latest amount, with the last one in the past 45 days

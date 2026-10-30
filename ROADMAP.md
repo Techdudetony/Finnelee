@@ -18,7 +18,7 @@ How the suggested features map to what's built, and the order to build the rest.
 | What-If Simulator           | ⬜     | Model a job change, purchase, emergency expense or income change against the forecast.                                                                |
 | Bank Account Connections    | ⬜     | Needs a backend plus an aggregator such as Plaid (Phase 4).                                                                                           |
 | Household Budgeting         | ⬜     | Needs real server accounts to share data between people (Phase 3).                                                                                    |
-| Financial Health Score      | ⬜     | The inputs already exist: savings rate, DTI, emergency fund months and budget adherence.                                                              |
+| Financial Health Score      | 🟡     | Scoring engine done (`utils/health.js`): five pillars, confidence, spending estimates, runway. The Orb and its editing controls come next.              |
 | Progress & Milestones       | ⬜     | Savings streaks, achievements, monthly reviews, goal celebrations.                                                                                    |
 
 ## Supporting features
