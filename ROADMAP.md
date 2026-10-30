@@ -8,7 +8,7 @@ How the suggested features map to what's built, and the order to build the rest.
 
 | Feature                     | Status | What exists / what's missing                                                                                                                          |
 | --------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Financial Dashboard         | 🟡     | Income, spending, cash flow, savings rate and charts exist. Missing **net worth**, which needs accounts and assets to be tracked.                     |
+| Financial Dashboard         | ✅     | Income, spending, cash flow, savings rate, charts, and net worth (manual accounts + Debt Planner, monthly snapshots).                                  |
 | Smart Budget Builder        | ✅     | Category limits, 50/30/20, zero-based budgeting (Left to assign), rollover balances and next-month planning.                                          |
 | Transaction Tracking        | ✅     | Manual entry, categories, search/filter, CSV export, and CSV/PDF statement import with duplicate checks.                                              |
 | Savings Goal Simulator      | 🟡     | Goals show the monthly amount needed. Missing a **predicted completion date** and **side-by-side contribution scenarios**.                            |
@@ -47,7 +47,7 @@ How the suggested features map to what's built, and the order to build the rest.
 1. ~~Custom categories~~ ✅ done
 2. ~~CSV import + recurring expense detector~~ ✅ done
 3. ~~Zero-based budgets + rollover balances~~ ✅ done
-4. Net worth (accounts and assets)
+4. ~~Net worth (accounts and assets)~~ ✅ done
 5. Goal simulator (completion dates, scenarios) and the What-If simulator
 6. Financial health score, milestones and a monthly review
 

@@ -16,12 +16,14 @@ import {
   kindLabel,
   liquidSavings,
   netWorthTotals,
+  needsDebtConfirmation,
   newAccount,
+  parseBalance,
   readAccounts,
   updateBalance,
 } from '../utils/netWorth';
 
-const emptyForm = { name: '', type: 'asset', kind: 'cash', balance: '' };
+const emptyForm = { name: '', type: 'asset', kind: 'cash', balance: '', notInDebtPlanner: false };
 const signed = (n) => (n > 0 ? '+' : '') + formatCurrency(n);
 
 /** Net worth page: manual accounts + Debt Planner debts, and a chart of monthly snapshots. */
@@ -37,17 +39,23 @@ export default function NetWorth({ store, goTo }) {
   const change = changeSinceLastSnapshot(settings, totals.netWorth);
   const liquid = liquidSavings(accounts);
 
-  // Switching between asset and liability resets the kind to that type's first option.
+  // Switching type resets the kind to that type's first option and clears the confirmation.
   const update = (field) => (e) =>
     setForm((f) =>
       field === 'type'
-        ? { ...f, type: e.target.value, kind: (e.target.value === 'asset' ? ASSET_KINDS : LIABILITY_KINDS)[0].id }
-        : { ...f, [field]: e.target.value },
+        ? {
+            ...f,
+            type: e.target.value,
+            kind: (e.target.value === 'asset' ? ASSET_KINDS : LIABILITY_KINDS)[0].id,
+            notInDebtPlanner: false,
+          }
+        : { ...f, [field]: field === 'notInDebtPlanner' ? e.target.checked : e.target.value },
     );
+  const mustConfirm = needsDebtConfirmation(form.type, debts);
 
   const addAccount = (e) => {
     e.preventDefault();
-    const result = newAccount(form);
+    const result = newAccount(form, undefined, debts);
     if (result.error) return setError(result.error);
     setAccounts((prev) => [...readAccounts(prev), result.account]);
     setForm(emptyForm);
@@ -142,7 +150,9 @@ export default function NetWorth({ store, goTo }) {
             {financed ? 'Market value' : 'Balance'}
             <input type="number" min="0" step="any" value={form.balance} onChange={update('balance')} />
           </label>
-          <button className="btn btn-primary">Add account</button>
+          <button className="btn btn-primary" disabled={mustConfirm && !form.notInDebtPlanner}>
+            Add account
+          </button>
         </form>
 
         {/* Guidance that prevents double counting, shown where the mistake would happen. */}
@@ -157,6 +167,13 @@ export default function NetWorth({ store, goTo }) {
               already in the Debt Planner, don't add it again.</strong>
             </span>
           </Notice>
+        )}
+        {/* A required tick (not name matching) is the safeguard: Add stays disabled until it's checked. */}
+        {mustConfirm && (
+          <label className="row small" style={{ gap: 8, marginTop: 10 }}>
+            <input type="checkbox" checked={form.notInDebtPlanner} onChange={update('notInDebtPlanner')} />
+            This debt is not in the Debt Planner, so it isn't counted yet.
+          </label>
         )}
         {financed && (
           <Notice icon="idea" style={{ marginTop: 12 }}>
@@ -243,15 +260,7 @@ function AccountTable({ title, rows, onBalance, onDelete, empty }) {
                   <td>{a.name}</td>
                   <td className="muted">{kindLabel(a.type, a.kind)}</td>
                   <td>
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={a.balance}
-                      onChange={(e) => onBalance(a.id, e.target.value)}
-                      aria-label={`${a.name} balance`}
-                      style={{ width: '100%' }}
-                    />
+                    <BalanceInput account={a} onSave={onBalance} />
                   </td>
                   <td>
                     {isStale(a) ? (
@@ -274,5 +283,37 @@ function AccountTable({ title, rows, onBalance, onDelete, empty }) {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Balance cell. What you type lives in local state (`draft`) and is saved only when it's a
+ * valid amount, so clearing the box or typing "-" never reaches totals or the snapshot.
+ * Leaving the field with an invalid value puts the saved balance back.
+ */
+function BalanceInput({ account, onSave }) {
+  const [draft, setDraft] = useState(null); // null = show the saved balance
+  const problem = draft === null ? null : parseBalance(draft).error;
+
+  const change = (e) => {
+    setDraft(e.target.value);
+    if (!parseBalance(e.target.value).error) onSave(account.id, e.target.value);
+  };
+
+  return (
+    <>
+      <input
+        type="number"
+        min="0"
+        step="any"
+        value={draft ?? account.balance}
+        onChange={change}
+        onBlur={() => setDraft(null)}
+        aria-label={`${account.name} balance`}
+        aria-invalid={Boolean(problem)}
+        style={{ width: '100%' }}
+      />
+      {problem && <div className="small status-critical">{problem} Not saved.</div>}
+    </>
   );
 }

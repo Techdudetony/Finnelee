@@ -31,6 +31,8 @@ export const STALE_DAYS = 60;
 
 const round2 = (n) => Math.round(n * 100) / 100;
 const amount = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+// Account balances are never negative; anything odd left by an older version counts as 0.
+const balanceOf = (a) => (amount(a.balance) > 0 ? amount(a.balance) : 0);
 const sum = (arr, pick) =>
   round2(arr.reduce((total, item) => total + amount(pick(item)), 0));
 
@@ -43,39 +45,70 @@ export const readAccounts = (accounts) =>
 
 // ---------- Editing accounts ----------
 
-/** Form values -> { account } or { error }. Balances are positive amounts for both types. */
-export function newAccount({ name, type, kind, balance }, today = todayISO()) {
+/**
+ * Checks typed balance text: { value } (rounded to cents) or { error }.
+ * Balances are positive amounts for both types; '' / 'abc' / '-5' are rejected.
+ */
+export function parseBalance(text) {
+  const raw = String(text ?? "").trim();
+  const value = Number(raw);
+  if (raw === "") return { error: "Enter a balance." };
+  if (!Number.isFinite(value)) return { error: "Enter a number." };
+  if (value < 0) return { error: "Use a positive amount." };
+  return { value: round2(value) };
+}
+
+/**
+ * A new liability needs an explicit "not in the Debt Planner" confirmation whenever the
+ * planner has debts. Simple and name-independent: the user decides, but has to decide.
+ */
+export const needsDebtConfirmation = (type, debts = []) =>
+  type === "liability" && debts.length > 0;
+
+/**
+ * Form values -> { account } or { error }.
+ * form.notInDebtPlanner is the confirmation checkbox (see needsDebtConfirmation).
+ */
+export function newAccount(
+  { name, type, kind, balance, notInDebtPlanner },
+  today = todayISO(),
+  debts = [],
+) {
   const trimmed = String(name ?? "").trim();
   if (!trimmed) return { error: "Give the account a name." };
   if (!KINDS[type]?.some((k) => k.id === kind))
     return { error: "Choose a kind." };
-  const value = Number(balance);
-  if (balance === "" || !Number.isFinite(value) || value < 0)
-    return { error: "Enter a balance of 0 or more." };
+  const parsed = parseBalance(balance);
+  if (parsed.error) return { error: parsed.error };
+  if (needsDebtConfirmation(type, debts) && !notInDebtPlanner)
+    return {
+      error: "Confirm this debt isn't already in the Debt Planner.",
+    };
   return {
     account: {
       id: uid(),
       name: trimmed,
       type,
       kind,
-      balance: round2(value),
+      balance: parsed.value,
       updated: today,
       source: "manual",
     },
   };
 }
 
-/** New balance for one account; also stamps `updated` so stale balances can be flagged. */
-export const updateBalance = (accounts, id, value, today = todayISO()) =>
-  accounts.map((a) =>
-    a.id === id
-      ? {
-          ...a,
-          balance: value === "" ? "" : Math.max(0, Number(value)),
-          updated: today,
-        }
-      : a,
+/**
+ * New balance for one account; also stamps `updated` so stale balances can be flagged.
+ * Invalid text changes nothing: the SAME array comes back, so totals and the monthly
+ * snapshot never see a half-typed or empty balance.
+ */
+export function updateBalance(accounts, id, value, today = todayISO()) {
+  const parsed = parseBalance(value);
+  if (parsed.error) return accounts;
+  return accounts.map((a) =>
+    a.id === id ? { ...a, balance: parsed.value, updated: today } : a,
   );
+}
 
 /** True when a balance hasn't been touched for STALE_DAYS or more. */
 export function isStale(account, today = new Date()) {
@@ -95,11 +128,11 @@ export function netWorthTotals(accounts, debts = []) {
   const list = readAccounts(accounts);
   const assets = sum(
     list.filter((a) => a.type === "asset"),
-    (a) => a.balance,
+    balanceOf,
   );
   const accountLiabilities = sum(
     list.filter((a) => a.type === "liability"),
-    (a) => a.balance,
+    balanceOf,
   );
   const debtLiabilities = sum(debts, (d) => d.balance);
   const liabilities = round2(accountLiabilities + debtLiabilities);
@@ -183,7 +216,7 @@ export function liquidSavings(accounts) {
   const liquid = readAccounts(accounts).filter(
     (a) => a.type === "asset" && LIQUID.has(a.kind),
   );
-  return { amount: sum(liquid, (a) => a.balance), count: liquid.length };
+  return { amount: sum(liquid, balanceOf), count: liquid.length };
 }
 
 /**

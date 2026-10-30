@@ -6,7 +6,9 @@ import {
   kindLabel,
   liquidSavings,
   netWorthTotals,
+  needsDebtConfirmation,
   newAccount,
+  parseBalance,
   readAccounts,
   readHistory,
   recordSnapshot,
@@ -67,7 +69,46 @@ describe("accounts", () => {
     expect(
       newAccount({ name: "X", type: "asset", kind: "cash", balance: "-5" })
         .error,
-    ).toMatch(/balance/);
+    ).toMatch(/positive/);
+  });
+
+  it("requires confirming a liability isn't in the Debt Planner when it has debts", () => {
+    const mortgage = { name: "Home loan", type: "liability", kind: "mortgage", balance: "180000" };
+    expect(newAccount(mortgage, "2026-10-29", DEBTS).error).toMatch(/Debt Planner/);
+    expect(newAccount({ ...mortgage, notInDebtPlanner: true }, "2026-10-29", DEBTS).account.balance).toBe(180000);
+    // Nothing to duplicate when the Debt Planner is empty, and assets never need it.
+    expect(newAccount(mortgage, "2026-10-29", []).account).toBeTruthy();
+    expect(needsDebtConfirmation("asset", DEBTS)).toBe(false);
+    expect(needsDebtConfirmation("liability", DEBTS)).toBe(true);
+    expect(needsDebtConfirmation("liability", [])).toBe(false);
+  });
+
+  it("validates balance text", () => {
+    expect(parseBalance("1234.567")).toEqual({ value: 1234.57 });
+    expect(parseBalance(" 0 ")).toEqual({ value: 0 });
+    expect(parseBalance("").error).toMatch(/Enter a balance/);
+    expect(parseBalance("abc").error).toMatch(/number/);
+    expect(parseBalance("-").error).toMatch(/number/);
+    expect(parseBalance("-5").error).toMatch(/positive/);
+  });
+
+  it("ignores empty, invalid and negative balance edits: same array, same totals, same snapshot", () => {
+    const settings = recordSnapshot({}, ACCOUNTS, DEBTS, OCT);
+    for (const bad of ["", "abc", "-", "-250"]) {
+      const next = updateBalance(ACCOUNTS, "Ally", bad, "2026-10-29");
+      expect(next).toBe(ACCOUNTS);
+      expect(netWorthTotals(next, DEBTS).netWorth).toBe(19200.25);
+      expect(recordSnapshot(settings, next, DEBTS, OCT)).toBe(settings);
+    }
+  });
+
+  it("counts odd balances left by an older version as 0", () => {
+    const odd = [
+      { ...ACCOUNTS[0], balance: "" },
+      { ...ACCOUNTS[1], balance: -40 },
+      { ...ACCOUNTS[2], balance: "12.5" },
+    ];
+    expect(netWorthTotals(odd, []).assets).toBe(12.5);
   });
 
   it("stamps the update date when a balance changes", () => {

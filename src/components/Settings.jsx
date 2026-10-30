@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { Notice } from './Status';
-import { generateSampleData, emptyData } from '../data/sampleData';
-import { DEFAULT_CATEGORIES } from '../data/categories';
+import { generateSampleData, emptyData, fromBackup } from '../data/sampleData';
 import { todayISO } from '../utils/format';
 import { useAuth } from '../auth/AuthContext';
 
@@ -18,16 +17,17 @@ export default function Settings({ store }) {
   };
 
   // Replace every slice of state at once. Works for sample data, empty data, or an imported backup.
-  const loadAll = (data) => {
-    store.setTransactions(data.transactions ?? []);
-    store.setBudgets(data.budgets ?? {});
-    store.setDebts(data.debts ?? []);
-    store.setGoals(data.goals ?? []);
-    store.setBills(data.bills ?? []);
-    store.setAccounts(data.accounts ?? []); // backups made before net worth existed have none
-    store.setSettings(data.settings ?? emptyData().settings);
-    // Backups made before custom categories existed don't have this field.
-    store.setCategories(data.categories ?? DEFAULT_CATEGORIES.map((c) => ({ ...c })));
+  // fromBackup fills in anything an older backup is missing (accounts, categories, ...).
+  const loadAll = (raw) => {
+    const data = fromBackup(raw);
+    store.setTransactions(data.transactions);
+    store.setBudgets(data.budgets);
+    store.setDebts(data.debts);
+    store.setGoals(data.goals);
+    store.setBills(data.bills);
+    store.setAccounts(data.accounts);
+    store.setSettings(data.settings); // also replaces the net worth snapshots
+    store.setCategories(data.categories);
   };
 
   const exportBackup = () => {
