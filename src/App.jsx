@@ -39,7 +39,18 @@ const PAGES = [
 export default function App() {
   const { user, loading } = useAuth();
  
-  if (loading) return <div className="auth-main auth-loading muted">Loading…</div>;
+  // A branded splash while the saved session is checked (usually a blink).
+  if (loading) {
+    return (
+      <div className="splash" role="status">
+        <div className="brand">
+          <BrandMark size={28} /> Finnelee
+        </div>
+        <div className="splash-bar" aria-hidden="true" />
+        <span className="sr-only">Loading…</span>
+      </div>
+    );
+  }
   if (!user) return <AuthScreen />;
  
   // key={user.id} is important: when a different user signs in, React throws away

@@ -3,6 +3,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import { AuthProvider } from './auth/AuthContext';
+// Self-hosted variable fonts: bundled with the app, so no requests to a font CDN.
+import '@fontsource-variable/bricolage-grotesque';
+import '@fontsource-variable/instrument-sans';
+import '@fontsource-variable/jetbrains-mono';
 import './styles.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(

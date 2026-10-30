@@ -15,8 +15,8 @@ export const PALETTE = {
       '#e34948',
     ],
     other: '#8a8984', // gray for "Other" / neutral reference lines
-    grid: '#e6e5e0',
-    axis: '#52514e',
+    grid: '#e3ebe7',
+    axis: '#46574f',
   },
   dark: {
     series: [
@@ -30,8 +30,8 @@ export const PALETTE = {
       '#e66767',
     ],
     other: '#8a8984',
-    grid: '#383835',
-    axis: '#c3c2b7',
+    grid: '#24332e',
+    axis: '#a8b8b1',
   },
 };
 
