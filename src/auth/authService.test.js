@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   MAX_RECOVERY_ATTEMPTS,
+  NO_LOCKS,
   RECOVERY_LOCK_MS,
   createRecoveryKey,
   generateRecoveryKey,
@@ -24,9 +25,23 @@ const memoryStorage = () => {
     dump: () => Object.fromEntries(data),
   };
 };
+// Node has no navigator.locks either: a stand-in where requests for the same name run one
+// after another, like the browser's Web Locks.
+const fakeLocks = () => {
+  const queues = new Map();
+  return {
+    request(name, task) {
+      const run = (queues.get(name) ?? Promise.resolve()).then(() => task());
+      queues.set(name, run.catch(() => {}));
+      return run;
+    },
+  };
+};
 beforeEach(() => {
   globalThis.localStorage = memoryStorage();
+  vi.stubGlobal('navigator', { locks: fakeLocks() });
 });
+afterEach(() => vi.unstubAllGlobals());
 
 const users = () => JSON.parse(localStorage.getItem('finnelee.users'));
 const ANA = { name: 'Ana', email: 'Ana@Example.com', password: 'first-password' };
@@ -153,63 +168,54 @@ describe('passwordStrength', () => {
 // Two tabs at once. Promise.allSettled starts both before either finishes, which is what
 // overlapping tabs do: each one's hashing (await) lets the other run in between.
 describe('overlapping changes from two tabs', () => {
-  // A stand-in for navigator.locks: requests for the same name run one after another.
-  const fakeLocks = () => {
-    const queues = new Map();
-    return {
-      request(name, task) {
-        const run = (queues.get(name) ?? Promise.resolve()).then(() => task());
-        queues.set(name, run.catch(() => {}));
-        return run;
-      },
-    };
-  };
   const both = (a, b) => Promise.allSettled([a(), b()]);
   const winners = (results) => results.filter((r) => r.status === 'fulfilled');
   const reset = (recoveryKey, newPassword) => () => resetPassword({ email: ANA.email, recoveryKey, newPassword });
   const keyWorks = (recoveryKey) => resetPassword({ email: ANA.email, recoveryKey, newPassword: 'check-password' });
 
-  for (const [label, locks] of [['with Web Locks', fakeLocks], ['without Web Locks (fallback)', null]]) {
-    describe(label, () => {
-      beforeEach(() => {
-        if (locks) vi.stubGlobal('navigator', { locks: locks() });
-        else vi.stubGlobal('navigator', {}); // older browser: compare-and-swap only
-      });
-      afterEach(() => vi.unstubAllGlobals());
+  it('lets only one of two resets with the same key succeed, and its new key works', async () => {
+    const { recoveryKey } = await signUp(ANA);
+    await signOut();
+    const results = await both(reset(recoveryKey, 'tab-one-password'), reset(recoveryKey, 'tab-two-password'));
+    const won = winners(results);
+    expect(won).toHaveLength(1);
+    // The second one ran after the first, so the key it had was already replaced.
+    expect(results.find((r) => r.status === 'rejected').reason.message).toBe('Email or recovery key is incorrect.');
+    const winningPassword = results[0] === won[0] ? 'tab-one-password' : 'tab-two-password';
+    expect((await signIn({ email: ANA.email, password: winningPassword })).email).toBe('ana@example.com');
+    await expect(keyWorks(recoveryKey)).rejects.toThrow(/incorrect/);
+    await expect(keyWorks(won[0].value.recoveryKey)).resolves.toBeTruthy();
+  });
 
-      it('lets only one of two resets with the same key succeed, and its new key works', async () => {
-        const { recoveryKey } = await signUp(ANA);
-        await signOut();
-        const results = await both(reset(recoveryKey, 'tab-one-password'), reset(recoveryKey, 'tab-two-password'));
-        const won = winners(results);
-        expect(won).toHaveLength(1);
-        expect(results.find((r) => r.status === 'rejected').reason.message).toMatch(/incorrect|another tab/);
-        // The password that won is the one saved, and the key it showed is the valid one.
-        const winningPassword = results[0] === won[0] ? 'tab-one-password' : 'tab-two-password';
-        expect((await signIn({ email: ANA.email, password: winningPassword })).email).toBe('ana@example.com');
-        await expect(keyWorks(recoveryKey)).rejects.toThrow(/incorrect/);
-        await expect(keyWorks(won[0].value.recoveryKey)).resolves.toBeTruthy();
-      });
-
-      it('lets only one of two Settings key changes succeed, and its key works', async () => {
-        const { user } = await signUp(ANA);
-        // Both tabs show the same account, so they pass the same recoveryCreatedAt.
-        const seen = user.recoveryCreatedAt;
-        const change = () => createRecoveryKey(user.id, ANA.password, seen);
-        const results = await both(change, change);
-        const won = winners(results);
-        expect(won).toHaveLength(1);
-        expect(results.find((r) => r.status === 'rejected').reason.message).toMatch(/another tab/);
-        await signOut();
-        await expect(keyWorks(won[0].value.recoveryKey)).resolves.toBeTruthy();
-      });
-    });
-  }
+  it('lets only one of two Settings key changes succeed, and its key works', async () => {
+    const { user } = await signUp(ANA);
+    // Both tabs show the same account, so they pass the same recoveryCreatedAt.
+    const change = () => createRecoveryKey(user.id, ANA.password, user.recoveryCreatedAt);
+    const results = await both(change, change);
+    const won = winners(results);
+    expect(won).toHaveLength(1);
+    expect(results.find((r) => r.status === 'rejected').reason.message).toMatch(/another tab/);
+    await signOut();
+    await expect(keyWorks(won[0].value.recoveryKey)).resolves.toBeTruthy();
+  });
 
   it('stops a Settings key change when a reset in another tab replaced the key first', async () => {
     const { user, recoveryKey } = await signUp(ANA);
     await reset(recoveryKey, 'second-password')(); // the other tab
-    // This tab still shows the old recoveryCreatedAt; its password is out of date too.
+    // This tab still shows the old recoveryCreatedAt.
     await expect(createRecoveryKey(user.id, 'second-password', user.recoveryCreatedAt)).rejects.toThrow(/another tab/);
+  });
+});
+
+describe('browsers without Web Locks', () => {
+  it('refuse resets and key changes and change nothing (fail safe)', async () => {
+    const { user, recoveryKey } = await signUp(ANA);
+    vi.stubGlobal('navigator', {}); // an old browser
+    const before = localStorage.dump();
+    await expect(resetPassword({ email: ANA.email, recoveryKey, newPassword: 'new-password' })).rejects.toThrow(NO_LOCKS);
+    await expect(createRecoveryKey(user.id, ANA.password, user.recoveryCreatedAt)).rejects.toThrow(NO_LOCKS);
+    expect(localStorage.dump()).toEqual(before); // no attempt counted, no key or password changed
+    // Signing in still works; only recovery-key changes need the lock.
+    expect((await signIn({ email: ANA.email, password: ANA.password })).id).toBe(user.id);
   });
 });
