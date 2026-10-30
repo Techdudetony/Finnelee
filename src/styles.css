@@ -644,7 +644,8 @@ td input[type='number'] { min-width: 76px; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
 
 /* Calm: short fades, nothing travels, scales or loops for decoration. Loaders keep
-   moving because they say "still working". Chosen in Settings, or the device default
+   moving because they say "still working", and the phone drawer keeps a brief (150ms)
+   slide because it shows where the menu lives. Chosen in Settings, or the device default
    when it asks for reduced motion (utils/motion.js). */
 :root[data-motion='calm'] {
   --dur: 150ms;

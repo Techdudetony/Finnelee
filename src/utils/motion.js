@@ -2,7 +2,8 @@
 // CSS (styles.css keys every animation off it) and the few animations JavaScript starts.
 //
 //   full: page transitions, cards that grow into pages, count-ups, springy details
-//   calm: short fades only. Nothing travels, scales or counts.
+//   calm: short fades, plus a brief slide for the phone menu (it shows where the menu
+//         lives). Nothing else travels, scales or counts.
 //   off:  everything shows its end state at once
 //
 // The person picks a level in Settings (settings.motion). Until they do, it follows the
@@ -89,27 +90,50 @@ export function shake(element) {
  * the change cross-fades and `from` (a Dashboard card, say) grows into the new page's
  * title, which carries the same view-transition-name in styles.css. Everywhere else the
  * page just changes. `update` must apply the change synchronously (flushSync).
+ *
+ * Whatever the browser does (runs the transition, skips it, or throws), `update` runs
+ * exactly once and the temporary naming below is always removed.
  */
+let latestTransition = 0;
+
 export function transitionTo(update, from) {
-  if (current !== 'full' || typeof document === 'undefined' || !document.startViewTransition) {
+  const id = ++latestTransition;
+  let navigated = false;
+  const navigate = () => {
+    if (navigated) return;
+    navigated = true;
     update();
+  };
+  if (current !== 'full' || typeof document === 'undefined' || !document.startViewTransition) {
+    navigate();
     return;
   }
   // While `from` carries the name, the outgoing page's own title must not (vt-from in
   // styles.css), or the name is duplicated and the browser skips the transition.
   const root = document.documentElement;
+  const cleanUp = () => {
+    if (from) from.style.viewTransitionName = ''; // the new page's title takes it over
+    // A late safety-net call must not undo a newer transition's setup.
+    if (id === latestTransition) root.classList.remove('vt-from');
+  };
+  const finish = () => {
+    cleanUp();
+    navigate();
+  };
   if (from) {
     from.style.viewTransitionName = 'page-hero';
     root.classList.add('vt-from');
   }
-  const transition = document.startViewTransition(() => {
-    if (from) {
-      from.style.viewTransitionName = ''; // the new page's title takes the name over
-      root.classList.remove('vt-from');
-    }
-    update();
-  });
-  // A skipped transition (tab hidden, snapshot failed) still runs `update`; it only
-  // rejects `ready`, which is not an error worth reporting.
+  let transition;
+  try {
+    transition = document.startViewTransition(finish);
+  } catch {
+    finish(); // the API threw: switch pages without the animation
+    return;
+  }
+  // A skipped transition (tab hidden, snapshot failed) rejects `ready`, which is not an
+  // error worth reporting. `finished` settles in every case, so it is the safety net
+  // should a browser skip without calling `finish`.
   transition?.ready?.catch(() => {});
+  transition?.finished?.then(finish, finish);
 }

@@ -9,7 +9,11 @@ import { resolveMotion } from '../utils/motion';
 // The Motion setting. Saved as settings.motion, so it travels with backups.
 const MOTION_OPTIONS = [
   { id: 'full', label: 'Full', text: 'Pages glide, tiles grow into the page they open, numbers count up.' },
-  { id: 'calm', label: 'Calm', text: 'Short fades only. Nothing slides, scales or counts.' },
+  {
+    id: 'calm',
+    label: 'Calm',
+    text: 'Short fades, plus a brief slide when the phone menu opens or closes, so you can see where it lives. Nothing else moves, scales or counts.',
+  },
   { id: 'off', label: 'Off', text: 'No animation. Everything appears at once.' },
 ];
 

@@ -73,33 +73,120 @@ describe('transitionTo', () => {
     expect(update).toHaveBeenCalledTimes(1);
   });
 
-  it('at Full, hands the name from the tile to the new title, never both at once', async () => {
-    applyMotion('full');
+  // A stand-in for the browser: `startViewTransition` behaves as `impl` says.
+  const withFakeDocument = async (impl, run) => {
     const classes = new Set();
-    const seen = {};
-    const from = { style: { viewTransitionName: '' } };
     globalThis.document = {
       documentElement: {
         dataset: {},
         classList: { add: (c) => classes.add(c), remove: (c) => classes.delete(c) },
       },
-      startViewTransition(cb) {
+      startViewTransition: (cb) => impl(cb, classes),
+    };
+    try {
+      await run(classes);
+    } finally {
+      delete globalThis.document;
+    }
+  };
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it('at Full, hands the name from the tile to the new title, never both at once', async () => {
+    applyMotion('full');
+    const seen = {};
+    const from = { style: { viewTransitionName: '' } };
+    const finished = Promise.reject(new Error('Snapshot capture failed'));
+    await withFakeDocument(
+      (cb, classes) => {
         // The old snapshot is taken now: only the tile is named, the old title is not.
         seen.before = { tile: from.style.viewTransitionName, vtFrom: classes.has('vt-from') };
         cb();
         seen.after = { tile: from.style.viewTransitionName, vtFrom: classes.has('vt-from') };
-        return { ready: Promise.reject(new Error('Snapshot capture failed')) };
+        return { ready: Promise.reject(new Error('Snapshot capture failed')), finished };
       },
-    };
-    try {
-      const update = vi.fn();
-      transitionTo(update, from);
-      await Promise.resolve(); // a skipped transition must not leave an unhandled rejection
-      expect(update).toHaveBeenCalledTimes(1);
-      expect(seen.before).toEqual({ tile: 'page-hero', vtFrom: true });
-      expect(seen.after).toEqual({ tile: '', vtFrom: false });
-    } finally {
-      delete globalThis.document;
-    }
+      async () => {
+        const update = vi.fn();
+        transitionTo(update, from);
+        await settle(); // a skipped transition must not leave an unhandled rejection
+        expect(update).toHaveBeenCalledTimes(1);
+        expect(seen.before).toEqual({ tile: 'page-hero', vtFrom: true });
+        expect(seen.after).toEqual({ tile: '', vtFrom: false });
+      },
+    );
+  });
+
+  it('when startViewTransition throws, still navigates once and cleans up', async () => {
+    applyMotion('full');
+    const from = { style: { viewTransitionName: '' } };
+    await withFakeDocument(
+      () => {
+        throw new Error('InvalidStateError');
+      },
+      async (classes) => {
+        const update = vi.fn();
+        transitionTo(update, from);
+        await settle();
+        expect(update).toHaveBeenCalledTimes(1);
+        expect(from.style.viewTransitionName).toBe('');
+        expect(classes.has('vt-from')).toBe(false);
+      },
+    );
+  });
+
+  it('when a transition is skipped without calling back, finishing still navigates once', async () => {
+    applyMotion('full');
+    const from = { style: { viewTransitionName: '' } };
+    await withFakeDocument(
+      () => ({
+        ready: Promise.reject(new Error('skipped')),
+        finished: Promise.resolve(),
+      }),
+      async (classes) => {
+        const update = vi.fn();
+        transitionTo(update, from);
+        await settle();
+        expect(update).toHaveBeenCalledTimes(1);
+        expect(from.style.viewTransitionName).toBe('');
+        expect(classes.has('vt-from')).toBe(false);
+      },
+    );
+  });
+
+  it('a transition that calls back and then finishes navigates only once', async () => {
+    applyMotion('full');
+    await withFakeDocument(
+      (cb) => {
+        cb();
+        return { ready: Promise.resolve(), finished: Promise.resolve() };
+      },
+      async () => {
+        const update = vi.fn();
+        transitionTo(update, { style: { viewTransitionName: '' } });
+        await settle();
+        expect(update).toHaveBeenCalledTimes(1);
+      },
+    );
+  });
+
+  it("a late finish from an older transition leaves a newer one's setup alone", async () => {
+    applyMotion('full');
+    let finishFirst;
+    const calls = [];
+    await withFakeDocument(
+      (cb) => {
+        calls.push(cb);
+        return {
+          ready: Promise.resolve(),
+          finished: calls.length === 1 ? new Promise((r) => (finishFirst = r)) : new Promise(() => {}),
+        };
+      },
+      async (classes) => {
+        transitionTo(vi.fn(), { style: { viewTransitionName: '' } }); // first, still running
+        transitionTo(vi.fn(), { style: { viewTransitionName: '' } }); // second sets vt-from
+        finishFirst();
+        await settle();
+        expect(classes.has('vt-from')).toBe(true); // the second still owns it
+      },
+    );
   });
 });
