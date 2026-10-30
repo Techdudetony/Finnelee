@@ -50,7 +50,7 @@ How the suggested features map to what's built, and the order to build the rest.
 4. ~~Net worth (accounts and assets)~~ ✅ done
 5. Goal simulator (completion dates, scenarios) and the What-If simulator
 6. Financial health score, milestones and a monthly review
-7. Premium UI overhaul, in stages: ~~visual foundation~~ (in review), then navigation and motion settings (Full / Calm / Off), interactive surfaces, financial storytelling (Dashboard and Net Worth), delight (celebrations, command palette), and an optional, benchmarked WebGL experiment
+7. Premium UI overhaul, in stages: ~~visual foundation~~ ✅ done, then navigation and motion settings (Full / Calm / Off), interactive surfaces, financial storytelling (Dashboard and Net Worth), delight (celebrations, command palette), and an optional, benchmarked WebGL experiment
 
 **Phase 3: add a backend (Supabase recommended).** Move auth and data to the server (see "Auth" below), then add household sharing, email reminders and the AI features.
 
