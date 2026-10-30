@@ -46,7 +46,7 @@ export function AuthProvider({ children }) {
 
   // Settings: create or replace the key (needs the current password).
   const createRecoveryKey = useCallback(async (password) => {
-    const { user: updated, recoveryKey } = await auth.createRecoveryKey(user.id, password);
+    const { user: updated, recoveryKey } = await auth.createRecoveryKey(user.id, password, user.recoveryCreatedAt);
     setNewRecoveryKey({ key: recoveryKey, reason: 'created' });
     setUser(updated);
   }, [user]);
