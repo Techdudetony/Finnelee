@@ -7,6 +7,7 @@ import { syncBudgets } from './utils/budgeting';
 import { recordSnapshot } from './utils/netWorth';
 import AuthScreen from './components/AuthScreen';
 import WelcomeSummary from './components/WelcomeSummary';
+import RecoveryKeyDialog from './components/RecoveryKeyDialog';
 import Dashboard from './components/Dashboard';
 import NetWorth from './components/NetWorth';
 import Transactions from './components/Transactions';
@@ -47,7 +48,7 @@ export default function App() {
 }
  
 function FinanceApp({ user }) {
-  const { signOut, freshLogin, clearFreshLogin } = useAuth();
+  const { signOut, freshLogin, clearFreshLogin, newRecoveryKey, clearNewRecoveryKey } = useAuth();
   const [page, setPage] = useState('dashboard');
   // The summary pops up automatically right after signing in (not on every page refresh).
   const [showSummary, setShowSummary] = useState(freshLogin);
@@ -151,8 +152,17 @@ function FinanceApp({ user }) {
         <Component store={store} goTo={setPage} openSummary={() => setShowSummary(true)} />
       </main>
  
-      {/* Conditional rendering: the popup only exists in the page while it's open */}
-      {showSummary && <WelcomeSummary store={store} goTo={setPage} onClose={closeSummary} />}
+      {/* Conditional rendering: a popup only exists in the page while it's open.
+          A new recovery key comes first; the welcome summary waits until it's saved. */}
+      {newRecoveryKey ? (
+        <RecoveryKeyDialog
+          recoveryKey={newRecoveryKey.key}
+          reason={newRecoveryKey.reason}
+          onDone={clearNewRecoveryKey}
+        />
+      ) : (
+        showSummary && <WelcomeSummary store={store} goTo={setPage} onClose={closeSummary} />
+      )}
     </div>
   );
 }

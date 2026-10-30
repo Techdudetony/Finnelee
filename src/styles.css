@@ -22,6 +22,13 @@
   --radius: 12px;
   --gap: 16px;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+
+  /* Motion: one easing and a few durations, so everything moves the same way.
+     All of it is switched off by the reduced-motion block at the end of this file. */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1); /* quick start, soft landing */
+  --dur-fast: 150ms;
+  --dur: 250ms;
+  --dur-slow: 600ms;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -167,8 +174,117 @@ tr:last-child td { border-bottom: 0; }
 .empty { color: var(--text-3); text-align: center; padding: 24px; }
 
 /* ---------- Accounts: sign-in page + sidebar profile ---------- */
-.auth-page { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
-.auth-card { width: 100%; max-width: 400px; padding: 28px; }
+/* Split layout: brand panel left, form right. Phones get the form alone. */
+.auth-page { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.auth-main { display: grid; place-items: center; padding: 24px 16px; }
+.auth-card { width: 100%; max-width: 420px; padding: 28px; animation: rise var(--dur-slow) var(--ease) both; }
+
+.auth-hero {
+  position: relative; overflow: hidden; color: #fff; background: var(--accent);
+  display: grid; place-items: center; padding: 48px;
+}
+/* Two soft light blobs drifting slowly behind the content. Only transform animates (cheap). */
+.auth-hero::before, .auth-hero::after {
+  content: ''; position: absolute; width: 70%; aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 255 255 / 0.22), transparent 65%);
+  animation: drift 18s ease-in-out infinite alternate;
+}
+.auth-hero::before { top: -20%; left: -15%; }
+.auth-hero::after { bottom: -25%; right: -20%; animation-duration: 24s; animation-direction: alternate-reverse; }
+/* Phones and narrow windows: form only. (Placed after .auth-hero so it wins.) */
+@media (max-width: 860px) {
+  .auth-page { grid-template-columns: minmax(0, 1fr); }
+  .auth-hero { display: none; }
+}
+.auth-hero-inner { position: relative; max-width: 380px; display: grid; gap: 20px; }
+.auth-hero-brand { padding: 0; font-size: 1.5rem; }
+.auth-hero-brand .icon rect { fill: rgb(255 255 255 / 0.2); }
+.auth-hero-pitch { font-size: 1.6rem; font-weight: 700; line-height: 1.25; margin: 0; }
+.auth-hero-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; opacity: 0.92; }
+.auth-hero-points .icon { margin-right: 6px; }
+.hero-chart { width: 100%; height: auto; }
+.hero-bar {
+  fill: rgb(255 255 255 / 0.35);
+  transform-box: fill-box; transform-origin: bottom; /* grow up from the baseline */
+  animation: grow var(--dur-slow) var(--ease) both;
+}
+.hero-line {
+  fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 1; stroke-dashoffset: 1; /* pathLength="1" in the SVG makes 1 = the whole line */
+  animation: draw 1.2s var(--ease) 0.5s forwards; /* forwards: stays drawn */
+}
+
+/* Sign in / Create account switch: the pill slides between the two buttons. */
+.segmented {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr;
+  margin-top: 18px; padding: 4px; border-radius: 10px; background: var(--surface-2);
+}
+.segmented button {
+  position: relative; z-index: 1; border: 0; background: none; padding: 8px; border-radius: 8px;
+  cursor: pointer; font-weight: 600; color: var(--text-2); transition: color var(--dur-fast);
+}
+.segmented button[aria-pressed='true'] { color: var(--text); }
+.segmented-pill {
+  position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px);
+  border-radius: 8px; background: var(--surface); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+  transition: transform var(--dur) var(--ease);
+}
+.segmented[data-mode='signup'] .segmented-pill { transform: translateX(100%); }
+.back-link { margin-top: 18px; }
+.forgot-link { align-self: flex-end; margin-top: -4px; }
+
+/* LAYOUT ANIMATION EXCEPTION: the auth card animates `height` (set by AutoHeight in
+   AuthScreen.jsx) so switching modes doesn't jump. It's one small element on a page with
+   nothing else moving; everything else in the app animates only transform/opacity. */
+.auto-height { overflow: hidden; transition: height var(--dur) var(--ease); }
+.auto-height > div { padding: 2px; margin: -2px; } /* room for focus rings inside overflow:hidden */
+
+/* Floating labels: the label sits inside the box, then moves up on focus or once filled. */
+.float-field { position: relative; display: grid; }
+.float-field input {
+  width: 100%; padding: 20px 12px 6px; border-radius: 10px;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.float-field.has-action input { padding-right: 64px; }
+.float-field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgb(42 120 214 / 0.25); }
+.float-field label {
+  position: absolute; left: 13px; top: 14px; color: var(--text-3); pointer-events: none;
+  transform-origin: left top; transition: transform var(--dur-fast) var(--ease), color var(--dur-fast);
+}
+.float-field input:focus + label,
+.float-field input:not(:placeholder-shown) + label { transform: translateY(-9px) scale(0.78); }
+.float-field input:focus + label { color: var(--accent); }
+.float-field .field-action {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 0.8rem;
+  padding: 6px 8px; border-radius: 6px; cursor: pointer;
+}
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* Password strength: four bars fill in with color as the score goes up. */
+.strength-row { display: grid; gap: 4px; margin-top: -4px; }
+.strength { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.strength span { height: 4px; border-radius: 2px; background: var(--surface-2); transition: background-color var(--dur) var(--ease); }
+.strength[data-score='1'] span:nth-child(-n + 1) { background: var(--critical); }
+.strength[data-score='2'] span:nth-child(-n + 2) { background: var(--warning); }
+.strength[data-score='3'] span:nth-child(-n + 3) { background: var(--accent); }
+.strength[data-score='4'] span { background: var(--good); }
+
+.btn-block { width: 100%; padding: 10px 14px; }
+.spinner {
+  display: inline-block; width: 14px; height: 14px; margin-right: 8px; vertical-align: -2px;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+.fade-in { animation: fade-in var(--dur) var(--ease) both; }
+
+/* Recovery key: big, monospaced, select-all on click. */
+.recovery-key {
+  display: block; margin-top: 8px; padding: 14px; border-radius: 10px; background: var(--surface-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1.15rem;
+  letter-spacing: 0.06em; text-align: center; word-break: break-all; user-select: all;
+}
+.recovery-dialog { width: min(520px, calc(100vw - 32px)); }
 .link-btn { border: 0; background: none; padding: 0; color: var(--accent); cursor: pointer; font-weight: 600; }
 .link-btn:hover { text-decoration: underline; }
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -199,3 +315,25 @@ tr:last-child td { border-bottom: 0; }
 }
 .summary-dialog::backdrop { background: rgb(0 0 0 / 0.45); } /* the dimmed page behind the popup */
 .summary-tile { background: var(--surface-2); border-radius: 10px; padding: 12px; }
+
+/* ==========================================================================
+   Keyframes, and the reduced-motion switch for all of them
+   ========================================================================== */
+@keyframes fade-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes rise { from { opacity: 0; transform: translateY(14px) scale(0.98); } }
+@keyframes grow { from { transform: scaleY(0); } }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes drift { to { transform: translate(12%, 10%) scale(1.1); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* People who ask their device for less motion get the end state right away.
+   JavaScript animations check the same setting (utils/motion.js). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

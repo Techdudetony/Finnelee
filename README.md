@@ -81,7 +81,7 @@ finance-app/                    # project folder (the npm package is named "finn
     ├── main.jsx                # entry point: renders <App/> inside <AuthProvider>
     ├── App.jsx                 # auth gate, layout, tab navigation, all app state
     ├── auth/
-    │   ├── authService.js      # sign up / in / out, password hashing (swap for a real backend later)
+    │   ├── authService.js      # sign up / in / out, password hashing, recovery keys (swap for a real backend later)
     │   ├── AuthContext.jsx     # React Context + useAuth() hook
     │   └── userStorage.js      # per-user storage keys + migration of pre-account data
     ├── styles.css              # design tokens (colors, spacing), light/dark theme
@@ -107,7 +107,8 @@ finance-app/                    # project folder (the npm package is named "finn
     │   ├── categories.js       # starter categories + helpers (names, colors, needs)
     │   └── sampleData.js       # generates 6 months of demo data
     └── components/
-        ├── AuthScreen.jsx      # sign in / create account form
+        ├── AuthScreen.jsx      # sign in / create account / forgot password (animated split layout)
+        ├── RecoveryKeyDialog.jsx # shows a new recovery key once; can't close until saved
         ├── WelcomeSummary.jsx  # post-login summary popup (native <dialog>)
         ├── StatCard.jsx        # KPI tile
         ├── ProgressBar.jsx     # bar with ok/warning/over states
@@ -205,6 +206,10 @@ npm test           # run the unit tests once
 - Users are stored under `finnelee.users`, with passwords hashed using PBKDF2 and a random salt per user.
 - Each user's data lives under `finnelee.<userId>.<slice>`.
 - The **first** account created in a browser adopts any data saved before accounts existed (the old `fb.*` keys), so nothing is lost.
+- **Recovery keys** stand in for "reset by email" (there's no server to send one). Each account gets a 120-bit random key (`crypto.getRandomValues`, 24 symbols from a 32-letter alphabet) when it's created, shown **once**. Only a salted PBKDF2 hash is stored, like the password. Older accounts create one in **Settings → Recovery key** (a one-time Dashboard reminder points there).
+- **Forgot password?** on the sign-in page takes the email, the key and a new password. On success the password changes and the key is **replaced** in the same save (a used key may have been seen), and the new key is shown once.
+- After 5 wrong keys for an email, recovery pauses for 5 minutes. That's a usability safeguard against guessing on this screen, **not** strong security: anyone with this browser can clear localStorage.
+- **No key?** The old account can't be opened. If you exported a backup, create a new account and use **Settings → Import backup**. Backups hold financial data only (no email, password or recovery key), and importing replaces everything in the account you import into.
 - ⚠️ This is browser-only auth: fine for learning and personal use, but accounts don't sync across devices and anyone with access to the computer can read localStorage. The plan to move to a real backend is in [ROADMAP.md](ROADMAP.md).
 
 ## 9. Roadmap
