@@ -564,7 +564,7 @@ describe("spending card and payments owed", () => {
     const s = spendingEstimate(card({ accounts: [cash(1000)] }), OCT30);
     expect(s.spendable.amount).toBe(-850);
     expect(s.spendable.shortfall).toBe("About $850 short in the next 14 days");
-    expect(s.headline).toEqual({
+    expect(s.headline).toMatchObject({
       label: "Estimated spendable amount",
       amount: -850,
     });
@@ -870,5 +870,315 @@ describe("compatibility with existing records", () => {
         l.label.endsWith("minimum payment"),
       ),
     ).toHaveLength(6);
+  });
+});
+
+describe("cash balances: negative counts, missing or future-dated blocks", () => {
+  const rent = [{ id: "r", name: "Rent", amount: 1000, dueDay: 1 }];
+  const second = (balance, updated = "2026-10-29") => ({
+    ...cash(balance, updated),
+    id: "chk2",
+    name: "Joint checking",
+  });
+
+  it("a negative (overdrawn) balance lowers the total", () => {
+    const accounts = [cash(1500), second(-500)];
+    const s = spendingEstimate(base({ accounts, bills: rent }), OCT30);
+    expect(s.lines[0]).toMatchObject({
+      label: "Recently updated cash",
+      amount: 1000,
+    });
+    expect(s.spendable.amount).toBe(0);
+    expect(billsPillar(base({ accounts, bills: rent }), OCT30).score).toBe(100);
+    const overdrawn = billsPillar(
+      base({ accounts: [cash(-200)], bills: rent }),
+      OCT30,
+    );
+    expect(overdrawn).toMatchObject({
+      score: 0,
+      valueText: "Cash is $0 or less",
+    });
+  });
+
+  it("a missing or invalid balance never becomes $0: the cash can't be used", () => {
+    for (const balance of [undefined, null, "", "abc", NaN]) {
+      const data = base({
+        accounts: [cash(1500), second(balance)],
+        bills: rent,
+      });
+      expect(billsPillar(data, OCT30)).toMatchObject({
+        state: "needs-data",
+        action: "Enter a balance for Joint checking on Net Worth",
+      });
+      expect(spendingEstimate(data, OCT30).spendable).toMatchObject({
+        status: "needs-cash",
+        amount: null,
+      });
+    }
+    // A numeric string from an older version still reads as its number.
+    expect(
+      spendingEstimate(base({ accounts: [cash("1500")], bills: rent }), OCT30)
+        .lines[0].amount,
+    ).toBe(1500);
+  });
+
+  it("a future update date is rejected for the 7-day window", () => {
+    const data = base({ accounts: [cash(5000, "2026-11-02")], bills: rent });
+    expect(billsPillar(data, OCT30)).toMatchObject({
+      state: "needs-data",
+      action: "Fix the update date for Checking: it's in the future",
+    });
+    expect(spendingEstimate(data, OCT30).spendable.status).toBe("needs-cash");
+    expect(
+      runwayEvents(
+        {
+          ...data,
+          settings: {
+            paySchedule: { cadence: "monthly", next: "2026-11-01", amount: 1 },
+          },
+        },
+        OCT30,
+      ).projection,
+    ).toBeNull();
+    // Today counts as recent.
+    expect(
+      billsPillar({ ...data, accounts: [cash(5000, "2026-10-30")] }, OCT30)
+        .state,
+    ).toBe("scored");
+  });
+
+  it("emergency fund from accounts: a missing balance blocks it, a future date makes it older", () => {
+    const tx = threeMonths(3000, 1000);
+    const settings = { savingsSource: "accounts" };
+    const missing = emergencyPillar(
+      base({ transactions: tx, settings, accounts: [savingsAcct("")] }),
+      OCT30,
+    );
+    expect(missing).toMatchObject({
+      state: "needs-data",
+      action: "Enter a balance for Savings on Net Worth",
+    });
+    const future = emergencyPillar(
+      base({
+        transactions: tx,
+        settings,
+        accounts: [savingsAcct(6000, "2027-01-01")],
+      }),
+      OCT30,
+    );
+    expect(future).toMatchObject({
+      state: "older",
+      note: "A balance is dated in the future",
+    });
+  });
+});
+
+describe("conflicting payment amounts", () => {
+  const tx = [...threeMonths(5000, 3000), ...month("2026-10", 5000, 1000)];
+  const debts = [
+    {
+      id: "car",
+      name: "Car loan",
+      balance: 9000,
+      apr: 6,
+      minPayment: 340,
+      dueDay: 5,
+      paidMonths: { "2026-10": { markedOn: "2026-10-05" } },
+    },
+  ];
+  const auto = {
+    id: "auto",
+    name: "Auto",
+    type: "liability",
+    kind: "other",
+    balance: 9000,
+    monthlyPayment: 350,
+    debtId: "car",
+    updated: "2026-10-01",
+  };
+
+  it("Debt load uses the larger amount, says so, and is marked as a conflict", () => {
+    const p = debtPillar(
+      base({ transactions: tx, debts, accounts: [auto] }),
+      OCT30,
+    );
+    expect(p.state).toBe("conflict");
+    expect(p.payments).toBe(350);
+    expect(p.conflicts).toEqual([
+      "Payment amounts don't match for Car loan: $340 (Debt Planner), $350 (Net Worth: Auto). Using the larger amount until they match.",
+    ]);
+  });
+
+  it("a conflict lowers confidence to medium even with all five pillars scored", () => {
+    const sample = generateSampleData(OCT30);
+    const carLoan = sample.debts.find((d) => d.name === "Car loan");
+    const withConflict = {
+      ...sample,
+      accounts: [
+        ...sample.accounts,
+        {
+          ...auto,
+          debtId: carLoan.id,
+          monthlyPayment: carLoan.minPayment + 25,
+        },
+      ],
+    };
+    const h = healthScore(withConflict, OCT30);
+    expect(h.scored).toBe(5);
+    expect(h.confidence).toBe("medium");
+    expect(h.basis).toBe("Some payment amounts don't match");
+  });
+
+  it("the spending estimate subtracts the larger amount and shows both", () => {
+    const s = spendingEstimate(
+      base({ transactions: tx, debts, accounts: [cash(3000), auto] }),
+      OCT30,
+    );
+    expect(s.spendable.status).toBe("conflict");
+    expect(s.spendable.amount).toBe(2650);
+    expect(s.spendable.note).toContain(
+      "$340 (Debt Planner), $350 (Net Worth: Auto)",
+    );
+    expect(s.headline.note).toBe(s.spendable.note);
+  });
+
+  it("a conflict outside the window doesn't flag this estimate", () => {
+    const paidNov = [
+      { ...debts[0], paidMonths: { "2026-10": {}, "2026-11": {} } },
+    ];
+    const s = spendingEstimate(
+      base({ transactions: tx, debts: paidNov, accounts: [cash(3000), auto] }),
+      OCT30,
+    );
+    expect(s.spendable.status).toBe("complete");
+  });
+});
+
+describe("incomplete or conflicting data never looks better than complete data", () => {
+  const tx = [...threeMonths(5000, 3000), ...month("2026-10", 5000, 1000)];
+  const complete = () =>
+    base({
+      transactions: tx,
+      budgets: { Housing: 4000 },
+      settings: { startingSavings: 9000 },
+      accounts: [cash(4000)],
+      bills: [{ id: "r", name: "Rent", amount: 1500, dueDay: 1 }],
+      debts: [
+        {
+          id: "car",
+          name: "Car loan",
+          balance: 9000,
+          apr: 6,
+          minPayment: 400,
+          dueDay: 5,
+        },
+      ],
+    });
+
+  // Each variant hides or muddles one fact; none may raise the score or the estimate.
+  const variants = {
+    "debt payment missing": (d) => ({
+      ...d,
+      debts: [{ ...d.debts[0], minPayment: "" }],
+    }),
+    "liability payment missing": (d) => ({
+      ...d,
+      accounts: [
+        ...d.accounts,
+        {
+          id: "m",
+          name: "Mortgage",
+          type: "liability",
+          kind: "mortgage",
+          balance: 1e5,
+          updated: "2026-10-01",
+        },
+      ],
+    }),
+    "bill amount missing": (d) => ({
+      ...d,
+      bills: [{ ...d.bills[0], amount: "" }],
+    }),
+    "bill due day invalid": (d) => ({
+      ...d,
+      bills: [{ ...d.bills[0], dueDay: 0 }],
+    }),
+    "cash balance missing": (d) => ({
+      ...d,
+      accounts: [{ ...d.accounts[0], balance: "" }],
+    }),
+    "cash dated in the future": (d) => ({
+      ...d,
+      accounts: [{ ...d.accounts[0], updated: "2026-12-01" }],
+    }),
+    "cash overdrawn elsewhere": (d) => ({
+      ...d,
+      accounts: [...d.accounts, { ...cash(-300), id: "c2", name: "Joint" }],
+    }),
+    "conflicting payment": (d) => ({
+      ...d,
+      accounts: [
+        ...d.accounts,
+        {
+          id: "a",
+          name: "Auto",
+          type: "liability",
+          kind: "other",
+          balance: 9000,
+          monthlyPayment: 450,
+          debtId: "car",
+          updated: "2026-10-01",
+        },
+      ],
+    }),
+    "unlinked duplicate": (d) => ({
+      ...d,
+      accounts: [
+        ...d.accounts,
+        {
+          id: "a",
+          name: "Car loan",
+          type: "liability",
+          kind: "other",
+          balance: 9000,
+          monthlyPayment: 400,
+          updated: "2026-10-01",
+        },
+      ],
+    }),
+    "paid marks as an array": (d) => ({
+      ...d,
+      debts: [{ ...d.debts[0], paidMonths: ["2026-10", "2026-11"] }],
+    }),
+  };
+  const RANK = { high: 3, medium: 2, low: 1, none: 0 };
+
+  it.each(Object.keys(variants))("%s", (name) => {
+    const good = complete();
+    const worse = variants[name](good);
+    const [h1, h2] = [healthScore(good, OCT30), healthScore(worse, OCT30)];
+    const [s1, s2] = [
+      spendingEstimate(good, OCT30),
+      spendingEstimate(worse, OCT30),
+    ];
+    expect(h1.confidence).toBe("high");
+    // The score never rises, and if it can't be fully trusted, confidence drops too.
+    if (h2.score !== null) expect(h2.score).toBeLessThanOrEqual(h1.score);
+    expect(RANK[h2.confidence]).toBeLessThanOrEqual(RANK[h1.confidence]);
+    // The estimate is never higher, and never "complete" when something was hidden.
+    expect(s1.spendable.status).toBe("complete");
+    if (s2.spendable.amount !== null)
+      expect(s2.spendable.amount).toBeLessThanOrEqual(s1.spendable.amount);
+    if (name === "paid marks as an array") {
+      // Malformed marks read as "not paid": exactly the baseline, nothing hidden.
+      expect(s2.spendable.amount).toBe(s1.spendable.amount);
+      return;
+    }
+    const flagged =
+      s2.spendable.status !== "complete" ||
+      h2.confidence !== "high" ||
+      h2.pillars.some((p) => p.note) ||
+      s2.spendable.amount < s1.spendable.amount;
+    expect(flagged).toBe(true);
   });
 });

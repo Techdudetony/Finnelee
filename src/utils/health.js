@@ -93,7 +93,10 @@ const shortDate = (iso) =>
     day: "numeric",
   });
 
-/** Whole days from an ISO date to today; Infinity for a missing date (treated as old). */
+/**
+ * Whole days from an ISO date to today. Infinity for a missing date (treated as old);
+ * negative for a date in the future, which callers reject.
+ */
 function daysSince(iso, today) {
   if (typeof iso !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(iso))
     return Infinity;
@@ -105,26 +108,47 @@ function daysSince(iso, today) {
   return Math.round((start - parseDate(iso)) / 86_400_000);
 }
 
-/** Cash accounts and whether every one of them was updated within CASH_FRESH_DAYS. */
+/** A balance as a number (negative allowed: an overdrawn account), or null if missing/invalid. */
+function readBalance(value) {
+  const n =
+    typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+  return typeof n === "number" && Number.isFinite(n) ? n : null;
+}
+const names = (list) => list.map((a) => a.name).join(", ");
+
+/**
+ * Cash accounts and whether they can be used: every one has a valid balance and was
+ * updated 0 to CASH_FRESH_DAYS days ago. A negative balance lowers the total; a missing or
+ * invalid one, or a future update date, makes the cash unusable (`problem` says why).
+ */
 export function recentCash(accounts, today = new Date()) {
   const cash = readAccounts(accounts).filter(
     (a) => a.type === "asset" && a.kind === "cash",
   );
-  const total = round2(
-    cash.reduce(
-      (t, a) => t + (Number(a.balance) > 0 ? Number(a.balance) : 0),
-      0,
-    ),
+  const invalid = cash.filter((a) => readBalance(a.balance) === null);
+  const future = cash.filter((a) => daysSince(a.updated, today) < 0);
+  const stale = cash.filter(
+    (a) => daysSince(a.updated, today) > CASH_FRESH_DAYS,
   );
-  const fresh =
-    cash.length > 0 &&
-    cash.every((a) => daysSince(a.updated, today) <= CASH_FRESH_DAYS);
+  const total = round2(
+    cash.reduce((t, a) => t + (readBalance(a.balance) ?? 0), 0),
+  );
+  const problem =
+    cash.length === 0
+      ? "Add your checking account on Net Worth"
+      : invalid.length
+        ? `Enter a balance for ${names(invalid)} on Net Worth`
+        : future.length
+          ? `Fix the update date for ${names(future)}: it's in the future`
+          : stale.length
+            ? "Update your checking balance"
+            : null;
   const asOf =
     cash
       .map((a) => a.updated)
       .filter(Boolean)
       .sort()[0] ?? null; // oldest
-  return { accounts: cash, total, fresh, asOf };
+  return { accounts: cash, total, fresh: problem === null, problem, asOf };
 }
 
 /**
@@ -217,14 +241,28 @@ export function emergencyPillar(
       "Add your savings or a savings account",
     );
 
-  // With accounts as the source, an account untouched for 60+ days makes the pillar "older".
+  // With accounts as the source: a missing balance blocks the pillar, and an account
+  // untouched for 60+ days (or dated in the future) makes it "older".
   const liquid = readAccounts(accounts).filter(
     (a) => a.type === "asset" && (a.kind === "cash" || a.kind === "savings"),
   );
-  const old =
-    savings.source === "accounts"
-      ? liquid.filter((a) => daysSince(a.updated, today) >= STALE_DAYS)
-      : [];
+  const fromAccounts = savings.source === "accounts";
+  const invalid = fromAccounts
+    ? liquid.filter((a) => readBalance(a.balance) === null)
+    : [];
+  if (invalid.length)
+    return needsData(
+      "emergency",
+      "Emergency fund",
+      `Enter a balance for ${names(invalid)} on Net Worth`,
+    );
+  const old = fromAccounts
+    ? liquid.filter((a) => {
+        const days = daysSince(a.updated, today);
+        return days >= STALE_DAYS || days < 0;
+      })
+    : [];
+  const futureDated = old.some((a) => daysSince(a.updated, today) < 0);
   const oldest = old
     .map((a) => a.updated)
     .filter(Boolean)
@@ -236,11 +274,13 @@ export function emergencyPillar(
     valueText: `${months.toFixed(1)} of 6 months`,
     detail:
       "Savings compared with your average essential spending over the last 3 full months.",
-    note: old.length
-      ? oldest
-        ? `Balance from ${shortDate(oldest)}`
-        : "Balance not dated"
-      : null,
+    note: !old.length
+      ? null
+      : futureDated
+        ? "A balance is dated in the future"
+        : oldest
+          ? `Balance from ${shortDate(oldest)}`
+          : "Balance not dated",
     gap: round2(Math.max(0, 6 * avgEssential - savings.amount)),
   });
 }
@@ -270,14 +310,7 @@ export function billsPillar({ bills, debts, accounts }, today = new Date()) {
   const list = Array.isArray(bills) ? bills : [];
   if (list.length === 0)
     return needsData("bills", "Bills covered", "Add your regular bills");
-  if (cash.accounts.length === 0)
-    return needsData(
-      "bills",
-      "Bills covered",
-      "Add your checking account on Net Worth",
-    );
-  if (!cash.fresh)
-    return needsData("bills", "Bills covered", "Update your checking balance");
+  if (cash.problem) return needsData("bills", "Bills covered", cash.problem);
 
   // Every bill once, linked or not: obligations.js groups them, so a bill is never doubled.
   const start = toISODate(today);
@@ -292,6 +325,13 @@ export function billsPillar({ bills, debts, accounts }, today = new Date()) {
     start,
     end,
   );
+  // A bill without an amount can't be covered or not: no score rather than a guess.
+  if (owed.unknown.length)
+    return needsData(
+      "bills",
+      "Bills covered",
+      `Add the amount for ${owed.unknown.join(", ")}`,
+    );
   const asOf = `Recently updated cash (${money(cash.total)} as of ${shortDate(cash.asOf)})`;
   if (owed.total <= 0)
     return pillar("bills", "Bills covered", {
@@ -304,12 +344,22 @@ export function billsPillar({ bills, debts, accounts }, today = new Date()) {
   return pillar("bills", "Bills covered", {
     score: Math.round(100 * clamp01(ratio)),
     value: ratio,
-    valueText: `covered ${ratio.toFixed(1)}×`,
+    valueText:
+      ratio > 0 ? `covered ${ratio.toFixed(1)}×` : "Cash is $0 or less",
     detail: `${asOf} against ${money(owed.total)} of bills due in the next 14 days.`,
     due: owed.total,
     cash: cash.total,
   });
 }
+
+/**
+ * "Payment amounts don't match for Car loan: $340 (Debt Planner), $350 (Net Worth: Auto)."
+ * Shown wherever the larger amount is used, so a guess never looks settled.
+ */
+export const conflictText = (g) =>
+  `Payment amounts don't match for ${g.name}: ${g.conflict
+    .map((c) => `${money(c.amount)} (${c.source})`)
+    .join(", ")}. Using the larger amount until they match.`;
 
 /** Debt share d (0-1+) -> score, on the scale in the spec (gentler than lenders' 36%). */
 export function debtScore(d) {
@@ -388,7 +438,12 @@ export function debtPillar(
 
   const payments = round2(groups.reduce((t, g) => t + g.payment, 0));
   const d = payments / income;
+  // Disagreeing records: scored with the larger (more cautious) amount, but marked so
+  // confidence drops and every figure is shown.
+  const conflicts = groups.filter((g) => g.conflict).map(conflictText);
   return pillar("debt", "Debt load", {
+    state: conflicts.length ? "conflict" : "scored",
+    conflicts,
     score: debtScore(d),
     value: d,
     valueText: `${pct(d)} of recorded income`,
@@ -453,10 +508,11 @@ export function healthScore(data, today = new Date()) {
     .filter((p) => p.state === "needs-data")
     .map((p) => p.action);
   const anyOlder = scored.some((p) => p.state === "older");
+  const anyConflict = scored.some((p) => p.state === "conflict");
   const n = scored.length;
   const confidence =
     n === 5
-      ? anyOlder
+      ? anyOlder || anyConflict
         ? "medium"
         : "high"
       : n === 4
@@ -503,9 +559,11 @@ export function healthScore(data, today = new Date()) {
   const basis =
     n === 4
       ? "Based on 4 of 5 areas"
-      : anyOlder
-        ? "Based on some older balances"
-        : null;
+      : anyConflict
+        ? "Some payment amounts don't match"
+        : anyOlder
+          ? "Based on some older balances"
+          : null;
   return {
     ...base,
     score,
@@ -573,13 +631,23 @@ const nextPayday = (schedule, today) =>
 
 // ---------- Spending card ----------
 
+/** One owed item as a details-row label. */
+function owedLabel(i) {
+  if (i.reason === "overdue")
+    return `${i.name}: ${monthLabel(i.month)} payment not marked paid`;
+  if (i.difference) return `${i.name}: rest of the required payment`;
+  if (i.bill) return `${i.name} (${i.bill})`;
+  return i.kind === "debt" ? `${i.name} minimum payment` : i.name;
+}
+
 /**
  * Two estimates for "This month's spending room", neither called safe:
  * - budget: the existing safeToSpend(), unchanged ("Left in your budget this month")
  * - spendable: recently updated cash − bills − debt payments owed − planned goal savings,
  *   over the window to the day before the next payday (or 14 days)
- * spendable.status: "complete" | "incomplete" (an unknown payment is due: amount is null
- * and upperLimit holds the partial figure) | "needs-cash" (cash not updated recently).
+ * spendable.status: "complete" | "conflict" (records disagree on a payment: the larger is
+ * used and `note` lists every figure) | "incomplete" (an unknown payment is due: amount
+ * is null and upperLimit holds the partial figure) | "needs-cash" (cash can't be used).
  */
 export function spendingEstimate(data, today = new Date()) {
   const {
@@ -608,7 +676,7 @@ export function spendingEstimate(data, today = new Date()) {
     },
     window: { start, end, text: windowText },
   };
-  if (!cash.fresh)
+  if (cash.problem)
     return {
       ...result,
       spendable: {
@@ -616,7 +684,7 @@ export function spendingEstimate(data, today = new Date()) {
         amount: null,
         upperLimit: null,
         label: "Estimated spendable amount",
-        action: "Update your checking balance to estimate what you can spend",
+        action: `${cash.problem} to estimate what you can spend`,
       },
       headline: result.budget.shown
         ? { label: result.budget.label, amount: result.budget.amount }
@@ -639,12 +707,7 @@ export function spendingEstimate(data, today = new Date()) {
       date: cash.asOf,
     },
     ...owed.items.map((i) => ({
-      label:
-        i.reason === "overdue"
-          ? `${i.name}: ${monthLabel(i.month)} payment not marked paid`
-          : i.kind === "debt"
-            ? `${i.name} minimum payment`
-            : i.name,
+      label: owedLabel(i),
       amount: i.amount === null ? null : -i.amount,
       source: i.sources.join(", "),
       date: i.date,
@@ -679,11 +742,17 @@ export function spendingEstimate(data, today = new Date()) {
     };
   }
 
+  // Only conflicts that affect this window matter here.
+  const owedKeys = new Set(owed.items.map((i) => i.key));
+  const conflicts = obligations.groups
+    .filter((g) => g.conflict && owedKeys.has(g.key))
+    .map(conflictText);
   const spendable = {
-    status: "complete",
+    status: conflicts.length ? "conflict" : "complete",
     amount: figure,
     upperLimit: null,
     label: "Estimated spendable amount",
+    note: conflicts.length ? conflicts.join(" ") : null,
     shortfall:
       figure < 0 ? `About ${money(-figure)} short ${windowText}` : null,
   };
@@ -695,7 +764,7 @@ export function spendingEstimate(data, today = new Date()) {
     spendable,
     headline: useBudget
       ? { label: result.budget.label, amount: result.budget.amount }
-      : { label: spendable.label, amount: figure },
+      : { label: spendable.label, amount: figure, note: spendable.note },
   };
 }
 
@@ -714,7 +783,7 @@ export function runwayEvents(data, today = new Date()) {
   const items = owed.items
     .filter((i) => i.date && i.date >= start) // undated / overdue amounts have no day to sit on
     .map((i) => ({
-      name: i.kind === "debt" ? `${i.name} minimum payment` : i.name,
+      name: owedLabel(i),
       date: i.date,
       amount: i.amount,
       key: i.key,

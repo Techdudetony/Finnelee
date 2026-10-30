@@ -116,21 +116,36 @@ export function markBillPaid(bill, transactions, today = new Date(), id) {
     type: "expense",
     amount: Number(bill.amount),
   };
+  const { date, amount, description, category } = tx;
   return {
-    bill: markPaid(bill, month, today, { txId: id }),
+    bill: markPaid(bill, month, today, {
+      txId: id,
+      tx: { date, amount, description, category }, // to spot later edits
+    }),
     transactions: [tx, ...transactions],
     month,
   };
 }
 
-/** Undo for a bill: drops the month and the transaction Mark paid created, if it's still there. */
+/**
+ * Undo for a bill: drops the month, and the transaction Mark paid created if it's still
+ * exactly as created. An edited transaction is the user's own record now, so it stays
+ * and `keptTransaction` tells the UI to say so.
+ */
 export function undoBillPaid(bill, transactions, month) {
-  const txId = readPaidMonths(bill)[month]?.txId;
+  const entry = readPaidMonths(bill)[month];
+  const tx = entry?.txId ? transactions.find((t) => t.id === entry.txId) : null;
+  const same =
+    tx &&
+    entry.tx &&
+    ["date", "amount", "description", "category"].every(
+      (k) => tx[k] === entry.tx[k],
+    ) &&
+    tx.type === "expense";
   return {
     bill: undoPaid(bill, month),
-    transactions: txId
-      ? transactions.filter((t) => t.id !== txId)
-      : transactions,
+    transactions: same ? transactions.filter((t) => t !== tx) : transactions,
+    keptTransaction: Boolean(tx && !same),
   };
 }
 
@@ -152,7 +167,8 @@ const isOpenLiability = (a) =>
  *   suggestLinking: debts and liabilities both exist and none are linked
  * }
  * payment = the largest known amount in the group (debt minimum, liability monthlyPayment,
- * total of linked bills), counted once; null when none is known.
+ * total of linked bills), counted once; null when none is known. When the known amounts
+ * disagree, `conflict` lists each one with its source so the user can fix the records.
  */
 export function buildObligations({ debts = [], accounts = [], bills = [] }) {
   const openDebts = (Array.isArray(debts) ? debts : []).filter(isOpenDebt);
@@ -197,11 +213,22 @@ export function buildObligations({ debts = [], accounts = [], bills = [] }) {
     const billTotal = round2(
       g.bills.reduce((t, b) => t + (readPayment(b.amount) ?? 0), 0),
     );
-    const known = [
-      readPayment(g.debt?.minPayment),
-      ...g.accounts.map((a) => readPayment(a.monthlyPayment)),
-      billTotal > 0 ? billTotal : null,
-    ].filter((n) => n !== null);
+    const amounts = [
+      { source: "Debt Planner", amount: readPayment(g.debt?.minPayment) },
+      ...g.accounts.map((a) => ({
+        source: `Net Worth: ${a.name}`,
+        amount: readPayment(a.monthlyPayment),
+      })),
+      ...(billTotal > 0
+        ? [
+            {
+              source: g.bills.map((b) => `Bills: ${b.name}`).join(" + "),
+              amount: billTotal,
+            },
+          ]
+        : []),
+    ].filter((a) => a.amount !== null);
+    const known = amounts.map((a) => a.amount);
     const firstBillDay = g.bills.map((b) => readDueDay(b.dueDay)).find(Boolean);
     const ownDay = [g.debt, ...g.accounts]
       .map((r) => readDueDay(r?.dueDay))
@@ -209,6 +236,9 @@ export function buildObligations({ debts = [], accounts = [], bills = [] }) {
     return {
       ...g,
       payment: known.length ? Math.max(...known) : null,
+      // Records that disagree are listed, never quietly settled: the larger
+      // amount is used (the cautious one) and the UI shows every figure.
+      conflict: new Set(known).size > 1 ? amounts : null,
       dueDay: g.bills.length ? (firstBillDay ?? null) : (ownDay ?? null),
       sources: [
         ...(g.debt ? ["Debt Planner"] : []),
@@ -252,60 +282,78 @@ function monthsBetween(start, end) {
  * - a dated group: each month whose due date is in the window, plus this month when its
  *   due date already passed and it isn't marked paid ("overdue")
  * - an undated group: every calendar month the window touches (the conservative estimate)
+ * - a group with linked bills: each unpaid bill on its own date, plus any required
+ *   payment above the bills' total ("difference")
  * - an ordinary bill: each due date in the window (earlier ones are assumed paid, as in
- *   safeToSpend), unless that month is marked paid
+ *   safeToSpend), unless that month is marked paid; no valid due day = every month
  * A month marked paid never counts. Unknown amounts go to `unknown`, never into `total`.
  *
- * Returns { items: [{ key, name, kind, month, date, amount, reason, sources }], total, unknown }
+ * Returns { items: [{ key, name, kind, month, date, amount, reason, sources, bill?,
+ * difference? }], total, unknown }
  */
 export function paymentsOwed({ groups, bills }, start, end) {
   const months = monthsBetween(start, end);
+  const thisMonth = start.slice(0, 7);
   const items = [];
+
+  // Where a payment lands in the window: { date, reason } or null (not owed in it).
+  // `overdue` applies to debts only: older bills are assumed paid, as in safeToSpend.
+  const place = (day, month, overdue) => {
+    if (day === null) return { date: null, reason: "undated" };
+    const date = dueDateIn(day, month);
+    if (date >= start && date <= end) return { date, reason: "due" };
+    if (overdue && date < start && month === thisMonth)
+      return { date, reason: "overdue" };
+    return null;
+  };
+  const push = (base, month, spot, amount, extra = {}) =>
+    spot && items.push({ ...base, month, ...spot, amount, ...extra });
 
   for (const g of groups) {
     const base = { key: g.key, name: g.name, kind: "debt", sources: g.sources };
     for (const month of months) {
       if (groupPaidFor(g, month)) continue;
-      if (g.dueDay === null) {
-        items.push({
-          ...base,
-          month,
-          date: null,
-          amount: g.payment,
-          reason: "undated",
-        });
+      if (g.bills.length === 0) {
+        push(base, month, place(g.dueDay, month, true), g.payment);
         continue;
       }
-      const date = dueDateIn(g.dueDay, month);
-      if (date >= start && date <= end)
-        items.push({ ...base, month, date, amount: g.payment, reason: "due" });
-      else if (date < start && month === start.slice(0, 7))
-        items.push({
-          ...base,
-          month,
-          date,
-          amount: g.payment,
-          reason: "overdue",
+      // Linked bills keep their own dates and paid marks, so a partial
+      // confirmation (one of two bills paid) leaves only the unpaid one owed.
+      let billTotal = 0;
+      for (const b of g.bills) {
+        const amount = readPayment(b.amount);
+        billTotal += amount ?? 0;
+        if (isPaidFor(b, month)) continue;
+        push(base, month, place(readDueDay(b.dueDay), month, true), amount, {
+          bill: b.name,
+        });
+      }
+      // A required payment above the linked bills: the rest is owed too, on
+      // the first bill's date (the conservative reading of a conflict).
+      const rest = g.payment !== null ? round2(g.payment - billTotal) : 0;
+      if (rest > 0)
+        push(base, month, place(g.dueDay, month, true), rest, {
+          difference: true,
         });
     }
   }
 
   for (const b of bills) {
-    const day = readDueDay(b.dueDay);
-    if (day === null) continue;
+    const base = {
+      key: `bill:${b.id}`,
+      name: b.name,
+      kind: "bill",
+      sources: [`Bills: ${b.name}`],
+    };
     for (const month of months) {
-      const date = dueDateIn(day, month);
-      if (date < start || date > end || isPaidFor(b, month)) continue;
-      items.push({
-        key: `bill:${b.id}`,
-        name: b.name,
-        kind: "bill",
+      if (isPaidFor(b, month)) continue;
+      // A bill with no valid due day counts in every month, never skipped.
+      push(
+        base,
         month,
-        date,
-        amount: readPayment(b.amount),
-        reason: "due",
-        sources: [`Bills: ${b.name}`],
-      });
+        place(readDueDay(b.dueDay), month, false),
+        readPayment(b.amount),
+      );
     }
   }
 

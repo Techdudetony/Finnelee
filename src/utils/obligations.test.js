@@ -186,6 +186,12 @@ describe("Mark paid is reversible and always names its month", () => {
     expect(paid.bill.paidMonths["2026-10"]).toEqual({
       markedOn: "2026-10-30",
       txId: "tx1",
+      tx: {
+        date: "2026-10-30",
+        amount: 1550,
+        description: "Rent",
+        category: "Housing",
+      },
     });
     const undone = undoBillPaid(paid.bill, paid.transactions, "2026-10");
     expect(undone.transactions).toEqual(others);
@@ -196,6 +202,32 @@ describe("Mark paid is reversible and always names its month", () => {
     const paid = markBillPaid(bill("Rent", 1, 1550), [], OCT30, "tx1");
     const undone = undoBillPaid(paid.bill, [{ id: "other" }], "2026-10");
     expect(undone.transactions).toEqual([{ id: "other" }]);
+    expect(undone.keptTransaction).toBe(false);
+  });
+
+  it("bills: Undo after the transaction was edited keeps the edited transaction", () => {
+    const paid = markBillPaid(bill("Rent", 1, 1550), [], OCT30, "tx1");
+    for (const edit of [
+      { amount: 1500 },
+      { date: "2026-10-29" },
+      { description: "Rent (Oct)" },
+      { category: "Other" },
+    ]) {
+      const edited = paid.transactions.map((t) => ({ ...t, ...edit }));
+      const undone = undoBillPaid(paid.bill, edited, "2026-10");
+      expect(undone.transactions).toEqual(edited); // the user's edit survives
+      expect(undone.keptTransaction).toBe(true);
+      expect(undone.bill.paidMonths).toEqual({}); // the month is still unmarked
+    }
+  });
+
+  it("bills: Undo of one month never touches another month's transaction", () => {
+    const oct = markBillPaid(bill("Rent", 1, 1550), [], OCT30, "tx-oct");
+    const nov = markBillPaid(oct.bill, oct.transactions, OCT30, "tx-nov");
+    expect(nov.month).toBe("2026-11");
+    const undone = undoBillPaid(nov.bill, nov.transactions, "2026-10");
+    expect(undone.transactions.map((t) => t.id)).toEqual(["tx-nov"]);
+    expect(Object.keys(undone.bill.paidMonths)).toEqual(["2026-11"]);
   });
 });
 
@@ -299,6 +331,132 @@ describe("linking: one obligation, counted once", () => {
   });
 });
 
+describe("conflicting payment amounts are surfaced, not settled", () => {
+  it("lists every amount with its source when linked records disagree", () => {
+    const o = buildObligations({
+      debts: [debt("Car loan", { minPayment: 340 })],
+      accounts: [
+        liability("Auto", { debtId: "Car loan", monthlyPayment: 350 }),
+      ],
+    });
+    expect(o.groups[0].payment).toBe(350); // the cautious one is used...
+    expect(o.groups[0].conflict).toEqual([
+      { source: "Debt Planner", amount: 340 },
+      { source: "Net Worth: Auto", amount: 350 },
+    ]); // ...and both are reported
+  });
+
+  it("matching amounts, or a single source, are not a conflict", () => {
+    const same = buildObligations({
+      debts: [debt("Car loan", { minPayment: 350 })],
+      accounts: [
+        liability("Auto", { debtId: "Car loan", monthlyPayment: 350 }),
+      ],
+      bills: [
+        bill("Car payment", 5, 350, {
+          payFor: { type: "debt", id: "Car loan" },
+        }),
+      ],
+    });
+    expect(same.groups[0].conflict).toBeNull();
+    expect(
+      buildObligations({ debts: [debt("Loan")] }).groups[0].conflict,
+    ).toBeNull();
+  });
+
+  it("several linked bills are compared as their total", () => {
+    const o = buildObligations({
+      debts: [debt("Mortgage", { minPayment: 1700 })],
+      bills: [
+        bill("M1", 1, 900, { payFor: { type: "debt", id: "Mortgage" } }),
+        bill("M2", 15, 900, { payFor: { type: "debt", id: "Mortgage" } }),
+      ],
+    });
+    expect(o.groups[0].conflict).toEqual([
+      { source: "Debt Planner", amount: 1700 },
+      { source: "Bills: M1 + Bills: M2", amount: 1800 },
+    ]);
+  });
+});
+
+describe("linked obligations with several bills", () => {
+  const start = "2026-10-30";
+  const end = addDays(start, 13); // Nov 12
+  const OCT_PAID = { paidMonths: { "2026-10": { markedOn: "2026-10-05" } } };
+  const group = (minPayment, bills) =>
+    buildObligations({
+      debts: [debt("Mortgage", { minPayment, ...OCT_PAID })],
+      bills: bills.map(([id, day, amount, extra]) =>
+        bill(id, day, amount, {
+          payFor: { type: "debt", id: "Mortgage" },
+          ...extra,
+        }),
+      ),
+    });
+
+  it("each bill keeps its own date; the window holds only the dates inside it", () => {
+    const owed = paymentsOwed(
+      group(1800, [
+        ["M1", 3, 900],
+        ["M2", 20, 900],
+      ]),
+      start,
+      end,
+    );
+    expect(owed.items.map((i) => [i.date, i.bill, i.amount])).toEqual([
+      ["2026-11-03", "M1", 900],
+    ]);
+    expect(owed.total).toBe(900);
+  });
+
+  it("a required payment above the bills adds the rest on the first bill's date", () => {
+    const owed = paymentsOwed(
+      group(2000, [
+        ["M1", 3, 900],
+        ["M2", 10, 900],
+      ]),
+      start,
+      end,
+    );
+    expect(
+      owed.items.map((i) => [i.date, i.amount, Boolean(i.difference)]),
+    ).toEqual([
+      ["2026-11-03", 900, false],
+      ["2026-11-03", 200, true],
+      ["2026-11-10", 900, false],
+    ]);
+    expect(owed.total).toBe(2000);
+  });
+
+  it("a linked bill without an amount makes the payment unknown, never $0", () => {
+    const owed = paymentsOwed(
+      group(1800, [
+        ["M1", 3, ""],
+        ["M2", 10, 900],
+      ]),
+      start,
+      end,
+    );
+    expect(owed.unknown).toEqual(["Mortgage"]);
+  });
+
+  it("partial confirmation: one bill paid leaves the other owed; undoing it brings it back", () => {
+    const paidM1 = { paidMonths: { "2026-11": { markedOn: "2026-10-30" } } };
+    const partial = group(1800, [
+      ["M1", 3, 900, paidM1],
+      ["M2", 10, 900],
+    ]);
+    expect(paymentsOwed(partial, start, end).items.map((i) => i.bill)).toEqual([
+      "M2",
+    ]);
+    partial.groups[0].bills[0] = undoPaid(
+      partial.groups[0].bills[0],
+      "2026-11",
+    );
+    expect(paymentsOwed(partial, start, end).total).toBe(1800);
+  });
+});
+
 describe("paymentsOwed: each payment subtracted once", () => {
   const start = "2026-10-30";
   const end = addDays(start, 13); // Nov 12
@@ -357,7 +515,9 @@ describe("paymentsOwed: each payment subtracted once", () => {
           }),
         ],
       });
-    expect(paymentsOwed(linked(true, false), start, end).total).toBe(1800);
+    // Partial confirmation: M1 is paid, so only M2's $900 is still owed.
+    expect(paymentsOwed(linked(true, false), start, end).total).toBe(900);
+    expect(paymentsOwed(linked(false, false), start, end).total).toBe(1800);
     expect(paymentsOwed(linked(true, true), start, end).total).toBe(0);
     const rootPaid = linked(false, false);
     rootPaid.groups[0].debt = markPaid(
@@ -444,6 +604,15 @@ describe("paymentsOwed: each payment subtracted once", () => {
     // paymentsOwed never sees transactions at all; this pins that contract.
     // Undated, so both months the window touches count: $35 for Oct and $35 for Nov.
     expect(paymentsOwed(o, start, end).total).toBe(70);
+  });
+
+  it("a bill without a valid due day is owed every month, not skipped", () => {
+    const o = buildObligations({ bills: [bill("Gym", "abc", 30)] });
+    const owed = paymentsOwed(o, start, end);
+    expect(owed.items.map((i) => [i.month, i.reason])).toEqual([
+      ["2026-10", "undated"],
+      ["2026-11", "undated"],
+    ]);
   });
 
   it("unknown amounts are listed, never added to the total", () => {
