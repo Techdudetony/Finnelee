@@ -154,17 +154,19 @@ export async function signUp({ name, email, password }) {
 }
 
 // Two tabs can run these at once. Without care both would "succeed" and one would show a
-// key that already doesn't work. Two layers stop that:
-// 1. A Web Lock (navigator.locks, built into modern browsers) shared by every tab of this
-//    site: one reset or key change runs at a time, start to finish. The next one waits,
-//    then reads the account fresh, so an already-used key is simply wrong.
-// 2. Compare-and-swap for browsers without Web Locks: re-read the account right before the
-//    single write and give up if the key changed meanwhile (no `await` between the two).
+// key that already doesn't work. A Web Lock (navigator.locks, in every current browser) is
+// shared by all tabs of this site: one reset or key change runs at a time, start to finish.
+// The next one waits, then reads the account fresh, so an already-used key is simply wrong.
+// localStorage alone can't do this safely (two tabs can still interleave), so when Web
+// Locks are missing we refuse instead of risking a key that doesn't work.
 const RECOVERY_LOCK = 'finnelee.recovery';
 const KEY_CHANGED = 'Your recovery key was just changed in another tab. Reload and try again.';
-const withRecoveryLock = (task) => {
+export const NO_LOCKS =
+  "This browser can't safely change recovery keys. Update it, or use a current version of Chrome, Edge, Firefox or Safari.";
+const withRecoveryLock = async (task) => {
   const locks = globalThis.navigator?.locks;
-  return locks ? locks.request(RECOVERY_LOCK, task) : task();
+  if (!locks?.request) throw new Error(NO_LOCKS); // fail safe: nothing is read or written
+  return locks.request(RECOVERY_LOCK, task);
 };
 
 /**
@@ -204,9 +206,9 @@ async function resetPasswordNow({ email, recoveryKey, newPassword }, now) {
 
   const { hash, salt } = await hashPassword(newPassword);
   const next = await newRecoveryFields();
-  // Hashing took time, so another tab may have used this key meanwhile: check again.
+  // Still inside the lock, so this account can't have changed. Re-reading only keeps other
+  // accounts' changes (e.g. a sign-up in another tab) that happened while we were hashing.
   const current = readUsers();
-  if (current[key]?.recoveryHash !== user.recoveryHash) throw new Error(KEY_CHANGED);
   const updated = { ...current[key], passwordHash: hash, salt, ...next.fields };
   writeUsers({ ...current, [key]: updated }); // the one write: new password + new key together
   const { [key]: _cleared, ...otherAttempts } = attempts; // _cleared: success resets the counter
@@ -235,8 +237,7 @@ async function createRecoveryKeyNow(userId, password, seenCreatedAt) {
   const { hash } = await hashPassword(password, user.salt);
   if (hash !== user.passwordHash) throw new Error('Password is incorrect.');
   const { recoveryKey, fields } = await newRecoveryFields();
-  const current = readUsers(); // same re-check as resetPassword
-  if (current[key]?.recoveryHash !== user.recoveryHash) throw new Error(KEY_CHANGED);
+  const current = readUsers(); // keeps other accounts' changes, as in resetPassword
   const updated = { ...current[key], ...fields };
   writeUsers({ ...current, [key]: updated });
   return { user: publicUser(updated), recoveryKey };
