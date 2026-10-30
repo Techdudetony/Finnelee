@@ -12,6 +12,7 @@ import {
   safeToSpend,
 } from '../utils/finance';
 import { buildInsights } from '../utils/insights';
+import { savingsBalance } from '../utils/netWorth';
 
 /**
  * Pop-up summary shown right after signing in (and from the Dashboard's "Summary" button).
@@ -20,7 +21,7 @@ import { buildInsights } from '../utils/insights';
  */
 export default function WelcomeSummary({ store, onClose, goTo }) {
   const dialogRef = useRef(null);
-  const { user, transactions, budgets, bills, goals, settings, categories } = store;
+  const { user, transactions, budgets, bills, goals, settings, categories, accounts } = store;
 
   // Open the dialog once it's in the page. The `open` check matters in development:
   // StrictMode runs effects twice, and calling showModal() on an open dialog throws.
@@ -46,8 +47,9 @@ export default function WelcomeSummary({ store, onClose, goTo }) {
       budgetTotal,
       daysLeft: lastDay - today.getDate(),
       safe: safeToSpend({ transactions, bills, goals }, today),
+      // Typed-in savings by default; cash + savings accounts if chosen on the Forecast page.
       emergency: emergencyFundMonths(
-        settings.startingSavings,
+        savingsBalance(settings, accounts).amount,
         transactions,
         needsChecker(categories),
         today,
@@ -56,7 +58,7 @@ export default function WelcomeSummary({ store, onClose, goTo }) {
       goals: { saved, target, count: goals.length },
       insight: buildInsights(transactions, budgets, monthlySeries(transactions, 6))[0],
     };
-  }, [transactions, budgets, bills, goals, settings, categories]);
+  }, [transactions, budgets, bills, goals, settings, categories, accounts]);
 
   // Go to a page AND close the popup.
   const open = (page) => {

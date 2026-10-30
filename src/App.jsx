@@ -4,9 +4,11 @@ import { userKey } from './auth/userStorage';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { emptyData } from './data/sampleData';
 import { syncBudgets } from './utils/budgeting';
+import { recordSnapshot } from './utils/netWorth';
 import AuthScreen from './components/AuthScreen';
 import WelcomeSummary from './components/WelcomeSummary';
 import Dashboard from './components/Dashboard';
+import NetWorth from './components/NetWorth';
 import Transactions from './components/Transactions';
 import Budget from './components/Budget';
 import DebtPlanner from './components/DebtPlanner';
@@ -20,6 +22,7 @@ import Icon, { BrandMark } from './components/Icon';
 // Navigation config. Adding a page = add a row here + a component.
 const PAGES = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', Component: Dashboard },
+  { id: 'networth', label: 'Net Worth', icon: 'networth', Component: NetWorth },
   { id: 'transactions', label: 'Transactions', icon: 'transactions', Component: Transactions },
   { id: 'budget', label: 'Budget', icon: 'budget', Component: Budget },
   { id: 'debt', label: 'Debt Planner', icon: 'debt', Component: DebtPlanner },
@@ -63,6 +66,8 @@ function FinanceApp({ user }) {
   const [debts, setDebts] = useLocalStorage(userKey(user.id, 'debts'), blank.debts);
   const [goals, setGoals] = useLocalStorage(userKey(user.id, 'goals'), blank.goals);
   const [bills, setBills] = useLocalStorage(userKey(user.id, 'bills'), blank.bills);
+  // Net worth accounts. Older accounts and backups have none, which reads as [].
+  const [accounts, setAccounts] = useLocalStorage(userKey(user.id, 'accounts'), blank.accounts);
   const [settings, setSettings] = useLocalStorage(userKey(user.id, 'settings'), blank.settings);
   // Accounts created before custom categories existed fall back to the starter set.
   const [categories, setCategories] = useLocalStorage(
@@ -75,6 +80,12 @@ function FinanceApp({ user }) {
   useEffect(() => {
     setBudgets((prev) => syncBudgets(prev, settings));
   }, [settings, setBudgets]);
+
+  // Record this month's net worth totals whenever accounts or debts change.
+  // recordSnapshot returns the same object when nothing changed, so this doesn't loop.
+  useEffect(() => {
+    setSettings((prev) => recordSnapshot(prev, accounts, debts));
+  }, [accounts, debts, setSettings]);
  
   // Bundle everything into one object so every page gets the same single prop.
   const store = {
@@ -89,6 +100,8 @@ function FinanceApp({ user }) {
     setGoals,
     bills,
     setBills,
+    accounts,
+    setAccounts,
     settings,
     setSettings,
     categories,

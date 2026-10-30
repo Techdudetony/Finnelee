@@ -18,7 +18,18 @@ function mulberry32(seed) {
   };
 }
 
-/** Builds 6 months of transactions ending today, plus starter budgets, debts, goals and bills. */
+// A manual net worth account, updated today (same shape as one added on the Net Worth page).
+const sampleAccount = (name, type, kind, balance, today) => ({
+  id: uid(),
+  name,
+  type,
+  kind,
+  balance,
+  updated: toISODate(today),
+  source: 'manual',
+});
+
+/** Builds 6 months of transactions ending today, plus starter budgets, debts, goals, bills and accounts. */
 export function generateSampleData(today = new Date()) {
   const rand = mulberry32(42);
   const between = (min, max) => Math.round((min + rand() * (max - min)) * 100) / 100;
@@ -114,6 +125,13 @@ export function generateSampleData(today = new Date()) {
       { id: uid(), name: 'Internet', amount: 65, dueDay: 12, category: 'Utilities' },
       { id: uid(), name: 'Car insurance', amount: 128, dueDay: 22, category: 'Transport' },
     ],
+    // Net worth accounts. The car's value is an asset; its loan is the "Car loan" debt above.
+    accounts: [
+      sampleAccount('Checking', 'asset', 'cash', 2400, today),
+      sampleAccount('High-yield savings', 'asset', 'savings', 3800, today),
+      sampleAccount('401(k)', 'asset', 'retirement', 21000, today),
+      sampleAccount('Car (market value)', 'asset', 'vehicle', 16500, today),
+    ],
     settings: { startingSavings: 3800, annualReturn: 5 },
     categories: starterCategories(),
   };
@@ -126,6 +144,28 @@ export const emptyData = () => ({
   debts: [],
   goals: [],
   bills: [],
+  accounts: [],
   settings: { startingSavings: 0, annualReturn: 5 },
   categories: starterCategories(),
 });
+
+/**
+ * A backup file (or sample / empty data) -> every slice, with safe defaults for anything an
+ * older backup doesn't have or has in the wrong shape. Settings.jsx loads the result at once,
+ * so no slice (like old accounts or snapshots) survives from the data being replaced.
+ */
+export function fromBackup(data) {
+  const blank = emptyData();
+  const list = (v, fallback) => (Array.isArray(v) ? v : fallback);
+  const object = (v, fallback) => (v && typeof v === 'object' && !Array.isArray(v) ? v : fallback);
+  return {
+    transactions: list(data?.transactions, blank.transactions),
+    budgets: object(data?.budgets, blank.budgets),
+    debts: list(data?.debts, blank.debts),
+    goals: list(data?.goals, blank.goals),
+    bills: list(data?.bills, blank.bills),
+    accounts: list(data?.accounts, blank.accounts), // backups made before net worth have none
+    settings: object(data?.settings, blank.settings),
+    categories: list(data?.categories, blank.categories), // ...and before custom categories
+  };
+}

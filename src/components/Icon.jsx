@@ -9,6 +9,7 @@ const ICONS = {
       <path d="M8 16v-3M12 16V8M16 16v-5" />
     </>
   ),
+  networth: <path d="M3.5 9.5 12 4.5l8.5 5M5.5 10.5v7M10 10.5v7M14 10.5v7M18.5 10.5v7M3.5 20h17" />,
   transactions: (
     <>
       <path d="M6 3.5h12v17l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4z" />

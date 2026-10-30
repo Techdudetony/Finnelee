@@ -10,10 +10,11 @@
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Accounts**        | Sign up / sign in with email and password. Each account has its own transactions, budgets, debts, goals and bills.                                                                                                                                                                                                                                                                             |
 | **Welcome summary** | Pops up after signing in (or from "View summary"): safe-to-spend, spending vs budget, emergency fund coverage, goal progress, bills due this week and the top insight.                                                                                                                                                                                                                         |
-| **Dashboard**       | A personal greeting ("Good evening, Antonio"), then this month's income, spending, net and savings rate; 6-month income vs. spending chart; spending-by-category donut; auto-generated insights ("Dining is up 32% vs last month"); upcoming bills.                                                                                                                                            |
+| **Dashboard**       | A personal greeting ("Good evening, Antonio"), then this month's income, spending, net and savings rate; 6-month income vs. spending chart; spending-by-category donut; auto-generated insights ("Dining is up 32% vs last month"); upcoming bills; net worth.                                                                                                                                 |
 | **Transactions**    | Add, search, filter and delete income/expenses. **Import a CSV export or PDF statement** from your bank (preview, fix rows, duplicate check) and export to CSV.                                                                                                                                                                                                                                |
 | **Budget**          | **Zero-based budgeting**: planned income − category allocations − goal contributions = Left to assign. Optional **rollover** per category (leftover or overspending carries into next month). Plan this month and next; browse past months read-only. Also a **50/30/20 calculator** (needs / wants / savings) compared against your real spending, and a **debt-to-income (DTI) calculator**. |
 | **Debt Planner**    | Enter your debts and an extra monthly payment; compares **Snowball** (smallest balance first) vs **Avalanche** (highest interest first): months to debt-free, total interest, payoff order, and a balance-over-time chart.                                                                                                                                                                     |
+| **Net Worth**       | Assets minus liabilities. Add accounts by hand (checking, savings, investments, home, car, mortgage); Debt Planner debts count automatically. Chart of recorded monthly snapshots.                                                                                                                                                                                                             |
 | **Forecast**        | Projects savings growth with compound interest under conservative / expected / optimistic returns, and predicts next month's spending from your trend (linear regression).                                                                                                                                                                                                                     |
 | **Goals**           | Savings goals (emergency fund, vacation...) with progress and the monthly amount needed to hit each deadline.                                                                                                                                                                                                                                                                                  |
 | **Bills**           | Recurring bills with next due date, days until due, and monthly total. **Suggests bills** it spots in your transactions (same merchant, about the same amount, once a month).                                                                                                                                                                                                                  |
@@ -100,6 +101,7 @@ finance-app/                    # project folder (the npm package is named "finn
     │   ├── merchant.js         # merchant names from bank descriptions ('NETFLIX.COM 866...' -> 'netflix')
     │   ├── recurring.js        # finds monthly charges to suggest as bills
     │   ├── budgeting.js        # limit history, next-month plans, rollover, Left to assign
+    │   ├── netWorth.js         # accounts, net worth totals, monthly snapshots, savings source
     │   └── *.test.js           # Vitest unit tests, next to the file they test
     ├── data/
     │   ├── categories.js       # starter categories + helpers (names, colors, needs)
@@ -121,6 +123,7 @@ finance-app/                    # project folder (the npm package is named "finn
         ├── DebtPlanner.jsx
         ├── Forecast.jsx
         ├── Goals.jsx
+        ├── NetWorth.jsx        # accounts, Debt Planner liabilities, snapshot chart
         ├── Bills.jsx
         ├── Categories.jsx      # category manager page
         └── Settings.jsx
@@ -136,8 +139,13 @@ budgets     = { Groceries: 500, Dining: 200, ... }          // monthly limit per
 debt        = { id, name, balance, apr, minPayment }        // apr is a yearly % (e.g. 22.9)
 goal        = { id, name, target, saved, deadline }         // deadline 'YYYY-MM-DD'
 bill        = { id, name, amount, dueDay, category }        // dueDay 1-31 of each month
+account     = { id, name, type: 'asset' | 'liability', kind, balance, updated: 'YYYY-MM-DD', source: 'manual' }
+// liability accounts are only for debts NOT in the Debt Planner (those count automatically)
 category    = { id, name, type: 'expense' | 'income', group: 'need' | 'want', colorIndex }  // colorIndex 0-7 or null (gray)
-settings    = { startingSavings, annualReturn, dismissedRecurring, budgeting }  // dismissedRecurring: merchant keys hidden from bill suggestions
+settings    = { startingSavings, annualReturn, savingsSource, dismissedRecurring, budgeting, netWorthHistory }
+// savingsSource: 'manual' (default) | 'accounts' (cash + savings accounts feed Forecast + emergency fund)
+// netWorthHistory: { 'YYYY-MM': { assets, liabilities } }, totals recorded during each month (not month-end)
+// dismissedRecurring: merchant keys hidden from bill suggestions
 
 // settings.budgeting: every part optional (older backups have none). See utils/budgeting.js.
 budgeting   = {
@@ -159,7 +167,8 @@ budgeting   = {
 - **DTI** = monthly debt payments ÷ gross monthly income (≤ 36% is generally considered healthy)
 - **Spending prediction**: least-squares line through the last 6 months, extended one month ahead
 - **Safe to spend** = this month's income − spent so far − bills still due this month − monthly goal savings
-- **Emergency fund months** = current savings ÷ average monthly essential ("needs") spending over the last 3 full months
+- **Net worth** = asset accounts − (liability accounts + Debt Planner balances)
+- **Emergency fund months** = current savings (typed-in amount, or cash + savings accounts if chosen) ÷ average monthly essential ("needs") spending over the last 3 full months
 - **Limit in a month** = the category's latest limit change on or before that month (no changes yet: `budgets`)
 - **Carryover** (rollover on) = opening balance + Σ (limit − spent) for each earlier month since rollover was turned on. Can be negative.
 - **Available** = allocation + carryover; **Remaining** = available − spent

@@ -3,13 +3,14 @@
 // so two people sharing a browser never see each other's numbers.
 
 export const DATA_SLICES = [
-  'transactions',
-  'budgets',
-  'debts',
-  'goals',
-  'bills',
-  'settings',
-  'categories',
+  "transactions",
+  "budgets",
+  "debts",
+  "goals",
+  "bills",
+  "accounts", // net worth accounts
+  "settings",
+  "categories",
 ];
 
 export const userKey = (userId, slice) => `finnelee.${userId}.${slice}`;

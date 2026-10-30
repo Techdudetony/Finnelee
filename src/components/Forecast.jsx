@@ -6,9 +6,11 @@ import { useColorScheme } from '../hooks/useColorScheme';
 import { getPalette } from '../utils/colors';
 import { formatCurrency } from '../utils/format';
 import { monthlySeries, predictNext, projectSavings } from '../utils/finance';
+import { liquidSavings, savingsBalance } from '../utils/netWorth';
+import Status from './Status';
 
 export default function Forecast({ store }) {
-  const { transactions, settings, setSettings } = store;
+  const { transactions, settings, setSettings, accounts } = store;
   const palette = getPalette(useColorScheme());
   const history = useMemo(() => monthlySeries(transactions, 6), [transactions]);
 
@@ -19,7 +21,10 @@ export default function Forecast({ store }) {
   const [monthly, setMonthly] = useState(Math.max(0, Math.round(avgNet)));
   const [years, setYears] = useState(10);
   const rate = Number(settings.annualReturn) || 0;
-  const start = Number(settings.startingSavings) || 0;
+  // Starting savings: the typed-in amount by default, or cash + savings accounts if the user chose that.
+  const savings = savingsBalance(settings, accounts);
+  const liquid = liquidSavings(accounts);
+  const start = savings.amount;
 
   // Three scenarios: expected return ± 2 percentage points, merged into one row per month.
   const projection = useMemo(() => {
@@ -52,6 +57,7 @@ export default function Forecast({ store }) {
   const avgSpend = pastExpenses.reduce((s, v) => s + v, 0) / (pastExpenses.length || 1);
 
   const updateSetting = (field) => (e) => setSettings((s) => ({ ...s, [field]: Number(e.target.value) }));
+  const setSource = (source) => setSettings((s) => ({ ...s, savingsSource: source }));
 
   return (
     <div className="stack">
@@ -60,7 +66,9 @@ export default function Forecast({ store }) {
         <p className="sub">Compound growth with a fixed monthly deposit. Suggested deposit is your average monthly net over the last 3 months ({formatCurrency(avgNet)}).</p>
         <div className="form">
           <label className="field">Current savings
-            <input type="number" min="0" value={settings.startingSavings} onChange={updateSetting('startingSavings')} />
+            {savings.source === 'accounts'
+              ? <input type="number" value={start} disabled title="From your cash and savings accounts" />
+              : <input type="number" min="0" value={settings.startingSavings} onChange={updateSetting('startingSavings')} />}
           </label>
           <label className="field">Monthly deposit
             <input type="number" min="0" value={monthly} onChange={(e) => setMonthly(Number(e.target.value))} />
@@ -74,6 +82,24 @@ export default function Forecast({ store }) {
             </select>
           </label>
         </div>
+        {/* An explicit choice: adding an account never switches the source on its own. */}
+        <div className="row small" role="radiogroup" aria-label="Savings source" style={{ marginTop: 12 }}>
+          <span className="muted">Current savings comes from:</span>
+          <label className="row" style={{ gap: 6 }}>
+            <input type="radio" name="savingsSource" checked={settings.savingsSource !== 'accounts'} onChange={() => setSource('manual')} />
+            The amount I enter
+          </label>
+          <label className="row" style={{ gap: 6 }}>
+            <input type="radio" name="savingsSource" checked={settings.savingsSource === 'accounts'} disabled={liquid.count === 0} onChange={() => setSource('accounts')} />
+            My cash + savings accounts ({liquid.count ? formatCurrency(liquid.amount) : 'add one on the Net Worth page'})
+          </label>
+        </div>
+        {savings.fellBack && (
+          <Status tone="warning" as="p" style={{ marginBottom: 0 }}>
+            You have no cash or savings accounts right now, so the amount you entered is used.
+          </Status>
+        )}
+        <p className="small muted" style={{ marginBottom: 0 }}>The emergency fund in your welcome summary uses the same choice.</p>
       </section>
 
       <div className="grid grid-stats">
