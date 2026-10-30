@@ -1182,3 +1182,108 @@ describe("incomplete or conflicting data never looks better than complete data",
     expect(flagged).toBe(true);
   });
 });
+
+describe("review fixes: unknown payments and linked paid status", () => {
+  const schedule = {
+    paySchedule: {
+      cadence: "twice-monthly",
+      days: [1, 15],
+      next: "2026-11-01",
+      amount: 2000,
+    },
+  };
+
+  it("the runway projection is suppressed while a payment in the window is unknown", () => {
+    const data = base({
+      accounts: [cash(1000)],
+      bills: [{ id: "r", name: "Rent", amount: "", dueDay: 1 }],
+      settings: schedule,
+    });
+    const r = runwayEvents(data, OCT30);
+    expect(r.projection).toBeNull();
+    expect(r.projectionLabel).toBeNull();
+    expect(r.projectionNote).toBe(
+      "No projection until the Rent payment is added",
+    );
+    const known = runwayEvents(
+      { ...data, bills: [{ id: "r", name: "Rent", amount: 900, dueDay: 1 }] },
+      OCT30,
+    );
+    expect(known.projection).not.toBeNull();
+    expect(known.projectionNote).toBeNull();
+  });
+
+  it("Bills covered: an only bill with an unknown amount is not scored as 'no bills due'", () => {
+    const p = billsPillar(
+      base({
+        accounts: [cash(1000)],
+        bills: [{ id: "r", name: "Rent", amount: "", dueDay: 1 }],
+      }),
+      OCT30,
+    );
+    expect(p).toMatchObject({
+      state: "needs-data",
+      action: "Add the amount for Rent",
+    });
+  });
+
+  it("Bills covered: a debt marked paid clears its linked bill", () => {
+    const debt = {
+      id: "car",
+      name: "Car loan",
+      balance: 9000,
+      apr: 6,
+      minPayment: 500,
+    };
+    const bills = [
+      {
+        id: "cb",
+        name: "Car payment",
+        amount: 500,
+        dueDay: 1,
+        payFor: { type: "debt", id: "car" },
+      },
+    ];
+    const unpaid = billsPillar(
+      base({ accounts: [cash(250)], bills, debts: [debt] }),
+      OCT30,
+    );
+    expect(unpaid).toMatchObject({ score: 50, due: 500 });
+    const paid = billsPillar(
+      base({
+        accounts: [cash(250)],
+        bills,
+        debts: [markPaid(debt, "2026-11", OCT30)],
+      }),
+      OCT30,
+    );
+    expect(paid).toMatchObject({
+      score: 100,
+      valueText: "No bills due in the next 14 days",
+    });
+  });
+
+  it("Bills covered: a linked bill already past due this month isn't counted as due", () => {
+    const debt = {
+      id: "car",
+      name: "Car loan",
+      balance: 9000,
+      apr: 6,
+      minPayment: 500,
+    };
+    const bills = [
+      {
+        id: "cb",
+        name: "Car payment",
+        amount: 500,
+        dueDay: 20,
+        payFor: { type: "debt", id: "car" },
+      },
+    ];
+    const p = billsPillar(
+      base({ accounts: [cash(250)], bills, debts: [debt] }),
+      OCT30,
+    );
+    expect(p.valueText).toBe("No bills due in the next 14 days");
+  });
+});

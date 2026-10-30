@@ -312,25 +312,31 @@ export function billsPillar({ bills, debts, accounts }, today = new Date()) {
     return needsData("bills", "Bills covered", "Add your regular bills");
   if (cash.problem) return needsData("bills", "Bills covered", cash.problem);
 
-  // Every bill once, linked or not: obligations.js groups them, so a bill is never doubled.
+  // Every bill once, linked or not, through the full obligation groups so a debt marked
+  // paid also clears its linked bills. Only bill payments count here, and only those
+  // due in the window (a past-due debt month belongs to the spending estimate).
   const start = toISODate(today);
   const end = addDays(start, RUNWAY_DAYS - 1);
-  const { groups, bills: plain } = buildObligations({
-    debts,
-    accounts,
-    bills: list,
-  });
-  const owed = paymentsOwed(
-    { groups: [], bills: [...plain, ...groups.flatMap((g) => g.bills)] },
+  const all = paymentsOwed(
+    buildObligations({ debts, accounts, bills: list }),
     start,
     end,
   );
+  const due = all.items.filter(
+    (i) => (i.kind === "bill" || i.bill) && i.reason !== "overdue",
+  );
+  const owed = { total: round2(due.reduce((t, i) => t + (i.amount ?? 0), 0)) };
   // A bill without an amount can't be covered or not: no score rather than a guess.
-  if (owed.unknown.length)
+  const unknown = [
+    ...new Set(
+      due.filter((i) => i.amount === null).map((i) => i.bill ?? i.name),
+    ),
+  ];
+  if (unknown.length)
     return needsData(
       "bills",
       "Bills covered",
-      `Add the amount for ${owed.unknown.join(", ")}`,
+      `Add the amount for ${unknown.join(", ")}`,
     );
   const asOf = `Recently updated cash (${money(cash.total)} as of ${shortDate(cash.asOf)})`;
   if (owed.total <= 0)
@@ -802,10 +808,16 @@ export function runwayEvents(data, today = new Date()) {
     byDay.set(i.date, day);
   }
 
-  // A projected balance needs both a recent starting point and known paydays.
+  // A projected balance needs a recent starting point, known paydays and every payment
+  // amount in the window: an unknown one would make the line look better than it is.
   const cash = recentCash(data.accounts, today);
   let projection = null;
-  if (cash.fresh && schedule && schedule.amount !== null) {
+  if (
+    cash.fresh &&
+    schedule &&
+    schedule.amount !== null &&
+    owed.unknown.length === 0
+  ) {
     let balance = cash.total;
     projection = [];
     for (let d = start; d <= end; d = addDays(d, 1)) {
@@ -827,5 +839,9 @@ export function runwayEvents(data, today = new Date()) {
     empty: items.length === 0 ? "No bills due in the next 14 days" : null,
     projection,
     projectionLabel: projection ? "Projection from your records" : null,
+    // Why there's no projection when payments are unknown, so the UI can say so.
+    projectionNote: owed.unknown.length
+      ? `No projection until the ${owed.unknown.join(", ")} payment is added`
+      : null,
   };
 }
