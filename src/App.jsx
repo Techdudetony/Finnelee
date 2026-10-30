@@ -38,7 +38,7 @@ const PAGES = [
 export default function App() {
   const { user, loading } = useAuth();
  
-  if (loading) return <div className="auth-page muted">Loading…</div>;
+  if (loading) return <div className="auth-main auth-loading muted">Loading…</div>;
   if (!user) return <AuthScreen />;
  
   // key={user.id} is important: when a different user signs in, React throws away

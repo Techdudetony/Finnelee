@@ -177,6 +177,7 @@ tr:last-child td { border-bottom: 0; }
 /* Split layout: brand panel left, form right. Phones get the form alone. */
 .auth-page { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .auth-main { display: grid; place-items: center; padding: 24px 16px; }
+.auth-loading { min-height: 100vh; } /* the brief "Loading…" before the saved session is checked */
 .auth-card { width: 100%; max-width: 420px; padding: 28px; animation: rise var(--dur-slow) var(--ease) both; }
 
 .auth-hero {
