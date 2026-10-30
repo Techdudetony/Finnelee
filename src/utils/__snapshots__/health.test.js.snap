@@ -1,0 +1,40 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`missing and incomplete data > sample data gives a stable score with high confidence while accounts are recently updated 1`] = `
+{
+  "band": "Strong",
+  "pillars": [
+    [
+      "savings",
+      "scored",
+      100,
+      "39% of recorded income",
+    ],
+    [
+      "emergency",
+      "scored",
+      27,
+      "1.6 of 6 months",
+    ],
+    [
+      "budgets",
+      "scored",
+      100,
+      "9 of 9 on track",
+    ],
+    [
+      "bills",
+      "scored",
+      100,
+      "covered 1.3×",
+    ],
+    [
+      "debt",
+      "scored",
+      100,
+      "10% of recorded income",
+    ],
+  ],
+  "score": 85,
+}
+`;

@@ -18,7 +18,7 @@ How the suggested features map to what's built, and the order to build the rest.
 | What-If Simulator           | ⬜     | Model a job change, purchase, emergency expense or income change against the forecast.                                                                |
 | Bank Account Connections    | ⬜     | Needs a backend plus an aggregator such as Plaid (Phase 4).                                                                                           |
 | Household Budgeting         | ⬜     | Needs real server accounts to share data between people (Phase 3).                                                                                    |
-| Financial Health Score      | ⬜     | The inputs already exist: savings rate, DTI, emergency fund months and budget adherence.                                                              |
+| Financial Health Score      | 🟡     | Scoring engine done (`utils/health.js`): five pillars, confidence, spending estimates, runway. The Orb and its editing controls come next.              |
 | Progress & Milestones       | ⬜     | Savings streaks, achievements, monthly reviews, goal celebrations.                                                                                    |
 
 ## Supporting features
@@ -50,7 +50,7 @@ How the suggested features map to what's built, and the order to build the rest.
 4. ~~Net worth (accounts and assets)~~ ✅ done
 5. Goal simulator (completion dates, scenarios) and the What-If simulator
 6. Financial health score, milestones and a monthly review
-7. Premium UI overhaul, in stages: ~~visual foundation~~ (in review), then navigation and motion settings (Full / Calm / Off), interactive surfaces, financial storytelling (Dashboard and Net Worth), delight (celebrations, command palette), and an optional, benchmarked WebGL experiment
+7. Premium UI overhaul, in stages: ~~visual foundation~~ ✅ done, then navigation and motion settings (Full / Calm / Off), interactive surfaces, financial storytelling (Dashboard and Net Worth), delight (celebrations, command palette), and an optional, benchmarked WebGL experiment
 
 **Phase 3: add a backend (Supabase recommended).** Move auth and data to the server (see "Auth" below), then add household sharing, email reminders and the AI features.
 
