@@ -31,13 +31,28 @@ export function tiltFor(x, y, rect) {
 
 const VARS = ['--rx', '--ry', '--mx', '--my'];
 
-/** Starts the listeners on `doc`; returns a function that removes them. */
-export function startSurfaces(doc = document, raf = requestAnimationFrame) {
+/**
+ * Starts the listeners on `doc`; returns a function that removes them.
+ * `raf`/`caf` are injectable so tests can hold a frame and run it later.
+ */
+export function startSurfaces(
+  doc = document,
+  raf = (fn) => requestAnimationFrame(fn),
+  caf = (id) => cancelAnimationFrame(id),
+) {
   let card = null; // the card under the pointer
-  let pending = null; // the latest pointer event, waiting for the next frame
-  let frame = 0;
+  let pending = null; // { card, x, y }: the latest move, waiting for the next frame
+  let frame = 0; // id of the queued frame, 0 when none
+
+  // Drops any queued frame and its move, so nothing paints after this point.
+  const cancelFrame = () => {
+    if (frame) caf(frame);
+    frame = 0;
+    pending = null;
+  };
 
   const release = () => {
+    cancelFrame();
     if (!card) return;
     VARS.forEach((v) => card.style.removeProperty(v));
     card.classList.remove('lit', 'tilting'); // CSS eases it back to flat
@@ -46,10 +61,11 @@ export function startSurfaces(doc = document, raf = requestAnimationFrame) {
 
   const paint = () => {
     frame = 0;
-    const e = pending;
+    const move = pending;
     pending = null;
-    if (!e || !card) return;
-    const t = tiltFor(e.clientX, e.clientY, card.getBoundingClientRect());
+    // A frame queued for an earlier card, or before a switch to Calm/Off, does nothing.
+    if (!move || move.card !== card || getMotion() !== 'full') return;
+    const t = tiltFor(move.x, move.y, card.getBoundingClientRect());
     card.style.setProperty('--mx', `${t.mx}%`);
     card.style.setProperty('--my', `${t.my}%`);
     if (card.matches(TILT_SELECTOR)) {
@@ -63,13 +79,13 @@ export function startSurfaces(doc = document, raf = requestAnimationFrame) {
   const move = (e) => {
     if (e.pointerType === 'touch' || getMotion() !== 'full') return release();
     const next = e.target?.closest?.(LIT_SELECTOR) ?? null;
-    if (next !== card) release();
+    if (next !== card) release(); // also cancels a frame queued for the old card
     if (!next) return;
     card = next;
-    pending = e;
+    pending = { card, x: e.clientX, y: e.clientY };
     if (!frame) frame = raf(paint);
   };
-  // Leaving the window, or a press starting a drag/scroll, puts the card back.
+  // Leaving the window puts the card back (relatedTarget is null when the pointer leaves).
   const leave = (e) => {
     if (!e.relatedTarget) release();
   };

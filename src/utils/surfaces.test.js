@@ -28,10 +28,7 @@ function fakeCard(isTile) {
       setProperty: (k, v) => props.set(k, v),
       removeProperty: (k) => props.delete(k),
     },
-    classList: {
-      add: (...c) => c.forEach((x) => classes.add(x)),
-      remove: (...c) => c.forEach((x) => classes.delete(x)),
-    },
+    classList: { add: (...c) => c.forEach((x) => classes.add(x)), remove: (...c) => c.forEach((x) => classes.delete(x)) },
     getBoundingClientRect: () => RECT,
     matches: () => isTile,
     props,
@@ -41,18 +38,34 @@ function fakeCard(isTile) {
   return card;
 }
 
+// Frames are held until flush(), like a browser between paints; cancel removes one.
 function setup() {
   const doc = new EventTarget();
-  const frames = [];
-  const stop = startSurfaces(doc, (fn) => frames.push(fn) && frames.length);
-  const flush = () => frames.splice(0).forEach((fn) => fn());
+  const queued = new Map();
+  let nextId = 1;
+  const raf = (fn) => {
+    queued.set(nextId, fn);
+    return nextId++;
+  };
+  const caf = (id) => queued.delete(id);
+  const stop = startSurfaces(doc, raf, caf);
+  const flush = () => {
+    const fns = [...queued.values()];
+    queued.clear();
+    fns.forEach((fn) => fn());
+  };
   const move = (target, x, y, pointerType = 'mouse') => {
     const e = new Event('pointermove');
     Object.assign(e, { clientX: x, clientY: y, pointerType });
     Object.defineProperty(e, 'target', { value: target });
     doc.dispatchEvent(e);
   };
-  return { doc, frames, flush, move, stop };
+  const leaveWindow = () => {
+    const out = new Event('pointerout');
+    Object.defineProperty(out, 'relatedTarget', { value: null });
+    doc.dispatchEvent(out);
+  };
+  return { doc, frames: queued, flush, move, leaveWindow, stop };
 }
 
 describe('startSurfaces', () => {
@@ -65,7 +78,7 @@ describe('startSurfaces', () => {
     move(tile, 100, 50);
     move(tile, 120, 60);
     move(tile, 300, 150);
-    expect(frames).toHaveLength(1); // three moves, one frame of work
+    expect(frames.size).toBe(1); // three moves, one frame of work
     flush();
     expect(tile.props.get('--rx')).toBe(`${-MAX_TILT}deg`); // the latest move wins
     expect(tile.props.get('--mx')).toBe('100%');
@@ -94,14 +107,14 @@ describe('startSurfaces', () => {
     move(tile, 150, 75);
     applyMotion('off');
     move(tile, 150, 75);
-    expect(frames).toHaveLength(0);
+    expect(frames.size).toBe(0);
     expect(tile.props.size).toBe(0);
     stop();
   });
 
   it('flattens the card when the pointer moves to another card or leaves the window', () => {
     applyMotion('full');
-    const { doc, flush, move, stop } = setup();
+    const { flush, move, leaveWindow, stop } = setup();
     const a = fakeCard(true);
     const b = fakeCard(true);
     move(a, 150, 75);
@@ -110,9 +123,7 @@ describe('startSurfaces', () => {
     expect(a.props.size).toBe(0);
     expect(a.classes.size).toBe(0);
     flush();
-    const out = new Event('pointerout');
-    Object.defineProperty(out, 'relatedTarget', { value: null });
-    doc.dispatchEvent(out);
+    leaveWindow();
     expect(b.props.size).toBe(0);
     expect(b.classes.size).toBe(0);
     stop();
@@ -139,6 +150,81 @@ describe('startSurfaces', () => {
     stop();
     expect(tile.props.size).toBe(0);
     move(tile, 100, 50);
-    expect(frames).toHaveLength(0);
+    expect(frames.size).toBe(0);
+  });
+  describe('frames queued but not yet run', () => {
+    it('rapid move to a second card: the first stays flat, only the second paints', () => {
+      applyMotion('full');
+      const { frames, flush, move, stop } = setup();
+      const a = fakeCard(true);
+      const b = fakeCard(true);
+      move(a, 100, 50); // queues a frame for a
+      move(b, 300, 150); // before it runs
+      expect(frames.size).toBe(1); // a's frame was cancelled, b has its own
+      flush();
+      expect(a.props.size).toBe(0);
+      expect(a.classes.size).toBe(0);
+      expect(b.props.get('--rx')).toBe(`${-MAX_TILT}deg`);
+      expect(b.props.get('--mx')).toBe('100%');
+      stop();
+    });
+
+    it('leaving the window before the frame runs: nothing paints afterwards', () => {
+      applyMotion('full');
+      const { frames, flush, move, leaveWindow, stop } = setup();
+      const tile = fakeCard(true);
+      move(tile, 100, 50);
+      leaveWindow();
+      expect(frames.size).toBe(0);
+      flush();
+      expect(tile.props.size).toBe(0);
+      expect(tile.classes.size).toBe(0);
+      stop();
+    });
+
+    it('switching to Calm or Off before the frame runs: nothing paints', () => {
+      for (const level of ['calm', 'off']) {
+        applyMotion('full');
+        const { frames, flush, move, stop } = setup();
+        const tile = fakeCard(true);
+        move(tile, 100, 50);
+        applyMotion(level);
+        expect(frames.size).toBe(0);
+        flush();
+        expect(tile.props.size).toBe(0);
+        expect(tile.classes.size).toBe(0);
+        stop();
+      }
+    });
+
+    it('a frame that still runs after a switch to Calm does nothing', () => {
+      applyMotion('full');
+      const tile = fakeCard(true);
+      const doc = new EventTarget();
+      let held = null;
+      // A browser that runs the frame even though it was cancelled.
+      const stop = startSurfaces(doc, (fn) => ((held = fn), 1), () => {});
+      const e = new Event('pointermove');
+      Object.assign(e, { clientX: 100, clientY: 50, pointerType: 'mouse' });
+      Object.defineProperty(e, 'target', { value: tile });
+      doc.dispatchEvent(e);
+      applyMotion('calm');
+      held();
+      expect(tile.props.size).toBe(0);
+      expect(tile.classes.size).toBe(0);
+      stop();
+    });
+
+    it('teardown with a frame pending cancels it and leaves the card flat', () => {
+      applyMotion('full');
+      const { frames, flush, move, stop } = setup();
+      const tile = fakeCard(true);
+      move(tile, 100, 50);
+      stop();
+      expect(frames.size).toBe(0);
+      flush();
+      expect(tile.props.size).toBe(0);
+      expect(tile.classes.size).toBe(0);
+    });
   });
 });
