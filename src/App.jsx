@@ -1,8 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useAuth } from './auth/AuthContext';
 import { userKey } from './auth/userStorage';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useMediaQuery } from './hooks/useMediaQuery';
+import { useSwipeToClose } from './hooks/useSwipeToClose';
+import { setSavedMotion, transitionTo } from './utils/motion';
 import { emptyData } from './data/sampleData';
 import { syncBudgets } from './utils/budgeting';
 import { recordSnapshot } from './utils/netWorth';
@@ -69,7 +72,12 @@ function FinanceApp({ user }) {
   const drawer = isMobile && drawerOpen; // resizing to desktop closes it automatically
   const menuButtonRef = useRef(null);
   const navRef = useRef(null);
-  const closeDrawer = () => setDrawerOpen(false);
+  const sidebarRef = useRef(null);
+  const backdropRef = useRef(null);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  // On phones the open drawer follows a leftward swipe and closes (Escape and the close
+  // button still work for keyboards and screen readers).
+  useSwipeToClose(sidebarRef, backdropRef, drawer, closeDrawer);
   // Focus moves into the drawer when it opens, and back to the menu button when it closes.
   // Done after render: until then the target is still `inert` and can't take focus.
   const wasOpen = useRef(false);
@@ -88,9 +96,19 @@ function FinanceApp({ user }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [drawer]);
 
-  const goTo = (id) => {
-    setPage(id);
-    if (drawer) closeDrawer();
+  // `from` (optional) is the element that was tapped, such as a Dashboard card: at Full
+  // motion it grows into the new page's title (see transitionTo in utils/motion.js).
+  // flushSync applies the change at once, which the View Transition needs to capture it.
+  const goTo = (id, from) => {
+    if (id === page) return closeDrawer();
+    transitionTo(
+      () =>
+        flushSync(() => {
+          setPage(id);
+          setDrawerOpen(false);
+        }),
+      from,
+    );
   };
 
   // The active-page highlight is one element that slides to the selected item.
@@ -130,6 +148,13 @@ function FinanceApp({ user }) {
     blank.categories,
   );
  
+  // The Motion setting (Full / Calm / Off). Signing out goes back to the device default.
+  // A layout effect, so a saved Calm/Off is in place before the first paint.
+  useLayoutEffect(() => {
+    setSavedMotion(settings.motion);
+  }, [settings.motion]);
+  useEffect(() => () => setSavedMotion(undefined), []);
+
   // A limit planned for next month becomes the active one once that month arrives.
   // syncBudgets returns the same object when nothing changed, so this doesn't loop.
   useEffect(() => {
@@ -183,9 +208,22 @@ function FinanceApp({ user }) {
           <BrandMark /> Finnelee
         </div>
       </header>
-      {drawer && <div className="drawer-backdrop" onClick={closeDrawer} aria-hidden="true" />}
+      {drawer && (
+        <div
+          ref={backdropRef}
+          className="drawer-backdrop"
+          onClick={closeDrawer}
+          aria-hidden="true"
+        />
+      )}
 
-      <aside id="sidebar" className="sidebar" aria-label="Menu" {...inert(isMobile && !drawerOpen)}>
+      <aside
+        ref={sidebarRef}
+        id="sidebar"
+        className="sidebar"
+        aria-label="Menu"
+        {...inert(isMobile && !drawerOpen)}
+      >
         <div className="brand">
           <BrandMark /> Finnelee
           {isMobile && (

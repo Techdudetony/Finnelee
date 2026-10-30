@@ -79,7 +79,7 @@ function GoalCard({ goal, isNew, onContribute, onDelete }) {
         <strong className="num">{formatCurrency(goal.saved)}</strong>
         <span className="muted">of {formatCurrency(goal.target)}</span>
       </div>
-      <ProgressBar value={goal.saved} max={goal.target} mode="target" />
+      <ProgressBar value={goal.saved} max={goal.target} mode="target" label={`${goal.name} goal`} />
       <p className="small" style={{ margin: '12px 0' }}>
         {done ? <Status tone="good" icon="celebrate">Goal reached!</Status> : <>Save <strong>{formatCurrency(needed)}</strong> per month to stay on track.</>}
       </p>

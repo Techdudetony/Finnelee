@@ -8,6 +8,7 @@ import CountUp from './CountUp';
 import { useNewItems } from '../hooks/useNewItems';
 import Status, { Notice } from './Status';
 import { useColorScheme } from '../hooks/useColorScheme';
+import { useMotion } from '../hooks/useMotion';
 import { getPalette } from '../utils/colors';
 import { formatCurrency, formatDate } from '../utils/format';
 import {
@@ -34,6 +35,7 @@ export default function NetWorth({ store, goTo }) {
   const { debts, settings, setAccounts } = store;
   const accounts = readAccounts(store.accounts);
   const palette = getPalette(useColorScheme());
+  const animate = useMotion() === 'full'; // charts draw in at Full motion only
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
 
@@ -114,7 +116,7 @@ export default function NetWorth({ store, goTo }) {
                   width={60}
                 />
                 <Tooltip content={<ChartTooltip />} />
-                <Line dataKey="netWorth" name="Net worth" stroke={palette.series[0]} strokeWidth={2.5} dot={{ r: 3 }} />
+                <Line isAnimationActive={animate} dataKey="netWorth" name="Net worth" stroke={palette.series[0]} strokeWidth={2.5} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>

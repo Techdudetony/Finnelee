@@ -228,7 +228,7 @@ export default function Budget({ store }) {
                   </td>
                   <td>
                     {r.available > 0 ? (
-                      <ProgressBar value={r.spent} max={r.available} />
+                      <ProgressBar value={r.spent} max={r.available} label={`${r.category} budget`} />
                     ) : r.allocation === 0 && !r.rollsOver ? (
                       <span className="small muted">No limit set</span>
                     ) : (
@@ -337,7 +337,7 @@ function FiftyThirtyTwenty({ defaultIncome, spent, categories }) {
             <div className="small muted" style={{ margin: '2px 0 6px' }}>
               {r.hint}
             </div>
-            <ProgressBar value={r.actual} max={r.target} mode={r.mode} />
+            <ProgressBar value={r.actual} max={r.target} mode={r.mode} label={r.label} />
           </div>
         ))}
       </div>

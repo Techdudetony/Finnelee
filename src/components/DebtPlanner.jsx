@@ -4,6 +4,7 @@ import ChartTooltip from './ChartTooltip';
 import Icon from './Icon';
 import Status from './Status';
 import { useColorScheme } from '../hooks/useColorScheme';
+import { useMotion } from '../hooks/useMotion';
 import { getPalette } from '../utils/colors';
 import { formatCurrency, uid } from '../utils/format';
 import { simulateDebtPayoff, monthsFromNowLabel } from '../utils/finance';
@@ -13,6 +14,7 @@ const emptyDebt = { name: '', balance: '', apr: '', minPayment: '' };
 export default function DebtPlanner({ store }) {
   const { debts, setDebts } = store;
   const palette = getPalette(useColorScheme());
+  const animate = useMotion() === 'full'; // charts draw in at Full motion only
   const [extra, setExtra] = useState(200);
   const [form, setForm] = useState(emptyDebt);
 
@@ -118,8 +120,8 @@ export default function DebtPlanner({ store }) {
                   <YAxis tickFormatter={(v) => formatCurrency(v, { compact: true })} tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} width={56} />
                   <Tooltip content={<ChartTooltip labelFormatter={(m) => `Month ${m} · ${monthsFromNowLabel(m)}`} />} />
                   {/* dot={false} hides per-point circles; activeDot shows one only on hover. */}
-                  <Line type="monotone" dataKey="snowball" name="Snowball" stroke={palette.series[0]} strokeWidth={2} dot={false} activeDot={{ r: 5 }} />
-                  <Line type="monotone" dataKey="avalanche" name="Avalanche" stroke={palette.series[1]} strokeWidth={2} dot={false} activeDot={{ r: 5 }} />
+                  <Line isAnimationActive={animate} type="monotone" dataKey="snowball" name="Snowball" stroke={palette.series[0]} strokeWidth={2} dot={false} activeDot={{ r: 5 }} />
+                  <Line isAnimationActive={animate} type="monotone" dataKey="avalanche" name="Avalanche" stroke={palette.series[1]} strokeWidth={2} dot={false} activeDot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
