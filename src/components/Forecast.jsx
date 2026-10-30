@@ -3,6 +3,7 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tool
 import ChartTooltip from './ChartTooltip';
 import StatCard from './StatCard';
 import { useColorScheme } from '../hooks/useColorScheme';
+import { useMotion } from '../hooks/useMotion';
 import { getPalette } from '../utils/colors';
 import { formatCurrency } from '../utils/format';
 import { monthlySeries, predictNext, projectSavings } from '../utils/finance';
@@ -12,6 +13,7 @@ import Status from './Status';
 export default function Forecast({ store }) {
   const { transactions, settings, setSettings, accounts } = store;
   const palette = getPalette(useColorScheme());
+  const animate = useMotion() === 'full'; // charts draw in at Full motion only
   const history = useMemo(() => monthlySeries(transactions, 6), [transactions]);
 
   // Suggested contribution = average net of the last 3 FULL months (the current month is incomplete).
@@ -118,11 +120,11 @@ export default function Forecast({ store }) {
               <XAxis dataKey="month" ticks={projection.filter((p) => p.month % 12 === 0).map((p) => p.month)} tickFormatter={(m) => `Yr ${m / 12}`} tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} />
               <YAxis tickFormatter={(v) => formatCurrency(v, { compact: true })} tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} width={60} />
               <Tooltip content={<ChartTooltip labelFormatter={(m) => `Year ${Math.floor(m / 12)}, month ${m % 12}`} />} />
-              <Line dataKey="optimistic" name="Optimistic" stroke={palette.series[2]} strokeWidth={2} dot={false} />
-              <Line dataKey="expected" name="Expected" stroke={palette.series[0]} strokeWidth={2.5} dot={false} />
-              <Line dataKey="conservative" name="Conservative" stroke={palette.series[1]} strokeWidth={2} dot={false} />
+              <Line isAnimationActive={animate} dataKey="optimistic" name="Optimistic" stroke={palette.series[2]} strokeWidth={2} dot={false} />
+              <Line isAnimationActive={animate} dataKey="expected" name="Expected" stroke={palette.series[0]} strokeWidth={2.5} dot={false} />
+              <Line isAnimationActive={animate} dataKey="conservative" name="Conservative" stroke={palette.series[1]} strokeWidth={2} dot={false} />
               {/* strokeDasharray="4 4" = 4px dash, 4px gap: a quiet reference line */}
-              <Line dataKey="contributed" name="Deposited" stroke={palette.other} strokeWidth={2} strokeDasharray="4 4" dot={false} />
+              <Line isAnimationActive={animate} dataKey="contributed" name="Deposited" stroke={palette.other} strokeWidth={2} strokeDasharray="4 4" dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -148,8 +150,8 @@ export default function Forecast({ store }) {
               {/* Zoomed-in axis ('auto' bounds), so use whole dollars: compact labels would repeat ($2.7K, $2.7K). */}
               <YAxis tickFormatter={(v) => formatCurrency(v, { whole: true })} tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} width={64} domain={['auto', 'auto']} />
               <Tooltip content={<ChartTooltip />} />
-              <Line dataKey="actual" name="Actual" stroke={palette.series[1]} strokeWidth={2} dot={{ r: 4 }} />
-              <Line dataKey="forecast" name="Forecast" stroke={palette.series[1]} strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4 }} />
+              <Line isAnimationActive={animate} dataKey="actual" name="Actual" stroke={palette.series[1]} strokeWidth={2} dot={{ r: 4 }} />
+              <Line isAnimationActive={animate} dataKey="forecast" name="Forecast" stroke={palette.series[1]} strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>

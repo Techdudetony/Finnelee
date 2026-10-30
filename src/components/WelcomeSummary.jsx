@@ -121,7 +121,7 @@ export default function WelcomeSummary({ store, onClose, goTo }) {
             <span className="spacer" />
             {formatCurrency(s.month.expenses)} of {formatCurrency(s.budgetTotal)}
           </div>
-          <ProgressBar value={s.month.expenses} max={s.budgetTotal} />
+          <ProgressBar value={s.month.expenses} max={s.budgetTotal} label="Spending against your budgets" />
         </div>
       )}
 
@@ -132,7 +132,7 @@ export default function WelcomeSummary({ store, onClose, goTo }) {
             <span className="spacer" />
             {formatCurrency(s.goals.saved)} of {formatCurrency(s.goals.target)}
           </div>
-          <ProgressBar value={s.goals.saved} max={s.goals.target} mode="target" />
+          <ProgressBar value={s.goals.saved} max={s.goals.target} mode="target" label="Saved toward your goals" />
         </div>
       )}
 

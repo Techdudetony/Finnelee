@@ -18,6 +18,7 @@ import EmptyState from './EmptyState';
 import { Notice } from './Status';
 import ChartTooltip from './ChartTooltip';
 import { useColorScheme } from '../hooks/useColorScheme';
+import { useMotion } from '../hooks/useMotion';
 import { getPalette } from '../utils/colors';
 import { categoryColor } from '../data/categories';
 import {
@@ -38,6 +39,7 @@ export default function Dashboard({ store, goTo, openSummary }) {
   // Accounts made before recovery keys existed get a one-time, dismissible nudge.
   const showKeyReminder = !user.hasRecoveryKey && !settings.recoveryReminderDismissed;
   const palette = getPalette(useColorScheme());
+  const animate = useMotion() === 'full'; // charts draw in at Full motion only
   const thisMonth = monthKey(new Date());
 
   // useMemo caches a calculation and only re-runs it when its dependencies change.
@@ -109,26 +111,35 @@ export default function Dashboard({ store, goTo, openSummary }) {
         </Notice>
       )}
 
+      {/* Each tile opens the page behind its number; at Full motion it grows into that page. */}
       <div className="grid grid-stats">
         <StatCard
           label={`Income · ${current.label}`}
           value={<CountUp value={current.income} format={formatCurrency} />}
           hint={change(current.income, previous?.income)}
+          onOpen={(tile) => goTo('transactions', tile)}
+          opens="Transactions"
         />
         <StatCard
           label={`Spending · ${current.label}`}
           value={<CountUp value={current.expenses} format={formatCurrency} />}
           hint={change(current.expenses, previous?.expenses)}
+          onOpen={(tile) => goTo('budget', tile)}
+          opens="Budget"
         />
         <StatCard
           label="Net saved"
           value={<CountUp value={current.net} format={formatCurrency} />}
           hint={current.net >= 0 ? 'Money left over this month' : 'Spending exceeds income'}
+          onOpen={(tile) => goTo('goals', tile)}
+          opens="Goals"
         />
         <StatCard
           label="Savings rate"
           value={<CountUp value={current.savingsRate} format={formatPercent} />}
           hint="Aim for 20% or more"
+          onOpen={(tile) => goTo('forecast', tile)}
+          opens="Forecast"
         />
         <StatCard
           label="Net worth"
@@ -139,11 +150,9 @@ export default function Dashboard({ store, goTo, openSummary }) {
               '—'
             )
           }
-          hint={
-            <button className="link-btn" onClick={() => goTo('networth')}>
-              {readAccounts(accounts).length ? 'See details' : 'Add your accounts'}
-            </button>
-          }
+          hint={readAccounts(accounts).length ? 'Assets minus debts' : 'Add your accounts'}
+          onOpen={(tile) => goTo('networth', tile)}
+          opens="Net Worth"
         />
       </div>
 
@@ -172,6 +181,7 @@ export default function Dashboard({ store, goTo, openSummary }) {
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: palette.grid, opacity: 0.4 }} />
                 {/* radius=[top-left, top-right, bottom-right, bottom-left]: rounded tops only */}
                 <Bar
+                  isAnimationActive={animate}
                   dataKey="income"
                   name="Income"
                   fill={palette.series[0]}
@@ -179,6 +189,7 @@ export default function Dashboard({ store, goTo, openSummary }) {
                   maxBarSize={28}
                 />
                 <Bar
+                  isAnimationActive={animate}
                   dataKey="expenses"
                   name="Spending"
                   fill={palette.series[1]}
@@ -216,6 +227,7 @@ export default function Dashboard({ store, goTo, openSummary }) {
                   <PieChart>
                     {/* innerRadius turns the pie into a donut; paddingAngle adds a gap between slices. */}
                     <Pie
+                      isAnimationActive={animate}
                       data={byCategory}
                       dataKey="amount"
                       nameKey="category"
@@ -228,6 +240,8 @@ export default function Dashboard({ store, goTo, openSummary }) {
                         <Cell
                           key={c.category}
                           fill={categoryColor(c.category, categories, palette)}
+                          // Recharts draws each slice as role="img"; this names it.
+                          aria-label={`${c.category}: ${formatCurrency(c.amount)}, ${formatPercent(c.amount / current.expenses)}`}
                         />
                       ))}
                     </Pie>

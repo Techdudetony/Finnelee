@@ -3,6 +3,15 @@ import { Notice } from './Status';
 import { generateSampleData, emptyData, fromBackup } from '../data/sampleData';
 import { todayISO } from '../utils/format';
 import { useAuth } from '../auth/AuthContext';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { resolveMotion } from '../utils/motion';
+
+// The Motion setting. Saved as settings.motion, so it travels with backups.
+const MOTION_OPTIONS = [
+  { id: 'full', label: 'Full', text: 'Pages glide, tiles grow into the page they open, numbers count up.' },
+  { id: 'calm', label: 'Calm', text: 'Short fades only. Nothing slides, scales or counts.' },
+  { id: 'off', label: 'Off', text: 'No animation. Everything appears at once.' },
+];
 
 export default function Settings({ store }) {
   const fileInput = useRef(null); // useRef = a handle to a real DOM element (the hidden file input)
@@ -12,6 +21,13 @@ export default function Settings({ store }) {
   const [keyError, setKeyError] = useState('');
   const [keyBusy, setKeyBusy] = useState(false);
   const [name, setName] = useState(user.name);
+  const deviceReduces = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const savedMotion = store.settings.motion;
+  // Before anything is chosen, the selected option is what the device default resolves to.
+  const shownMotion = MOTION_OPTIONS.some((o) => o.id === savedMotion)
+    ? savedMotion
+    : resolveMotion(undefined, deviceReduces);
+  const setMotion = (motion) => store.setSettings((s) => ({ ...s, motion }));
 
   const saveProfile = async (e) => {
     e.preventDefault();
@@ -105,6 +121,36 @@ export default function Settings({ store }) {
             Sign out
           </button>
         </form>
+      </section>
+
+      <section className="card">
+        <h2>Motion</h2>
+        <p className="sub">How much Finnelee animates. Every action works the same at any level.</p>
+        <fieldset className="choice-group">
+          <legend className="sr-only">Motion</legend>
+          {MOTION_OPTIONS.map((o) => (
+            <label key={o.id} className="choice">
+              <input
+                type="radio"
+                name="motion"
+                value={o.id}
+                checked={shownMotion === o.id}
+                onChange={() => setMotion(o.id)}
+              />
+              <span>
+                <span className="choice-title">{o.label}</span>
+                <span className="choice-text">{o.text}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+        {(deviceReduces || savedMotion === undefined) && (
+          <p className="small muted" style={{ margin: '12px 0 0' }}>
+            {savedMotion === undefined && 'Following your device until you choose. '}
+            {deviceReduces &&
+              'Your device asks for reduced motion, so Full plays as Calm here.'}
+          </p>
+        )}
       </section>
 
       <section className="card" id="recovery-key">
