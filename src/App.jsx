@@ -149,7 +149,8 @@ function FinanceApp({ user }) {
   );
  
   // The Motion setting (Full / Calm / Off). Signing out goes back to the device default.
-  useEffect(() => {
+  // A layout effect, so a saved Calm/Off is in place before the first paint.
+  useLayoutEffect(() => {
     setSavedMotion(settings.motion);
   }, [settings.motion]);
   useEffect(() => () => setSavedMotion(undefined), []);
