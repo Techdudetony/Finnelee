@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { userKey } from './auth/userStorage';
 import { useLocalStorage } from './hooks/useLocalStorage';
+import { useMediaQuery } from './hooks/useMediaQuery';
 import { emptyData } from './data/sampleData';
 import { syncBudgets } from './utils/budgeting';
 import { recordSnapshot } from './utils/netWorth';
@@ -50,6 +51,48 @@ export default function App() {
 function FinanceApp({ user }) {
   const { signOut, freshLogin, clearFreshLogin, newRecoveryKey, clearNewRecoveryKey } = useAuth();
   const [page, setPage] = useState('dashboard');
+
+  // Phones: the sidebar becomes a slide-in drawer opened from a menu button.
+  const isMobile = useMediaQuery('(max-width: 760px)');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawer = isMobile && drawerOpen; // resizing to desktop closes it automatically
+  const menuButtonRef = useRef(null);
+  const navRef = useRef(null);
+  const closeDrawer = () => setDrawerOpen(false);
+  // Focus moves into the drawer when it opens, and back to the menu button when it closes.
+  // Done after render: until then the target is still `inert` and can't take focus.
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (drawer) navRef.current?.querySelector('.nav-item.active')?.focus();
+    else if (wasOpen.current) menuButtonRef.current?.focus();
+    wasOpen.current = drawer;
+  }, [drawer]);
+  // While open, Escape closes it.
+  useEffect(() => {
+    if (!drawer) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') closeDrawer();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [drawer]);
+
+  const goTo = (id) => {
+    setPage(id);
+    if (drawer) closeDrawer();
+  };
+
+  // The active-page highlight is one element that slides to the selected item.
+  // Measured before paint (layout effect), so it never jumps.
+  const [indicator, setIndicator] = useState(null);
+  useLayoutEffect(() => {
+    const active = navRef.current?.querySelector('.nav-item.active');
+    if (active) setIndicator({ top: active.offsetTop, height: active.offsetHeight });
+  }, [page, isMobile]);
+
+  // `inert` takes a whole area out of tab order and screen readers: the hidden drawer on
+  // phones, or the page behind the drawer while it's open (that's the focus trap).
+  const inert = (on) => (on ? { inert: '' } : {});
   // The summary pops up automatically right after signing in (not on every page refresh).
   const [showSummary, setShowSummary] = useState(freshLogin);
   const closeSummary = () => {
@@ -113,18 +156,49 @@ function FinanceApp({ user }) {
   const { Component } = current; // Capitalized so JSX treats it as a component
  
   return (
-    <div className="layout">
-      <aside className="sidebar">
-        <div className="brand">
+    <div className={`layout ${drawer ? 'drawer-open' : ''}`}>
+      <header className="mobile-bar" {...inert(drawer)}>
+        <button
+          ref={menuButtonRef}
+          className="btn-icon menu-button"
+          onClick={() => setDrawerOpen(true)}
+          aria-label="Open menu"
+          aria-expanded={drawer}
+          aria-controls="sidebar"
+        >
+          <Icon name="menu" size={22} />
+        </button>
+        <div className="brand" style={{ padding: 0 }}>
           <BrandMark /> Finnelee
         </div>
-        <nav className="nav" aria-label="Main">
+      </header>
+      {drawer && <div className="drawer-backdrop" onClick={closeDrawer} aria-hidden="true" />}
+
+      <aside id="sidebar" className="sidebar" aria-label="Menu" {...inert(isMobile && !drawerOpen)}>
+        <div className="brand">
+          <BrandMark /> Finnelee
+          {isMobile && (
+            <button className="btn-icon drawer-close" onClick={closeDrawer} aria-label="Close menu">
+              <Icon name="close" />
+            </button>
+          )}
+        </div>
+        <nav className="nav" aria-label="Main" ref={navRef}>
+          <span
+            className="nav-indicator"
+            aria-hidden="true"
+            style={
+              indicator
+                ? { transform: `translateY(${indicator.top}px)`, height: indicator.height }
+                : { display: 'none' }
+            }
+          />
           {PAGES.map((p) => (
             <button
               key={p.id} // React needs a stable key for each item in a list
               className={`nav-item ${p.id === page ? 'active' : ''}`}
               aria-current={p.id === page ? 'page' : undefined}
-              onClick={() => setPage(p.id)}
+              onClick={() => goTo(p.id)}
             >
               <Icon name={p.icon} />
               <span>{p.label}</span>
@@ -146,10 +220,14 @@ function FinanceApp({ user }) {
         </div>
       </aside>
  
-      <main className="content">
-        {/* The dashboard renders its own greeting, so skip the generic title there */}
-        {page !== 'dashboard' && <h1 className="page-title">{current.label}</h1>}
-        <Component store={store} goTo={setPage} openSummary={() => setShowSummary(true)} />
+      <main className="content" {...inert(drawer)}>
+        {/* key={page}: a new page mounts fresh, so its entrance animation plays once per
+            page switch and never on ordinary rerenders. */}
+        <div key={page} className="page-enter">
+          {/* The dashboard renders its own greeting, so skip the generic title there */}
+          {page !== 'dashboard' && <h1 className="page-title">{current.label}</h1>}
+          <Component store={store} goTo={goTo} openSummary={() => setShowSummary(true)} />
+        </div>
       </main>
  
       {/* Conditional rendering: a popup only exists in the page while it's open.
@@ -161,7 +239,7 @@ function FinanceApp({ user }) {
           onDone={clearNewRecoveryKey}
         />
       ) : (
-        showSummary && <WelcomeSummary store={store} goTo={setPage} onClose={closeSummary} />
+        showSummary && <WelcomeSummary store={store} goTo={goTo} onClose={closeSummary} />
       )}
     </div>
   );

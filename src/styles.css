@@ -61,27 +61,62 @@ button, input, select { font: inherit; color: inherit; }
   position: sticky; top: 0; height: 100vh; /* sidebar stays put while content scrolls */
 }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; padding: 0 8px 20px; }
-.nav { display: flex; flex-direction: column; gap: 4px; }
+.nav { position: relative; display: flex; flex-direction: column; gap: 4px; }
 .nav-item {
+  position: relative; z-index: 1; /* above the sliding indicator */
   display: flex; gap: 10px; align-items: center;
   padding: 9px 10px; border: 0; border-radius: 8px;
   background: transparent; cursor: pointer; text-align: left; color: var(--text-2);
+  transition: color var(--dur-fast), background-color var(--dur-fast);
 }
 .nav-item:hover { background: var(--surface-2); }
-.nav-item.active { background: var(--surface-2); color: var(--text); font-weight: 600; }
+.nav-item.active { color: var(--text); font-weight: 600; }
+.nav-item.active:hover { background: transparent; } /* the indicator is the highlight */
+/* One highlight that slides between items (top/height set in App.jsx). Only transform animates. */
+.nav-indicator {
+  position: absolute; top: 0; left: 0; right: 0; border-radius: 8px; background: var(--surface-2);
+  transition: transform var(--dur) var(--ease);
+}
 
 .content { padding: 28px; max-width: 1200px; width: 100%; min-width: 0; }
 .page-title { font-size: 1.6rem; margin-bottom: 20px; }
 
-/* Mobile: the sidebar becomes a horizontally scrolling tab bar on top. */
+/* Page entrance: content fades up, then each top-level block follows 40ms later.
+   Plays when a page mounts (key={page} in App.jsx), never on rerenders. */
+.page-enter > :not(.stack), .page-enter > .stack > * { animation: fade-in var(--dur) var(--ease) both; }
+.page-enter > .stack > :nth-child(2) { animation-delay: 40ms; }
+.page-enter > .stack > :nth-child(3) { animation-delay: 80ms; }
+.page-enter > .stack > :nth-child(4) { animation-delay: 120ms; }
+.page-enter > .stack > :nth-child(n + 5) { animation-delay: 160ms; }
+
+/* The phone top bar only exists on phones. */
+.mobile-bar { display: none; }
+
+/* Phones: the sidebar becomes a drawer that slides in over the page. */
 @media (max-width: 760px) {
   .layout { grid-template-columns: minmax(0, 1fr); } /* minmax(0,…) lets the column shrink below its content width */
-  .sidebar { min-width: 0; position: static; height: auto; padding: 12px 16px; border-right: 0; border-bottom: 1px solid var(--border); }
-  .brand { padding: 0 0 10px; }
-  .nav { flex-direction: row; overflow-x: auto; }
-  .nav-item { white-space: nowrap; }
+  .mobile-bar {
+    display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+    position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border);
+  }
+  .menu-button { color: var(--text); padding: 6px; }
+  .sidebar {
+    position: fixed; inset: 0 auto 0 0; z-index: 20; width: min(280px, 85vw); height: 100dvh;
+    transform: translateX(-100%); transition: transform var(--dur) var(--ease);
+    box-shadow: 0 10px 40px rgb(0 0 0 / 0.25); overflow-y: auto;
+  }
+  /* Closed, it's off-screen and `inert` (set in App.jsx), so it can't be tabbed to or read out.
+     No visibility toggle: that delays focus moving into the drawer when it opens. */
+  .drawer-open .sidebar { transform: none; }
+  .drawer-open { overflow: hidden; height: 100dvh; } /* no page scrolling behind the drawer */
+  .drawer-backdrop {
+    position: fixed; inset: 0; z-index: 15; background: rgb(0 0 0 / 0.45);
+    animation: fade var(--dur) var(--ease) both;
+  }
+  .drawer-close { margin-left: auto; }
   .content { padding: 20px 16px; }
 }
+.drawer-close { color: var(--text-2); }
 
 /* ---------- Reusable building blocks ---------- */
 .grid { display: grid; gap: var(--gap); }
@@ -141,7 +176,12 @@ tr:last-child td { border-bottom: 0; }
 
 /* ---------- Progress bars & status pills ---------- */
 .progress { height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
-.progress > span { display: block; height: 100%; border-radius: 99px; transition: width 0.3s; }
+/* Bars fill from the left once, when they first appear. No width transition: a bar that
+   changes because the data changed just shows the new value (no replay on rerender). */
+.progress > span {
+  display: block; height: 100%; border-radius: 99px;
+  transform-origin: left; animation: grow-x var(--dur-slow) var(--ease) both;
+}
 .status { font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
 
 /* ---------- Icons (see components/Icon.jsx) ---------- */
@@ -170,6 +210,8 @@ tr:last-child td { border-bottom: 0; }
 .list li { display: flex; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
 .list li:last-child { border-bottom: 0; }
 .insight { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 8px; background: var(--surface-2); font-size: 0.9rem; }
+/* "Saved" / error messages slide in when they appear (they mount, so this plays once). */
+.insight[role='status'], .insight[role='alert'] { animation: fade-in var(--dur) var(--ease) both; }
 .insight > .icon { margin-top: 1px; }
 .empty { color: var(--text-3); text-align: center; padding: 24px; }
 
@@ -315,7 +357,22 @@ tr:last-child td { border-bottom: 0; }
   padding: 22px; box-shadow: 0 20px 50px rgb(0 0 0 / 0.25);
 }
 .summary-dialog::backdrop { background: rgb(0 0 0 / 0.45); } /* the dimmed page behind the popup */
+/* Popups scale up and fade in; the backdrop fades in behind them. */
+.summary-dialog[open] { animation: dialog-in var(--dur) var(--ease) both; }
+.summary-dialog[open]::backdrop { animation: fade var(--dur) var(--ease) both; }
 .summary-tile { background: var(--surface-2); border-radius: 10px; padding: 12px; }
+
+/* ---------- Motion details ---------- */
+/* Stat tiles lift slightly on hover (they hold no inputs, so nothing jumps under the cursor). */
+.grid-stats > .card { transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
+.grid-stats > .card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgb(0 0 0 / 0.08); }
+/* Rows and cards added AFTER a page opened (see hooks/useNewItems.js) fade in once. */
+.row-new { animation: fade-in var(--dur) var(--ease) both; }
+/* Visually hidden but read by screen readers (e.g. the final value behind a count-up). */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 
 /* ==========================================================================
    Keyframes, and the reduced-motion switch for all of them
@@ -326,6 +383,9 @@ tr:last-child td { border-bottom: 0; }
 @keyframes draw { to { stroke-dashoffset: 0; } }
 @keyframes drift { to { transform: translate(12%, 10%) scale(1.1); } }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes dialog-in { from { opacity: 0; transform: translateY(8px) scale(0.97); } }
+@keyframes grow-x { from { transform: scaleX(0); } }
 
 /* People who ask their device for less motion get the end state right away.
    JavaScript animations check the same setting (utils/motion.js). */
@@ -335,6 +395,7 @@ tr:last-child td { border-bottom: 0; }
     animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
 }

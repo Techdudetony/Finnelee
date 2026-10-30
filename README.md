@@ -68,6 +68,15 @@ Key ideas:
 3. **UI and math are separate.** Components render; `utils/finance.js` calculates. You can change a formula without touching the UI.
 4. **Derived data is computed, not stored.** Totals, charts and forecasts are recalculated from raw transactions with `useMemo`, so they never go stale.
 
+### Motion and accessibility
+
+- **Tokens** in `styles.css`: `--ease`, `--dur-fast` (150ms), `--dur` (250ms), `--dur-slow` (600ms). Animations use `transform` and `opacity` only, so they stay smooth.
+- **Mount-only.** Things animate when they first appear, never on a rerender: pages fade in once per navigation (`key={page}`), stat numbers count up once (`useCountUp`), and only rows or goals **added after the page opened** fade in (`useNewItems`). Tables and numbers that just update don't move.
+- **Reduced motion.** With "Reduce motion" turned on in the OS, a CSS block cuts every animation and transition to ~0ms, and JavaScript animations check `prefersReducedMotion()` (`utils/motion.js`): count-ups show the final number at once and the error shake is skipped.
+- **One layout animation, on purpose:** the sign-in card animates its `height` (`AutoHeight` in `AuthScreen.jsx`) when switching modes or showing an error. It's one small card and runs only then, so the cost is fine.
+- **Mobile menu** (≤760px) is a slide-in drawer: focus moves to the current page's link when it opens, Escape, the ✕ button or the backdrop close it, and focus returns to the menu button. The page behind is `inert` while it's open, and the closed drawer is `inert` too, so Tab never lands in it.
+- **Screen readers** hear the final value of a count-up (an `.sr-only` copy), not the in-between numbers.
+
 ## 4. File structure
 
 ```
@@ -79,7 +88,7 @@ finance-app/                    # project folder (the npm package is named "finn
 │   └── favicon.svg             # browser tab icon (same drawing as BrandMark)
 └── src/
     ├── main.jsx                # entry point: renders <App/> inside <AuthProvider>
-    ├── App.jsx                 # auth gate, layout, tab navigation, all app state
+    ├── App.jsx                 # auth gate, layout, sidebar / mobile drawer, all app state
     ├── auth/
     │   ├── authService.js      # sign up / in / out, password hashing, recovery keys (swap for a real backend later)
     │   ├── AuthContext.jsx     # React Context + useAuth() hook
@@ -87,10 +96,14 @@ finance-app/                    # project folder (the npm package is named "finn
     ├── styles.css              # design tokens (colors, spacing), light/dark theme
     ├── hooks/
     │   ├── useLocalStorage.js  # useState that persists to localStorage
-    │   └── useColorScheme.js   # detects light/dark mode for chart colors
+    │   ├── useColorScheme.js   # detects light/dark mode for chart colors
+    │   ├── useMediaQuery.js    # true while a CSS media query matches (phone layout)
+    │   ├── useCountUp.js       # counts a number up once, when it first appears
+    │   └── useNewItems.js      # tells which list items were added after the page opened
     ├── utils/
     │   ├── format.js           # currency, percent, date helpers
     │   ├── colors.js           # chart palette (light + dark)
+    │   ├── motion.js           # prefersReducedMotion() + the error shake
     │   ├── finance.js          # all financial math
     │   ├── insights.js         # plain-language insights (dashboard + summary)
     │   ├── categoryOps.js      # rename/delete a category across all records (pure functions)
@@ -111,6 +124,7 @@ finance-app/                    # project folder (the npm package is named "finn
         ├── RecoveryKeyDialog.jsx # shows a new recovery key once; can't close until saved
         ├── WelcomeSummary.jsx  # post-login summary popup (native <dialog>)
         ├── StatCard.jsx        # KPI tile
+        ├── CountUp.jsx         # animated number (screen readers get the final value)
         ├── ProgressBar.jsx     # bar with ok/warning/over states
         ├── ChartTooltip.jsx    # shared hover tooltip for charts
         ├── Icon.jsx            # SVG icon set + BrandMark logo

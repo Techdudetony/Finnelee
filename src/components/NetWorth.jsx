@@ -3,6 +3,8 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tool
 import ChartTooltip from './ChartTooltip';
 import Icon from './Icon';
 import StatCard from './StatCard';
+import CountUp from './CountUp';
+import { useNewItems } from '../hooks/useNewItems';
 import Status, { Notice } from './Status';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { getPalette } from '../utils/colors';
@@ -72,15 +74,15 @@ export default function NetWorth({ store, goTo }) {
   return (
     <div className="stack">
       <div className="grid grid-stats">
-        <StatCard label="Assets" value={formatCurrency(totals.assets)} hint={`${assets.length} account(s)`} />
+        <StatCard label="Assets" value={<CountUp value={totals.assets} format={formatCurrency} />} hint={`${assets.length} account(s)`} />
         <StatCard
           label="Liabilities"
-          value={formatCurrency(totals.liabilities)}
+          value={<CountUp value={totals.liabilities} format={formatCurrency} />}
           hint={`${formatCurrency(totals.debtLiabilities)} Debt Planner + ${formatCurrency(totals.accountLiabilities)} other`}
         />
         <StatCard
           label="Net worth"
-          value={formatCurrency(totals.netWorth)}
+          value={<CountUp value={totals.netWorth} format={formatCurrency} />}
           hint={
             accounts.length === 0
               ? 'Add your accounts below to see it'
@@ -237,6 +239,7 @@ export default function NetWorth({ store, goTo }) {
 
 /** One table of accounts with inline balance editing. */
 function AccountTable({ title, rows, onBalance, onDelete, empty }) {
+  const isNew = useNewItems(rows); // only accounts added after the page opened fade in
   return (
     <section className="card">
       <h2>{title}</h2>
@@ -256,7 +259,7 @@ function AccountTable({ title, rows, onBalance, onDelete, empty }) {
             </thead>
             <tbody>
               {rows.map((a) => (
-                <tr key={a.id}>
+                <tr key={a.id} className={isNew(a.id) ? 'row-new' : undefined}>
                   <td>{a.name}</td>
                   <td className="muted">{kindLabel(a.type, a.kind)}</td>
                   <td>

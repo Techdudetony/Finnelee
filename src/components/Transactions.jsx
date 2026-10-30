@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import Icon from './Icon';
+import { useNewItems } from '../hooks/useNewItems';
 import TransactionImport from './TransactionImport';
 import { namesOf } from '../data/categories';
 import { formatCurrency, formatDate, monthLabel, todayISO, uid } from '../utils/format';
@@ -17,6 +18,7 @@ const emptyForm = (categories) => ({
 
 export default function Transactions({ store }) {
   const { transactions, setTransactions, categories: allCategories } = store;
+  const isNew = useNewItems(transactions); // rows added or imported after the page opened fade in
   const [form, setForm] = useState(() => emptyForm(allCategories));
   const [filters, setFilters] = useState({
     search: '',
@@ -191,7 +193,7 @@ export default function Transactions({ store }) {
             </thead>
             <tbody>
               {visible.map((t) => (
-                <tr key={t.id}>
+                <tr key={t.id} className={isNew(t.id) ? 'row-new' : undefined}>
                   <td className="muted">{formatDate(t.date)}</td>
                   <td>{t.description}</td>
                   <td>
