@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import Icon from './Icon';
 import ImportPreview from './ImportPreview';
 import Status from './Status';
 import {
@@ -169,8 +168,8 @@ export default function TransactionImport({ store }) {
       )}
 
       {step === 'reading' && (
-        <p className="muted" role="status">
-          <Icon name="upload" /> Reading {file.name}…
+        <p className="muted loading-row" role="status">
+          <span className="spinner" aria-hidden="true" /> Reading {file.name}…
         </p>
       )}
 

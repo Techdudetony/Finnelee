@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import ChartTooltip from './ChartTooltip';
 import Icon from './Icon';
+import EmptyState from './EmptyState';
 import StatCard from './StatCard';
 import CountUp from './CountUp';
 import { useNewItems } from '../hooks/useNewItems';
@@ -190,13 +191,19 @@ export default function NetWorth({ store, goTo }) {
         )}
       </section>
 
-      <AccountTable title="Assets" rows={assets} onBalance={setBalance} onDelete={remove} empty="No assets yet." />
+      <AccountTable
+        title="Assets"
+        rows={assets}
+        onBalance={setBalance}
+        onDelete={remove}
+        empty={{ title: 'No assets yet', text: 'Add a checking, savings or investment account above.' }}
+      />
       <AccountTable
         title="Other liabilities"
         rows={liabilities}
         onBalance={setBalance}
         onDelete={remove}
-        empty="None. Debts in the Debt Planner are counted automatically (below)."
+        empty={{ title: 'No other liabilities', text: 'Debts in the Debt Planner are counted automatically (below).' }}
       />
 
       <section className="card">
@@ -210,7 +217,7 @@ export default function NetWorth({ store, goTo }) {
         </div>
         <p className="sub">Counted automatically, and always using the current balances.</p>
         {debts.length === 0 ? (
-          <p className="empty">No debts in the Debt Planner.</p>
+          <EmptyState icon="debt" title="No debts in the Debt Planner" compact />
         ) : (
           <ul className="list">
             {debts.map((d) => (
@@ -244,7 +251,9 @@ function AccountTable({ title, rows, onBalance, onDelete, empty }) {
     <section className="card">
       <h2>{title}</h2>
       {rows.length === 0 ? (
-        <p className="empty">{empty}</p>
+        <EmptyState icon="networth" title={empty.title} compact>
+          {empty.text}
+        </EmptyState>
       ) : (
         <div className="table-wrap">
           <table>

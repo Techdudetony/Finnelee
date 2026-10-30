@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Icon from './Icon';
+import EmptyState from './EmptyState';
 import StatCard from './StatCard';
 import Status from './Status';
 import RecurringSuggestions from './RecurringSuggestions';
@@ -157,7 +158,11 @@ export default function Bills({ store }) {
               ))}
             </tbody>
           </table>
-          {bills.length === 0 && <p className="empty">No recurring bills yet.</p>}
+          {bills.length === 0 && (
+            <EmptyState icon="bills" title="No recurring bills yet">
+              Add one above to see what's due and when.
+            </EmptyState>
+          )}
         </div>
       </section>
     </div>
