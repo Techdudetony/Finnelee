@@ -29,9 +29,10 @@ import {
 } from '../utils/format';
 import { monthlySeries, spendingByCategory, nextDueDate } from '../utils/finance';
 import { buildInsights } from '../utils/insights';
+import { netWorthTotals, readAccounts } from '../utils/netWorth';
 
 export default function Dashboard({ store, goTo, openSummary }) {
-  const { user, transactions, budgets, bills, categories } = store;
+  const { user, transactions, budgets, bills, categories, accounts, debts } = store;
   const palette = getPalette(useColorScheme());
   const thisMonth = monthKey(new Date());
 
@@ -106,6 +107,15 @@ export default function Dashboard({ store, goTo, openSummary }) {
           label="Savings rate"
           value={formatPercent(current.savingsRate)}
           hint="Aim for 20% or more"
+        />
+        <StatCard
+          label="Net worth"
+          value={readAccounts(accounts).length ? formatCurrency(netWorthTotals(accounts, debts).netWorth) : '—'}
+          hint={
+            <button className="link-btn" onClick={() => goTo('networth')}>
+              {readAccounts(accounts).length ? 'See details' : 'Add your accounts'}
+            </button>
+          }
         />
       </div>
 

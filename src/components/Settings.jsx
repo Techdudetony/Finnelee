@@ -24,15 +24,16 @@ export default function Settings({ store }) {
     store.setDebts(data.debts ?? []);
     store.setGoals(data.goals ?? []);
     store.setBills(data.bills ?? []);
+    store.setAccounts(data.accounts ?? []); // backups made before net worth existed have none
     store.setSettings(data.settings ?? emptyData().settings);
     // Backups made before custom categories existed don't have this field.
     store.setCategories(data.categories ?? DEFAULT_CATEGORIES.map((c) => ({ ...c })));
   };
 
   const exportBackup = () => {
-    const { transactions, budgets, debts, goals, bills, settings, categories } = store;
+    const { transactions, budgets, debts, goals, bills, accounts, settings, categories } = store;
     const json = JSON.stringify(
-      { transactions, budgets, debts, goals, bills, settings, categories },
+      { transactions, budgets, debts, goals, bills, accounts, settings, categories },
       null,
       2,
     );
