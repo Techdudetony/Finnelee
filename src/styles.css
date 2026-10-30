@@ -94,7 +94,9 @@ button, input, select { font: inherit; color: inherit; }
 
 /* Phones: the sidebar becomes a drawer that slides in over the page. */
 @media (max-width: 760px) {
-  .layout { grid-template-columns: minmax(0, 1fr); } /* minmax(0,…) lets the column shrink below its content width */
+  /* minmax(0,…) lets the column shrink below its content width. Rows: the top bar takes
+     only its own height, the page gets the rest (else short pages stretch the bar). */
+  .layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
   .mobile-bar {
     display: flex; align-items: center; gap: 8px; padding: 10px 12px;
     position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border);
@@ -108,7 +110,9 @@ button, input, select { font: inherit; color: inherit; }
   /* Closed, it's off-screen and `inert` (set in App.jsx), so it can't be tabbed to or read out.
      No visibility toggle: that delays focus moving into the drawer when it opens. */
   .drawer-open .sidebar { transform: none; }
-  .drawer-open { overflow: hidden; height: 100dvh; } /* no page scrolling behind the drawer */
+  /* No page scrolling behind the drawer. Locking the root (instead of shrinking the
+     layout to one screen) keeps the scroll position, so closing returns you to your place. */
+  :root:has(.drawer-open) { overflow: hidden; }
   .drawer-backdrop {
     position: fixed; inset: 0; z-index: 15; background: rgb(0 0 0 / 0.45);
     animation: fade var(--dur) var(--ease) both;
