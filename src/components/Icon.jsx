@@ -1,6 +1,8 @@
 // Finnelee's icon set: 24×24 grid, 1.75px rounded strokes in currentColor,
 // so an icon always takes the color of the text around it.
 
+import { Children, Fragment, cloneElement, isValidElement } from 'react';
+
 const ICONS = {
   // Navigation
   dashboard: (
@@ -9,6 +11,7 @@ const ICONS = {
       <path d="M8 16v-3M12 16V8M16 16v-5" />
     </>
   ),
+  networth: <path d="M3.5 9.5 12 4.5l8.5 5M5.5 10.5v7M10 10.5v7M14 10.5v7M18.5 10.5v7M3.5 20h17" />,
   transactions: (
     <>
       <path d="M6 3.5h12v17l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4z" />
@@ -85,10 +88,12 @@ const ICONS = {
   ),
 
   // Actions and small marks
+  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
   edit: <path d="M4.5 19.5h4l10.3-10.3a2.1 2.1 0 0 0-3-3L5.5 16.5v3M14.5 7.5l3 3" />,
   upload: <path d="M12 15.5V4.5M7.5 9 12 4.5 16.5 9M4.5 15v3a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-3" />,
   up: <path d="m7 14 5-5 5 5" />,
+  forward: <path d="M5 12h14M13.5 6.5 19 12l-5.5 5.5" />,
   down: <path d="m7 10 5 5 5-5" />,
   summary: (
     <>
@@ -134,6 +139,15 @@ const ICONS = {
 
 export const ICON_NAMES = Object.keys(ICONS);
 
+// pathLength={1} on every shape lets CSS redraw a stroke with dasharray/dashoffset of 1
+// (the nav icons do this at Full motion), whatever the shape's real length. Shapes that
+// are dashed on purpose are skipped: pathLength would rescale their dashes.
+const measured = (node) => {
+  if (!isValidElement(node)) return node;
+  if (node.type === Fragment) return Children.map(node.props.children, measured);
+  return node.props.strokeDasharray ? node : cloneElement(node, { pathLength: 1 });
+};
+
 /**
  * <Icon name="bills" />. Decorative by default (hidden from screen readers);
  * pass `label` when the icon is the only thing that explains a control.
@@ -155,7 +169,7 @@ export default function Icon({ name, size = 18, label, className = '' }) {
       aria-hidden={label ? undefined : true}
       focusable="false"
     >
-      {ICONS[name]}
+      {measured(ICONS[name])}
     </svg>
   );
 }

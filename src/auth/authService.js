@@ -8,6 +8,7 @@
 
 const USERS_KEY = 'finnelee.users';
 const SESSION_KEY = 'finnelee.session';
+const ATTEMPTS_KEY = 'finnelee.recoveryAttempts';
 const PBKDF2_ITERATIONS = 100_000;
 
 // ---------------------------------------------------------------------------
@@ -47,26 +48,97 @@ function readUsers() {
 }
 const writeUsers = (users) => localStorage.setItem(USERS_KEY, JSON.stringify(users));
 
-/** Strip secret fields before handing a user object to the UI. */
-const publicUser = ({ id, name, email, createdAt }) => ({ id, name, email, createdAt });
+/** Strip secret fields before handing a user object to the UI (it only learns IF a key exists). */
+const publicUser = ({ id, name, email, createdAt, recoveryHash, recoveryCreatedAt }) => ({
+  id,
+  name,
+  email,
+  createdAt,
+  hasRecoveryKey: Boolean(recoveryHash),
+  recoveryCreatedAt: recoveryHash ? recoveryCreatedAt : null,
+});
 
 /** Emails are case-insensitive, so normalize before using one as a lookup key. */
 const normalizeEmail = (email) => email.trim().toLowerCase();
 
 // ---------------------------------------------------------------------------
+// Recovery keys (the "Forgot password?" flow)
+// ---------------------------------------------------------------------------
+// With no server, there's nobody to send a reset email. Instead each account gets a
+// recovery key: a long random secret, shown ONCE, that can set a new password.
+// Like the password, only a salted PBKDF2 hash of it is ever stored.
+
+// 32 symbols without look-alikes (no 0/O, 1/I). 256 is a multiple of 32, so `byte & 31`
+// picks every symbol with exactly equal odds: no modulo bias.
+const KEY_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+const KEY_LENGTH = 24; // 24 symbols × 5 bits = 120 bits of randomness
+export const MAX_RECOVERY_ATTEMPTS = 5;
+export const RECOVERY_LOCK_MS = 5 * 60 * 1000;
+
+/** A new key like 'K7QM-4T9X-PZ2C-R8HD-W3NF-6JVB', from the browser's secure random source. */
+export function generateRecoveryKey() {
+  const bytes = crypto.getRandomValues(new Uint8Array(KEY_LENGTH));
+  const symbols = [...bytes].map((b) => KEY_ALPHABET[b & 31]).join('');
+  return symbols.match(/.{4}/g).join('-');
+}
+
+/** What people type -> what gets hashed: case, spaces and dashes don't matter. */
+export const normalizeRecoveryKey = (key) => String(key ?? '').toUpperCase().replace(/[\s-]/g, '');
+
+/** A fresh key plus the fields to store for it (hash + salt, never the key itself). */
+async function newRecoveryFields() {
+  const recoveryKey = generateRecoveryKey();
+  const { hash, salt } = await hashPassword(normalizeRecoveryKey(recoveryKey));
+  return {
+    recoveryKey,
+    fields: { recoveryHash: hash, recoverySalt: salt, recoveryCreatedAt: new Date().toISOString() },
+  };
+}
+
+// Failed attempts per email: { [email]: { count, lockedUntil } }.
+// A usability safeguard against guessing from this screen, NOT strong security:
+// anyone with access to this browser can clear localStorage.
+function readAttempts() {
+  try {
+    return JSON.parse(localStorage.getItem(ATTEMPTS_KEY)) ?? {};
+  } catch {
+    return {};
+  }
+}
+const writeAttempts = (attempts) => localStorage.setItem(ATTEMPTS_KEY, JSON.stringify(attempts));
+
+/** Scores a password 0-4 with a label, for the sign-up meter (a hint, not a rule). */
+export function passwordStrength(password) {
+  const checks = [
+    password.length >= 12,
+    /[a-z]/.test(password) && /[A-Z]/.test(password),
+    /\d/.test(password),
+    /[^A-Za-z0-9]/.test(password),
+  ];
+  const score = password.length < 8 ? 0 : Math.max(1, checks.filter(Boolean).length); // 8+ chars is at least Weak
+  return { score, label: ['Too short', 'Weak', 'Fair', 'Good', 'Strong'][score] };
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
+const checkNewPassword = (password) => {
+  if (password.length < 8) throw new Error('Password must be at least 8 characters.');
+};
+
+/** Creates the account and its first recovery key. Returns { user, isFirstUser, recoveryKey }. */
 export async function signUp({ name, email, password }) {
   const key = normalizeEmail(email);
   if (!name.trim()) throw new Error('Please enter your name.');
   if (!/^\S+@\S+\.\S+$/.test(key)) throw new Error('Please enter a valid email address.');
-  if (password.length < 8) throw new Error('Password must be at least 8 characters.');
+  checkNewPassword(password);
 
   const users = readUsers();
   if (users[key]) throw new Error('An account with this email already exists.');
 
   const { hash, salt } = await hashPassword(password);
+  const { recoveryKey, fields } = await newRecoveryFields();
   const user = {
     id: crypto.randomUUID(),
     name: name.trim(),
@@ -74,10 +146,101 @@ export async function signUp({ name, email, password }) {
     createdAt: new Date().toISOString(),
     passwordHash: hash,
     salt,
+    ...fields,
   };
   writeUsers({ ...users, [key]: user });
   localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: user.id }));
-  return { user: publicUser(user), isFirstUser: Object.keys(users).length === 0 };
+  return { user: publicUser(user), isFirstUser: Object.keys(users).length === 0, recoveryKey };
+}
+
+// Two tabs can run these at once. Without care both would "succeed" and one would show a
+// key that already doesn't work. A Web Lock (navigator.locks, in every current browser) is
+// shared by all tabs of this site: one reset or key change runs at a time, start to finish.
+// The next one waits, then reads the account fresh, so an already-used key is simply wrong.
+// localStorage alone can't do this safely (two tabs can still interleave), so when Web
+// Locks are missing we refuse instead of risking a key that doesn't work.
+const RECOVERY_LOCK = 'finnelee.recovery';
+const KEY_CHANGED = 'Your recovery key was just changed in another tab. Reload and try again.';
+export const NO_LOCKS =
+  "This browser can't safely change recovery keys. Update it, or use a current version of Chrome, Edge, Firefox or Safari.";
+const withRecoveryLock = async (task) => {
+  const locks = globalThis.navigator?.locks;
+  if (!locks?.request) throw new Error(NO_LOCKS); // fail safe: nothing is read or written
+  return locks.request(RECOVERY_LOCK, task);
+};
+
+/**
+ * Sets a new password with the recovery key, then replaces the key (a used key may have
+ * been seen). Everything is computed first and saved in ONE write, so the account never
+ * ends up half-changed. Returns { user, recoveryKey } with the NEW key to show once.
+ */
+export function resetPassword(details, now = Date.now()) {
+  return withRecoveryLock(() => resetPasswordNow(details, now));
+}
+
+async function resetPasswordNow({ email, recoveryKey, newPassword }, now) {
+  const key = normalizeEmail(email);
+  const attempts = readAttempts();
+  const record = attempts[key] ?? { count: 0, lockedUntil: 0 };
+  if (record.lockedUntil > now) {
+    const minutes = Math.ceil((record.lockedUntil - now) / 60_000);
+    throw new Error(`Too many attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`);
+  }
+  checkNewPassword(newPassword);
+
+  const users = readUsers();
+  const user = users[key];
+  // Same message for no account, no key set, and a wrong key.
+  const fail = () => {
+    const count = record.lockedUntil && record.lockedUntil <= now ? 1 : record.count + 1; // lock expired: start over
+    const locked = count >= MAX_RECOVERY_ATTEMPTS;
+    writeAttempts({
+      ...attempts,
+      [key]: { count: locked ? 0 : count, lockedUntil: locked ? now + RECOVERY_LOCK_MS : 0 },
+    });
+    return new Error('Email or recovery key is incorrect.');
+  };
+  if (!user?.recoveryHash) throw fail();
+  const { hash: keyHash } = await hashPassword(normalizeRecoveryKey(recoveryKey), user.recoverySalt);
+  if (keyHash !== user.recoveryHash) throw fail();
+
+  const { hash, salt } = await hashPassword(newPassword);
+  const next = await newRecoveryFields();
+  // Still inside the lock, so this account can't have changed. Re-reading only keeps other
+  // accounts' changes (e.g. a sign-up in another tab) that happened while we were hashing.
+  const current = readUsers();
+  const updated = { ...current[key], passwordHash: hash, salt, ...next.fields };
+  writeUsers({ ...current, [key]: updated }); // the one write: new password + new key together
+  const { [key]: _cleared, ...otherAttempts } = attempts; // _cleared: success resets the counter
+  writeAttempts(otherAttempts);
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: updated.id }));
+  return { user: publicUser(updated), recoveryKey: next.recoveryKey };
+}
+
+/**
+ * Creates or replaces the signed-in user's recovery key after checking their password.
+ * The old key stops working in the same write. Returns { user, recoveryKey }.
+ * seenCreatedAt: the user.recoveryCreatedAt this tab is showing. If another tab changed
+ * the key since, this one stops instead of silently replacing a key just shown there.
+ */
+export function createRecoveryKey(userId, password, seenCreatedAt) {
+  return withRecoveryLock(() => createRecoveryKeyNow(userId, password, seenCreatedAt));
+}
+
+async function createRecoveryKeyNow(userId, password, seenCreatedAt) {
+  const users = readUsers();
+  const entry = Object.entries(users).find(([, u]) => u.id === userId);
+  if (!entry) throw new Error('User not found.');
+  const [key, user] = entry;
+  if (seenCreatedAt !== undefined && publicUser(user).recoveryCreatedAt !== seenCreatedAt)
+    throw new Error(KEY_CHANGED);
+  const { hash } = await hashPassword(password, user.salt);
+  if (hash !== user.passwordHash) throw new Error('Password is incorrect.');
+  const { recoveryKey, fields } = await newRecoveryFields();
+  const current = readUsers(); // keeps other accounts' changes, as in resetPassword
+  const updated = { ...current[key], ...fields };
+  writeUsers({ ...current, [key]: updated });
+  return { user: publicUser(updated), recoveryKey };
 }
 
 export async function signIn({ email, password }) {

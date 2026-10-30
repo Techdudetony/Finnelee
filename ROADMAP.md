@@ -8,8 +8,8 @@ How the suggested features map to what's built, and the order to build the rest.
 
 | Feature                     | Status | What exists / what's missing                                                                                                                          |
 | --------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Financial Dashboard         | 🟡     | Income, spending, cash flow, savings rate and charts exist. Missing **net worth**, which needs accounts and assets to be tracked.                     |
-| Smart Budget Builder        | 🟡     | Category limits and 50/30/20 exist. Missing **zero-based budgeting** and **rollover balances**.                                                       |
+| Financial Dashboard         | ✅     | Income, spending, cash flow, savings rate, charts, and net worth (manual accounts + Debt Planner, monthly snapshots).                                  |
+| Smart Budget Builder        | ✅     | Category limits, 50/30/20, zero-based budgeting (Left to assign), rollover balances and next-month planning.                                          |
 | Transaction Tracking        | ✅     | Manual entry, categories, search/filter, CSV export, and CSV/PDF statement import with duplicate checks.                                              |
 | Savings Goal Simulator      | 🟡     | Goals show the monthly amount needed. Missing a **predicted completion date** and **side-by-side contribution scenarios**.                            |
 | Debt Payoff Planner         | ✅     | Snowball vs avalanche, interest saved, payoff order and timeline.                                                                                     |
@@ -18,7 +18,7 @@ How the suggested features map to what's built, and the order to build the rest.
 | What-If Simulator           | ⬜     | Model a job change, purchase, emergency expense or income change against the forecast.                                                                |
 | Bank Account Connections    | ⬜     | Needs a backend plus an aggregator such as Plaid (Phase 4).                                                                                           |
 | Household Budgeting         | ⬜     | Needs real server accounts to share data between people (Phase 3).                                                                                    |
-| Financial Health Score      | ⬜     | The inputs already exist: savings rate, DTI, emergency fund months and budget adherence.                                                              |
+| Financial Health Score      | 🟡     | Scoring engine done (`utils/health.js`): five pillars, confidence, spending estimates, runway. The Orb and its editing controls come next.              |
 | Progress & Milestones       | ⬜     | Savings streaks, achievements, monthly reviews, goal celebrations.                                                                                    |
 
 ## Supporting features
@@ -46,10 +46,11 @@ How the suggested features map to what's built, and the order to build the rest.
 
 1. ~~Custom categories~~ ✅ done
 2. ~~CSV import + recurring expense detector~~ ✅ done
-3. Zero-based budgets + rollover balances
-4. Net worth (accounts and assets)
+3. ~~Zero-based budgets + rollover balances~~ ✅ done
+4. ~~Net worth (accounts and assets)~~ ✅ done
 5. Goal simulator (completion dates, scenarios) and the What-If simulator
 6. Financial health score, milestones and a monthly review
+7. Premium UI overhaul, in stages: ~~visual foundation~~ ✅ done, then navigation and motion settings (Full / Calm / Off), interactive surfaces, financial storytelling (Dashboard and Net Worth), delight (celebrations, command palette), and an optional, benchmarked WebGL experiment
 
 **Phase 3: add a backend (Supabase recommended).** Move auth and data to the server (see "Auth" below), then add household sharing, email reminders and the AI features.
 
@@ -59,7 +60,9 @@ How the suggested features map to what's built, and the order to build the rest.
 
 Accounts are stored **in the browser** (`src/auth/authService.js`). Passwords are hashed with PBKDF2, but anyone with access to the computer can read localStorage. Accounts also don't sync between devices or browsers. That's fine for learning and personal use, not for real users.
 
-The plan for Phase 3 is to replace the bodies of `signUp`, `signIn`, `signOut`, `getCurrentUser` and `updateProfile` with Supabase calls. They are already async and return plain objects, so nothing else in the app needs to change.
+"Forgot password?" works today with **recovery keys** (shown once, stored hashed). In Phase 3, `resetPassword` becomes Supabase's email reset and the screens stay the same.
+
+The plan for Phase 3 is to replace the bodies of `signUp`, `signIn`, `signOut`, `getCurrentUser`, `updateProfile`, `resetPassword` and `createRecoveryKey` with Supabase calls. They are already async and return plain objects, so nothing else in the app needs to change.
 
 ## Future: AI auto-categorization
 

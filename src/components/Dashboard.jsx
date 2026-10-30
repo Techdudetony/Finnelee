@@ -12,10 +12,13 @@ import {
   Cell,
 } from 'recharts';
 import StatCard from './StatCard';
+import CountUp from './CountUp';
 import Icon from './Icon';
+import EmptyState from './EmptyState';
 import { Notice } from './Status';
 import ChartTooltip from './ChartTooltip';
 import { useColorScheme } from '../hooks/useColorScheme';
+import { useMotion } from '../hooks/useMotion';
 import { getPalette } from '../utils/colors';
 import { categoryColor } from '../data/categories';
 import {
@@ -29,10 +32,14 @@ import {
 } from '../utils/format';
 import { monthlySeries, spendingByCategory, nextDueDate } from '../utils/finance';
 import { buildInsights } from '../utils/insights';
+import { netWorthTotals, readAccounts } from '../utils/netWorth';
 
 export default function Dashboard({ store, goTo, openSummary }) {
-  const { user, transactions, budgets, bills, categories } = store;
+  const { user, transactions, budgets, bills, categories, accounts, debts, settings, setSettings } = store;
+  // Accounts made before recovery keys existed get a one-time, dismissible nudge.
+  const showKeyReminder = !user.hasRecoveryKey && !settings.recoveryReminderDismissed;
   const palette = getPalette(useColorScheme());
+  const animate = useMotion() === 'full'; // charts draw in at Full motion only
   const thisMonth = monthKey(new Date());
 
   // useMemo caches a calculation and only re-runs it when its dependencies change.
@@ -86,26 +93,66 @@ export default function Dashboard({ store, goTo, openSummary }) {
         </button>
       </header>
 
+      {showKeyReminder && (
+        <Notice icon="warning" tone="warning">
+          <span>
+            Create a recovery key so a forgotten password doesn't lock you out of your data.{' '}
+            <button className="link-btn" onClick={() => goTo('settings')}>
+              Go to Settings
+            </button>{' '}
+            ·{' '}
+            <button
+              className="link-btn"
+              onClick={() => setSettings((s) => ({ ...s, recoveryReminderDismissed: true }))}
+            >
+              Dismiss
+            </button>
+          </span>
+        </Notice>
+      )}
+
+      {/* Each tile opens the page behind its number; at Full motion it grows into that page. */}
       <div className="grid grid-stats">
         <StatCard
           label={`Income · ${current.label}`}
-          value={formatCurrency(current.income)}
+          value={<CountUp value={current.income} format={formatCurrency} />}
           hint={change(current.income, previous?.income)}
+          onOpen={(tile) => goTo('transactions', tile)}
+          opens="Transactions"
         />
         <StatCard
           label={`Spending · ${current.label}`}
-          value={formatCurrency(current.expenses)}
+          value={<CountUp value={current.expenses} format={formatCurrency} />}
           hint={change(current.expenses, previous?.expenses)}
+          onOpen={(tile) => goTo('budget', tile)}
+          opens="Budget"
         />
         <StatCard
           label="Net saved"
-          value={formatCurrency(current.net)}
+          value={<CountUp value={current.net} format={formatCurrency} />}
           hint={current.net >= 0 ? 'Money left over this month' : 'Spending exceeds income'}
+          onOpen={(tile) => goTo('goals', tile)}
+          opens="Goals"
         />
         <StatCard
           label="Savings rate"
-          value={formatPercent(current.savingsRate)}
+          value={<CountUp value={current.savingsRate} format={formatPercent} />}
           hint="Aim for 20% or more"
+          onOpen={(tile) => goTo('forecast', tile)}
+          opens="Forecast"
+        />
+        <StatCard
+          label="Net worth"
+          value={
+            readAccounts(accounts).length ? (
+              <CountUp value={netWorthTotals(accounts, debts).netWorth} format={formatCurrency} />
+            ) : (
+              '—'
+            )
+          }
+          hint={readAccounts(accounts).length ? 'Assets minus debts' : 'Add your accounts'}
+          onOpen={(tile) => goTo('networth', tile)}
+          opens="Net Worth"
         />
       </div>
 
@@ -134,6 +181,7 @@ export default function Dashboard({ store, goTo, openSummary }) {
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: palette.grid, opacity: 0.4 }} />
                 {/* radius=[top-left, top-right, bottom-right, bottom-left]: rounded tops only */}
                 <Bar
+                  isAnimationActive={animate}
                   dataKey="income"
                   name="Income"
                   fill={palette.series[0]}
@@ -141,6 +189,7 @@ export default function Dashboard({ store, goTo, openSummary }) {
                   maxBarSize={28}
                 />
                 <Bar
+                  isAnimationActive={animate}
                   dataKey="expenses"
                   name="Spending"
                   fill={palette.series[1]}
@@ -168,7 +217,9 @@ export default function Dashboard({ store, goTo, openSummary }) {
             {monthLabel(thisMonth, true)} · {formatCurrency(current.expenses)} total
           </p>
           {byCategory.length === 0 ? (
-            <p className="empty">No spending recorded this month yet.</p>
+            <EmptyState icon="categories" title="No spending this month yet">
+              Expenses you add show up here, grouped by category.
+            </EmptyState>
           ) : (
             <div className="row" style={{ alignItems: 'flex-start' }}>
               <div style={{ width: 200, height: 200 }}>
@@ -176,6 +227,7 @@ export default function Dashboard({ store, goTo, openSummary }) {
                   <PieChart>
                     {/* innerRadius turns the pie into a donut; paddingAngle adds a gap between slices. */}
                     <Pie
+                      isAnimationActive={animate}
                       data={byCategory}
                       dataKey="amount"
                       nameKey="category"
@@ -188,6 +240,8 @@ export default function Dashboard({ store, goTo, openSummary }) {
                         <Cell
                           key={c.category}
                           fill={categoryColor(c.category, categories, palette)}
+                          // Recharts draws each slice as role="img"; this names it.
+                          aria-label={`${c.category}: ${formatCurrency(c.amount)}, ${formatPercent(c.amount / current.expenses)}`}
                         />
                       ))}
                     </Pie>
@@ -239,7 +293,11 @@ export default function Dashboard({ store, goTo, openSummary }) {
             </button>
           </div>
           <ul className="list">
-            {upcoming.length === 0 && <li className="empty">No recurring bills yet.</li>}
+            {upcoming.length === 0 && (
+              <EmptyState as="li" icon="bills" title="No recurring bills yet" compact>
+                Add rent, subscriptions and other repeats on the Bills page.
+              </EmptyState>
+            )}
             {upcoming.map((b) => (
               <li key={b.id}>
                 <div>
