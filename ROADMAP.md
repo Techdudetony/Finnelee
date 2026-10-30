@@ -59,7 +59,9 @@ How the suggested features map to what's built, and the order to build the rest.
 
 Accounts are stored **in the browser** (`src/auth/authService.js`). Passwords are hashed with PBKDF2, but anyone with access to the computer can read localStorage. Accounts also don't sync between devices or browsers. That's fine for learning and personal use, not for real users.
 
-The plan for Phase 3 is to replace the bodies of `signUp`, `signIn`, `signOut`, `getCurrentUser` and `updateProfile` with Supabase calls. They are already async and return plain objects, so nothing else in the app needs to change.
+"Forgot password?" works today with **recovery keys** (shown once, stored hashed). In Phase 3, `resetPassword` becomes Supabase's email reset and the screens stay the same.
+
+The plan for Phase 3 is to replace the bodies of `signUp`, `signIn`, `signOut`, `getCurrentUser`, `updateProfile`, `resetPassword` and `createRecoveryKey` with Supabase calls. They are already async and return plain objects, so nothing else in the app needs to change.
 
 ## Future: AI auto-categorization
 

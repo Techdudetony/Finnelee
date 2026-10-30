@@ -32,7 +32,9 @@ import { buildInsights } from '../utils/insights';
 import { netWorthTotals, readAccounts } from '../utils/netWorth';
 
 export default function Dashboard({ store, goTo, openSummary }) {
-  const { user, transactions, budgets, bills, categories, accounts, debts } = store;
+  const { user, transactions, budgets, bills, categories, accounts, debts, settings, setSettings } = store;
+  // Accounts made before recovery keys existed get a one-time, dismissible nudge.
+  const showKeyReminder = !user.hasRecoveryKey && !settings.recoveryReminderDismissed;
   const palette = getPalette(useColorScheme());
   const thisMonth = monthKey(new Date());
 
@@ -86,6 +88,24 @@ export default function Dashboard({ store, goTo, openSummary }) {
           View summary
         </button>
       </header>
+
+      {showKeyReminder && (
+        <Notice icon="warning" tone="warning">
+          <span>
+            Create a recovery key so a forgotten password doesn't lock you out of your data.{' '}
+            <button className="link-btn" onClick={() => goTo('settings')}>
+              Go to Settings
+            </button>{' '}
+            ·{' '}
+            <button
+              className="link-btn"
+              onClick={() => setSettings((s) => ({ ...s, recoveryReminderDismissed: true }))}
+            >
+              Dismiss
+            </button>
+          </span>
+        </Notice>
+      )}
 
       <div className="grid grid-stats">
         <StatCard

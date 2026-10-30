@@ -80,3 +80,15 @@ describe('fromBackup (restore, load sample, clear)', () => {
     expect(fromBackup(undefined).transactions).toEqual([]);
   });
 });
+
+describe('backups carry no login details', () => {
+  it('can be imported into any account, including a brand-new one', () => {
+    // Exactly what Settings → Export backup writes (see exportBackup in Settings.jsx).
+    const { transactions, budgets, debts, goals, bills, accounts, settings, categories } = generateSampleData(TODAY);
+    const json = JSON.stringify({ transactions, budgets, debts, goals, bills, accounts, settings, categories });
+    expect(json).not.toMatch(/passwordHash|recoveryHash|"email"|userId/);
+    const imported = fromBackup(JSON.parse(json));
+    expect(imported.transactions).toHaveLength(transactions.length);
+    expect(imported.accounts).toEqual(accounts);
+  });
+});

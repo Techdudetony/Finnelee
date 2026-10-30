@@ -7,13 +7,30 @@ import { useAuth } from '../auth/AuthContext';
 export default function Settings({ store }) {
   const fileInput = useRef(null); // useRef = a handle to a real DOM element (the hidden file input)
   const [message, setMessage] = useState('');
-  const { user, updateProfile, signOut } = useAuth();
+  const { user, updateProfile, signOut, createRecoveryKey } = useAuth();
+  const [keyPassword, setKeyPassword] = useState('');
+  const [keyError, setKeyError] = useState('');
+  const [keyBusy, setKeyBusy] = useState(false);
   const [name, setName] = useState(user.name);
 
   const saveProfile = async (e) => {
     e.preventDefault();
     await updateProfile({ name });
     setMessage({ tone: 'good', text: 'Profile saved.' });
+  };
+
+  // Create or replace the recovery key. The new key opens in the save-key dialog (App.jsx).
+  const makeRecoveryKey = async (e) => {
+    e.preventDefault();
+    setKeyError('');
+    setKeyBusy(true);
+    try {
+      await createRecoveryKey(keyPassword);
+      setKeyPassword('');
+    } catch (err) {
+      setKeyError(err.message);
+    }
+    setKeyBusy(false);
   };
 
   // Replace every slice of state at once. Works for sample data, empty data, or an imported backup.
@@ -90,10 +107,42 @@ export default function Settings({ store }) {
         </form>
       </section>
 
+      <section className="card" id="recovery-key">
+        <h2>Recovery key</h2>
+        <p className="sub">
+          {user.hasRecoveryKey
+            ? `You have a recovery key (created ${new Date(user.recoveryCreatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}). Replacing it stops the old one from working.`
+            : "You don't have a recovery key yet. Without one, a forgotten password can't be reset, because there's no server to email you."}
+        </p>
+        <form className="row" onSubmit={makeRecoveryKey}>
+          <input
+            type="password"
+            value={keyPassword}
+            onChange={(e) => setKeyPassword(e.target.value)}
+            placeholder="Current password"
+            aria-label="Current password"
+            autoComplete="current-password"
+            required
+            style={{ flex: 1, minWidth: 160 }}
+          />
+          <button className="btn btn-primary" disabled={keyBusy}>
+            {user.hasRecoveryKey ? 'Replace key' : 'Create key'}
+          </button>
+        </form>
+        {keyError && (
+          <Notice as="p" tone="critical" role="alert" style={{ marginBottom: 0 }}>
+            {keyError}
+          </Notice>
+        )}
+      </section>
+
       <section className="card">
         <h2>Backup &amp; restore</h2>
         <p className="sub">
           Your data lives only in this browser. Export a backup to move it or keep it safe.
+          A backup holds your financial data only (no email, password or recovery key), so it
+          can be imported into any account, including a new one. Importing replaces everything
+          in the current account.
         </p>
         <div className="row">
           <button className="btn btn-primary" onClick={exportBackup}>
