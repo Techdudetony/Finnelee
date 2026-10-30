@@ -153,18 +153,30 @@ export async function signUp({ name, email, password }) {
   return { user: publicUser(user), isFirstUser: Object.keys(users).length === 0, recoveryKey };
 }
 
+// Two tabs can run these at once. Without care both would "succeed" and one would show a
+// key that already doesn't work. Two layers stop that:
+// 1. A Web Lock (navigator.locks, built into modern browsers) shared by every tab of this
+//    site: one reset or key change runs at a time, start to finish. The next one waits,
+//    then reads the account fresh, so an already-used key is simply wrong.
+// 2. Compare-and-swap for browsers without Web Locks: re-read the account right before the
+//    single write and give up if the key changed meanwhile (no `await` between the two).
+const RECOVERY_LOCK = 'finnelee.recovery';
+const KEY_CHANGED = 'Your recovery key was just changed in another tab. Reload and try again.';
+const withRecoveryLock = (task) => {
+  const locks = globalThis.navigator?.locks;
+  return locks ? locks.request(RECOVERY_LOCK, task) : task();
+};
+
 /**
  * Sets a new password with the recovery key, then replaces the key (a used key may have
  * been seen). Everything is computed first and saved in ONE write, so the account never
  * ends up half-changed. Returns { user, recoveryKey } with the NEW key to show once.
  */
-// Two tabs can run these at once. Each one re-reads the account right before its single
-// write and gives up if the key changed in between (compare-and-swap). That check and the
-// write run with no `await` between them, so another tab can't slip in. Without it, both
-// tabs would "succeed" and one of them would show a key that already doesn't work.
-const KEY_CHANGED = 'Your recovery key was just changed in another tab. Reload and try again.';
+export function resetPassword(details, now = Date.now()) {
+  return withRecoveryLock(() => resetPasswordNow(details, now));
+}
 
-export async function resetPassword({ email, recoveryKey, newPassword }, now = Date.now()) {
+async function resetPasswordNow({ email, recoveryKey, newPassword }, now) {
   const key = normalizeEmail(email);
   const attempts = readAttempts();
   const record = attempts[key] ?? { count: 0, lockedUntil: 0 };
@@ -206,12 +218,20 @@ export async function resetPassword({ email, recoveryKey, newPassword }, now = D
 /**
  * Creates or replaces the signed-in user's recovery key after checking their password.
  * The old key stops working in the same write. Returns { user, recoveryKey }.
+ * seenCreatedAt: the user.recoveryCreatedAt this tab is showing. If another tab changed
+ * the key since, this one stops instead of silently replacing a key just shown there.
  */
-export async function createRecoveryKey(userId, password) {
+export function createRecoveryKey(userId, password, seenCreatedAt) {
+  return withRecoveryLock(() => createRecoveryKeyNow(userId, password, seenCreatedAt));
+}
+
+async function createRecoveryKeyNow(userId, password, seenCreatedAt) {
   const users = readUsers();
   const entry = Object.entries(users).find(([, u]) => u.id === userId);
   if (!entry) throw new Error('User not found.');
   const [key, user] = entry;
+  if (seenCreatedAt !== undefined && publicUser(user).recoveryCreatedAt !== seenCreatedAt)
+    throw new Error(KEY_CHANGED);
   const { hash } = await hashPassword(password, user.salt);
   if (hash !== user.passwordHash) throw new Error('Password is incorrect.');
   const { recoveryKey, fields } = await newRecoveryFields();
