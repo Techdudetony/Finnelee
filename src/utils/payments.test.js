@@ -159,15 +159,34 @@ describe("pay schedule form", () => {
     ).toMatch(/two different paydays/);
   });
 
+  it("rejects a twice-a-month next payday that isn't one of the two days", () => {
+    const twice = { cadence: "twice-monthly", day1: "15", day2: "31" };
+    expect(
+      readScheduleForm(form({ ...twice, next: "2026-11-06" })).error,
+    ).toMatch(/one of the two paydays/);
+    // 31 clamps to Nov 30, so Nov 30 is a valid next payday.
+    expect(
+      readScheduleForm(form({ ...twice, next: "2026-11-30" })).schedule,
+    ).toBeTruthy();
+    expect(
+      readScheduleForm(form({ ...twice, next: "2026-11-15" })).schedule,
+    ).toBeTruthy();
+  });
+
   it("sorts twice-a-month days and loads back into the form", () => {
     const { schedule } = readScheduleForm(
-      form({ cadence: "twice-monthly", day1: "30", day2: "15" }),
+      form({
+        cadence: "twice-monthly",
+        day1: "30",
+        day2: "15",
+        next: "2026-11-15",
+      }),
     );
     expect(schedule.days).toEqual([15, 30]);
     expect(scheduleForm({ paySchedule: schedule })).toEqual({
       amount: "",
       cadence: "twice-monthly",
-      next: "2026-11-06",
+      next: "2026-11-15",
       day1: 15,
       day2: 30,
     });

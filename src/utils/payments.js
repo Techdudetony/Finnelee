@@ -5,7 +5,12 @@
 
 import { addMonths } from "./budgeting";
 import { monthKey, monthLabel, parseDate, toISODate } from "./format";
-import { readDueDay, readPaidMonths, readPayment } from "./obligations";
+import {
+  dueDateIn,
+  readDueDay,
+  readPaidMonths,
+  readPayment,
+} from "./obligations";
 import { paydays, readPaySchedule } from "./health";
 import { readAccounts } from "./netWorth";
 
@@ -147,6 +152,13 @@ export function readScheduleForm(form) {
     if (!days[0] || !days[1] || days[0] === days[1])
       return { error: "Enter two different paydays from 1 to 31." };
     schedule.days = days.sort((a, b) => a - b);
+    // The next payday must be one of those two days (29-31 clamp in short months),
+    // or the first entered payday would silently be skipped.
+    const month = form.next.slice(0, 7);
+    if (!schedule.days.some((d) => dueDateIn(d, month) === form.next))
+      return {
+        error: "Your next payday should fall on one of the two paydays.",
+      };
   }
   return readPaySchedule({ paySchedule: schedule })
     ? { schedule }

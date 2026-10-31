@@ -52,6 +52,9 @@ export default function Bills({ store }) {
       .map((l) => l.id),
   );
 
+  // Show the column while there's something to choose, or a broken link to clear.
+  const showLinks = linkOptions.length > 0 || broken.size > 0;
+
   const addBill = (e) => {
     e.preventDefault();
     const day = Math.min(31, Math.max(1, Number(form.dueDay)));
@@ -189,7 +192,7 @@ export default function Bills({ store }) {
                 <th>Next due</th>
                 <th />
                 <th className="num">Amount</th>
-                {linkOptions.length > 0 && <th>This bill pays</th>}
+                {showLinks && <th>This bill pays</th>}
                 <th>Payment</th>
                 <th />
               </tr>
@@ -215,7 +218,7 @@ export default function Bills({ store }) {
                     )}
                   </td>
                   <td className="num">{formatCurrency(b.amount)}</td>
-                  {linkOptions.length > 0 && (
+                  {showLinks && (
                     <td>
                       <select
                         value={broken.has(b.id) ? "" : linkValue(b.payFor)}
