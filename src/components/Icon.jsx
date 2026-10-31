@@ -1,7 +1,7 @@
 // Finnelee's icon set: 24×24 grid, 1.75px rounded strokes in currentColor,
 // so an icon always takes the color of the text around it.
 
-import { Children, Fragment, cloneElement, isValidElement } from 'react';
+import { Children, Fragment, cloneElement, isValidElement } from "react";
 
 const ICONS = {
   // Navigation
@@ -11,7 +11,9 @@ const ICONS = {
       <path d="M8 16v-3M12 16V8M16 16v-5" />
     </>
   ),
-  networth: <path d="M3.5 9.5 12 4.5l8.5 5M5.5 10.5v7M10 10.5v7M14 10.5v7M18.5 10.5v7M3.5 20h17" />,
+  networth: (
+    <path d="M3.5 9.5 12 4.5l8.5 5M5.5 10.5v7M10 10.5v7M14 10.5v7M18.5 10.5v7M3.5 20h17" />
+  ),
   transactions: (
     <>
       <path d="M6 3.5h12v17l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4z" />
@@ -86,12 +88,22 @@ const ICONS = {
       <path d="M12 7.5V12l3 2" />
     </>
   ),
+  calendar: (
+    <>
+      <rect x="4" y="5.5" width="16" height="14.5" rx="2.5" />
+      <path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" />
+    </>
+  ),
 
   // Actions and small marks
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
-  edit: <path d="M4.5 19.5h4l10.3-10.3a2.1 2.1 0 0 0-3-3L5.5 16.5v3M14.5 7.5l3 3" />,
-  upload: <path d="M12 15.5V4.5M7.5 9 12 4.5 16.5 9M4.5 15v3a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-3" />,
+  edit: (
+    <path d="M4.5 19.5h4l10.3-10.3a2.1 2.1 0 0 0-3-3L5.5 16.5v3M14.5 7.5l3 3" />
+  ),
+  upload: (
+    <path d="M12 15.5V4.5M7.5 9 12 4.5 16.5 9M4.5 15v3a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-3" />
+  ),
   up: <path d="m7 14 5-5 5 5" />,
   forward: <path d="M5 12h14M13.5 6.5 19 12l-5.5 5.5" />,
   down: <path d="m7 10 5 5 5-5" />,
@@ -101,7 +113,7 @@ const ICONS = {
       <path d="M9.5 3h5v3h-5zM8.5 11h7M8.5 14.5h7M8.5 18h4" />
     </>
   ),
-  'trend-up': <path d="M3.5 17 9 11.5l4 4L20.5 8M15 8h5.5v5.5" />,
+  "trend-up": <path d="M3.5 17 9 11.5l4 4L20.5 8M15 8h5.5v5.5" />,
   info: (
     <>
       <circle cx="12" cy="12" r="8.5" />
@@ -150,15 +162,18 @@ export const ICON_NAMES = Object.keys(ICONS);
 // are dashed on purpose are skipped: pathLength would rescale their dashes.
 const measured = (node) => {
   if (!isValidElement(node)) return node;
-  if (node.type === Fragment) return Children.map(node.props.children, measured);
-  return node.props.strokeDasharray ? node : cloneElement(node, { pathLength: 1 });
+  if (node.type === Fragment)
+    return Children.map(node.props.children, measured);
+  return node.props.strokeDasharray
+    ? node
+    : cloneElement(node, { pathLength: 1 });
 };
 
 /**
  * <Icon name="bills" />. Decorative by default (hidden from screen readers);
  * pass `label` when the icon is the only thing that explains a control.
  */
-export default function Icon({ name, size = 18, label, className = '' }) {
+export default function Icon({ name, size = 18, label, className = "" }) {
   return (
     <svg
       className={`icon ${className}`}
@@ -170,7 +185,7 @@ export default function Icon({ name, size = 18, label, className = '' }) {
       strokeWidth="1.75"
       strokeLinecap="round"
       strokeLinejoin="round"
-      role={label ? 'img' : undefined}
+      role={label ? "img" : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}
       focusable="false"
