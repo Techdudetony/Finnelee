@@ -7,9 +7,12 @@ import { addMonths } from "./budgeting";
 import { monthKey, monthLabel, parseDate, toISODate } from "./format";
 import {
   dueDateIn,
+  isPaidFor,
+  markPaid,
   readDueDay,
   readPaidMonths,
   readPayment,
+  undoPaid,
 } from "./obligations";
 import { paydays, readPaySchedule } from "./health";
 import { readAccounts } from "./netWorth";
@@ -39,6 +42,112 @@ export function recentPaidStatus(record, today = new Date()) {
           : "";
       return { month, monthText, text: `Paid for ${monthText}${marked}` };
     });
+}
+
+// ---------- Bill Mark paid / Undo ----------
+// Bills and transactions are two separate stored lists. Each helper below changes one
+// list, takes the LATEST list (React's functional update) and only touches the one bill
+// or the one generated transaction, so anything else added or edited meanwhile is kept.
+// Each is also safe to run twice (React runs updaters twice in development).
+
+/** The expense transaction "Mark paid" records for a bill: dated today, with a fixed id. */
+export const billPaymentTx = (bill, today, id) => ({
+  id,
+  date: toISODate(today),
+  description: bill.name,
+  category: bill.category,
+  type: "expense",
+  amount: Number(bill.amount),
+});
+
+/**
+ * Marks one bill paid for `month`, remembering the transaction (id + a copy to spot later
+ * edits). Already marked for that month: the list comes back unchanged.
+ */
+export function markBillMonth(bills, billId, month, today, tx) {
+  return bills.map((b) => {
+    if (b.id !== billId || isPaidFor(b, month)) return b;
+    const { date, amount, description, category } = tx;
+    return markPaid(b, month, today, {
+      txId: tx.id,
+      tx: { date, amount, description, category },
+    });
+  });
+}
+
+/** Adds the generated transaction once, newest first. A second call changes nothing. */
+export const insertTransaction = (transactions, tx) =>
+  transactions.some((t) => t.id === tx.id)
+    ? transactions
+    : [tx, ...transactions];
+
+/** Removes `month` from one bill only. */
+export const undoBillMonth = (bills, billId, month) =>
+  bills.map((b) => (b.id === billId ? undoPaid(b, month) : b));
+
+/**
+ * Undo's transaction side: removes exactly the transaction Mark paid created (by id), and
+ * only if it's unchanged. An edited one is the user's own record now: it stays, `kept`.
+ * entry = the bill's paidMonths[month].
+ */
+export function removeGeneratedTx(transactions, entry) {
+  const tx = entry?.txId ? transactions.find((t) => t.id === entry.txId) : null;
+  if (!tx) return { transactions, kept: false };
+  const unchanged =
+    entry.tx &&
+    tx.type === "expense" &&
+    ["date", "amount", "description", "category"].every(
+      (k) => tx[k] === entry.tx[k],
+    );
+  return unchanged
+    ? { transactions: transactions.filter((t) => t !== tx), kept: false }
+    : { transactions, kept: true };
+}
+
+/** The bill's paid entry for a month, or null. */
+export const paidEntry = (bill, month) => readPaidMonths(bill)[month] ?? null;
+
+/**
+ * Mark paid, planned from the bills on screen: null when that month is already marked.
+ * Returns the two functional updates to apply (to the latest lists) and the new tx.
+ */
+export function planBillPaid(bills, billId, month, today, txId) {
+  const bill = bills.find((b) => b.id === billId);
+  if (!bill || isPaidFor(bill, month)) return null;
+  const tx = billPaymentTx(bill, today, txId);
+  return {
+    tx,
+    bills: (prev) => markBillMonth(prev, billId, month, today, tx),
+    transactions: (prev) => insertTransaction(prev, tx),
+  };
+}
+
+/**
+ * Undo, planned from the bills on screen: null when that month isn't marked. `kept` (for
+ * the message) is read from the latest saved transactions; the update re-checks it.
+ */
+export function planBillUndo(bills, transactions, billId, month) {
+  const bill = bills.find((b) => b.id === billId);
+  const entry = bill ? paidEntry(bill, month) : null;
+  if (!entry) return null;
+  return {
+    name: bill.name,
+    kept: removeGeneratedTx(transactions, entry).kept,
+    bills: (prev) => undoBillMonth(prev, billId, month),
+    transactions: (prev) => removeGeneratedTx(prev, entry).transactions,
+  };
+}
+
+/**
+ * Ignores a second click on the same record until the first one is saved: start(id) is
+ * false while that id is busy; release() runs after React commits (an effect).
+ */
+export function createClickGuard() {
+  const busy = new Set();
+  return {
+    start: (id) => (busy.has(id) ? false : (busy.add(id), true)),
+    release: () => busy.clear(),
+  };
 }
 
 // ---------- Optional number fields (due day, monthly payment) ----------

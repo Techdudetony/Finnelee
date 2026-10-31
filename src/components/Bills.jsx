@@ -1,40 +1,43 @@
-import { useState } from "react";
-import Icon from "./Icon";
-import EmptyState from "./EmptyState";
-import PaidControl from "./PaidControl";
-import PaySchedule from "./PaySchedule";
-import StatCard from "./StatCard";
-import Status, { Notice } from "./Status";
-import RecurringSuggestions from "./RecurringSuggestions";
-import { namesOf } from "../data/categories";
-import { formatCurrency, formatDate, monthLabel, uid } from "../utils/format";
-import { nextDueDate } from "../utils/finance";
+import { useEffect, useRef, useState } from 'react';
+import Icon from './Icon';
+import EmptyState from './EmptyState';
+import PaidControl from './PaidControl';
+import PaySchedule from './PaySchedule';
+import StatCard from './StatCard';
+import Status, { Notice } from './Status';
+import RecurringSuggestions from './RecurringSuggestions';
+import { namesOf } from '../data/categories';
+import { formatCurrency, formatDate, monthLabel, uid } from '../utils/format';
+import { nextDueDate } from '../utils/finance';
+import { buildObligations } from '../utils/obligations';
 import {
-  buildObligations,
-  markBillPaid,
-  undoBillPaid,
-} from "../utils/obligations";
-import { billLinkOptions, linkValue, setBillLink } from "../utils/payments";
+  billLinkOptions,
+  createClickGuard,
+  linkValue,
+  planBillPaid,
+  planBillUndo,
+  setBillLink,
+} from '../utils/payments';
 
 const emptyBill = (categories) => ({
-  name: "",
-  amount: "",
-  dueDay: "1",
-  category: namesOf(categories, "expense")[0] ?? "",
+  name: '',
+  amount: '',
+  dueDay: '1',
+  category: namesOf(categories, 'expense')[0] ?? '',
 });
 
 export default function Bills({ store }) {
-  const {
-    bills,
-    setBills,
-    transactions,
-    setTransactions,
-    categories,
-    debts,
-    accounts,
-  } = store;
+  const { bills, setBills, transactions, setTransactions, categories, debts, accounts } = store;
   const [form, setForm] = useState(() => emptyBill(categories));
-  const [notice, setNotice] = useState(""); // said after an Undo that kept a transaction
+  const [notice, setNotice] = useState(''); // said after an Undo that kept a transaction
+
+  // A second click on a bill before React saves the first is ignored, so a double click
+  // can't record the payment twice. Released after every commit (the saved state shows).
+  const guard = useRef(null);
+  guard.current ??= createClickGuard();
+  useEffect(() => guard.current.release());
+  const latestTransactions = useRef(transactions);
+  latestTransactions.current = transactions;
 
   // Attach the computed next due date to each bill, soonest first. Derived, never stored.
   const withDates = bills
@@ -48,10 +51,9 @@ export default function Bills({ store }) {
   const linkOptions = billLinkOptions(debts, accounts);
   const broken = new Set(
     buildObligations({ debts, accounts, bills })
-      .brokenLinks.filter((l) => l.type === "bill")
+      .brokenLinks.filter((l) => l.type === 'bill')
       .map((l) => l.id),
   );
-
   // Show the column while there's something to choose, or a broken link to clear.
   const showLinks = linkOptions.length > 0 || broken.size > 0;
 
@@ -61,61 +63,46 @@ export default function Bills({ store }) {
     if (!form.name.trim() || !(+form.amount > 0)) return;
     setBills((prev) => [
       ...prev,
-      {
-        ...form,
-        id: uid(),
-        name: form.name.trim(),
-        amount: +form.amount,
-        dueDay: day,
-      },
+      { ...form, id: uid(), name: form.name.trim(), amount: +form.amount, dueDay: day },
     ]);
     setForm(emptyBill(categories));
   };
 
-  const changeBill = (id, change) =>
-    setBills((prev) => prev.map((b) => (b.id === id ? change(b) : b)));
+  const changeBill = (id, change) => setBills((prev) => prev.map((b) => (b.id === id ? change(b) : b)));
 
-  // "Mark paid" still records the bill as an expense transaction dated today, and now
-  // also remembers the month it paid, so Undo can take both back.
-  // Rows carry display-only fields (date, daysAway), so save from the stored bill.
-  const stored = (id) => bills.find((x) => x.id === id);
-  const markPaid = (id) => {
-    const b = stored(id);
-    const result = markBillPaid(b, transactions, new Date(), uid());
-    if (!result.month) return;
-    const [tx] = result.transactions; // the new transaction is first
-    setTransactions((prev) => [tx, ...prev]);
-    changeBill(b.id, () => result.bill);
-    setNotice("");
+  // "Mark paid" still records the bill as an expense transaction dated today, and now also
+  // the month it paid plus the transaction's id. Both updates apply to the latest lists,
+  // so transactions added or edited meanwhile are kept.
+  const markPaid = (id, month) => {
+    const plan = planBillPaid(bills, id, month, new Date(), uid());
+    if (!plan || !guard.current.start(id)) return;
+    setBills(plan.bills);
+    setTransactions(plan.transactions);
+    setNotice('');
   };
 
-  // Undo removes that month, and the transaction too if it wasn't edited since.
+  // Undo removes that month, and exactly the transaction Mark paid created, unless it was
+  // edited since (then it's the user's record: it stays, and the notice says so).
   const undo = (id, month) => {
-    const b = stored(id);
-    const result = undoBillPaid(b, transactions, month);
-    const kept = new Set(result.transactions.map((t) => t.id));
-    setTransactions((prev) => prev.filter((t) => kept.has(t.id)));
-    changeBill(b.id, () => result.bill);
+    const plan = planBillUndo(bills, latestTransactions.current, id, month);
+    if (!plan || !guard.current.start(id)) return;
+    setTransactions(plan.transactions);
+    setBills(plan.bills);
     setNotice(
-      result.keptTransaction
-        ? `${b.name} is no longer marked paid for ${monthLabel(month, true)}. Its payment transaction was edited after it was recorded, so it's still on Transactions.`
-        : "",
+      plan.kept
+        ? `${plan.name} is no longer marked paid for ${monthLabel(month, true)}. Its payment transaction was edited after it was recorded, so it's still on Transactions.`
+        : '',
     );
   };
 
   return (
     <div className="stack">
       <div className="grid grid-stats">
-        <StatCard
-          label="Recurring per month"
-          value={formatCurrency(monthlyTotal)}
-        />
+        <StatCard label="Recurring per month" value={formatCurrency(monthlyTotal)} />
         <StatCard label="Per year" value={formatCurrency(monthlyTotal * 12)} />
         <StatCard
           label="Due in next 7 days"
-          value={formatCurrency(
-            dueThisWeek.reduce((s, b) => s + Number(b.amount), 0),
-          )}
+          value={formatCurrency(dueThisWeek.reduce((s, b) => s + Number(b.amount), 0))}
           hint={`${dueThisWeek.length} bill(s)`}
         />
       </div>
@@ -159,7 +146,7 @@ export default function Bills({ store }) {
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
             >
-              {namesOf(categories, "expense").map((c) => (
+              {namesOf(categories, 'expense').map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </select>
@@ -172,8 +159,8 @@ export default function Bills({ store }) {
         <h2>Schedule</h2>
         {linkOptions.length > 0 && (
           <p className="sub">
-            If a bill is the payment for a debt or loan, choose it under "This
-            bill pays" so the payment is counted once.
+            If a bill is the payment for a debt or loan, choose it under "This bill pays" so the
+            payment is counted once.
           </p>
         )}
         {/* Announced once after an Undo that had to keep an edited transaction. */}
@@ -207,13 +194,11 @@ export default function Bills({ store }) {
                   <td>
                     {b.daysAway <= 3 ? (
                       <Status tone="warning" icon="clock">
-                        {b.daysAway === 0
-                          ? "Due today"
-                          : `In ${b.daysAway} day${b.daysAway === 1 ? "" : "s"}`}
+                        {b.daysAway === 0 ? 'Due today' : `In ${b.daysAway} day${b.daysAway === 1 ? '' : 's'}`}
                       </Status>
                     ) : (
                       <span className="status muted">
-                        In {b.daysAway} day{b.daysAway === 1 ? "" : "s"}
+                        In {b.daysAway} day{b.daysAway === 1 ? '' : 's'}
                       </span>
                     )}
                   </td>
@@ -221,16 +206,10 @@ export default function Bills({ store }) {
                   {showLinks && (
                     <td>
                       <select
-                        value={broken.has(b.id) ? "" : linkValue(b.payFor)}
-                        onChange={(e) =>
-                          changeBill(b.id, (x) =>
-                            setBillLink(x, e.target.value),
-                          )
-                        }
+                        value={broken.has(b.id) ? '' : linkValue(b.payFor)}
+                        onChange={(e) => changeBill(b.id, (x) => setBillLink(x, e.target.value))}
                         aria-label={`${b.name}: this bill pays`}
-                        aria-describedby={
-                          broken.has(b.id) ? `link-${b.id}` : undefined
-                        }
+                        aria-describedby={broken.has(b.id) ? `link-${b.id}` : undefined}
                       >
                         <option value="">Nothing linked</option>
                         {linkOptions.map((o) => (
@@ -240,18 +219,12 @@ export default function Bills({ store }) {
                         ))}
                       </select>
                       {broken.has(b.id) && (
-                        <div
-                          id={`link-${b.id}`}
-                          className="small status-warning"
-                        >
-                          The linked debt or loan was deleted or paid off.
-                          Choose again or{" "}
+                        <div id={`link-${b.id}`} className="small status-warning">
+                          The linked debt or loan was deleted or paid off. Choose again or{' '}
                           <button
                             type="button"
                             className="link-btn"
-                            onClick={() =>
-                              changeBill(b.id, (x) => setBillLink(x, ""))
-                            }
+                            onClick={() => changeBill(b.id, (x) => setBillLink(x, ''))}
                           >
                             leave it unlinked
                           </button>
@@ -264,16 +237,14 @@ export default function Bills({ store }) {
                     <PaidControl
                       record={b}
                       name={b.name}
-                      onMark={() => markPaid(b.id)}
+                      onMark={(month) => markPaid(b.id, month)}
                       onUndo={(month) => undo(b.id, month)}
                     />
                   </td>
                   <td className="num">
                     <button
                       className="btn-icon"
-                      onClick={() =>
-                        setBills((p) => p.filter((x) => x.id !== b.id))
-                      }
+                      onClick={() => setBills((p) => p.filter((x) => x.id !== b.id))}
                       aria-label={`Delete ${b.name}`}
                     >
                       <Icon name="close" />

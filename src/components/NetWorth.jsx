@@ -1,25 +1,18 @@
-import { useId, useMemo, useState } from "react";
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-} from "recharts";
-import ChartTooltip from "./ChartTooltip";
-import Icon from "./Icon";
-import EmptyState from "./EmptyState";
-import PaidControl from "./PaidControl";
-import StatCard from "./StatCard";
-import CountUp from "./CountUp";
-import { useNewItems } from "../hooks/useNewItems";
-import Status, { Notice } from "./Status";
-import { useColorScheme } from "../hooks/useColorScheme";
-import { useMotion } from "../hooks/useMotion";
-import { getPalette } from "../utils/colors";
-import { formatCurrency, formatDate } from "../utils/format";
+import { useId, useMemo, useState } from 'react';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import ChartTooltip from './ChartTooltip';
+import Icon from './Icon';
+import EmptyState from './EmptyState';
+import OptionalNumber from './OptionalNumber';
+import PaidControl from './PaidControl';
+import StatCard from './StatCard';
+import CountUp from './CountUp';
+import { useNewItems } from '../hooks/useNewItems';
+import Status, { Notice } from './Status';
+import { useColorScheme } from '../hooks/useColorScheme';
+import { useMotion } from '../hooks/useMotion';
+import { getPalette } from '../utils/colors';
+import { formatCurrency, formatDate } from '../utils/format';
 import {
   ASSET_KINDS,
   LIABILITY_KINDS,
@@ -34,33 +27,21 @@ import {
   parseBalance,
   readAccounts,
   updateBalance,
-} from "../utils/netWorth";
-import { markPaid, undoPaid } from "../utils/obligations";
-import {
-  debtOptions,
-  dueDayProblem,
-  paymentProblem,
-  setDebtLink,
-  setOptional,
-} from "../utils/payments";
+} from '../utils/netWorth';
+import { markPaid, undoPaid } from '../utils/obligations';
+import { debtOptions, dueDayProblem, paymentProblem, setDebtLink, setOptional } from '../utils/payments';
 
-const emptyForm = {
-  name: "",
-  type: "asset",
-  kind: "cash",
-  balance: "",
-  notInDebtPlanner: false,
-};
-const signed = (n) => (n > 0 ? "+" : "") + formatCurrency(n);
+const emptyForm = { name: '', type: 'asset', kind: 'cash', balance: '', notInDebtPlanner: false };
+const signed = (n) => (n > 0 ? '+' : '') + formatCurrency(n);
 
 /** Net worth page: manual accounts + Debt Planner debts, and a chart of monthly snapshots. */
 export default function NetWorth({ store, goTo }) {
   const { debts, settings, setAccounts } = store;
   const accounts = readAccounts(store.accounts);
   const palette = getPalette(useColorScheme());
-  const animate = useMotion() === "full"; // charts draw in at Full motion only
+  const animate = useMotion() === 'full'; // charts draw in at Full motion only
   const [form, setForm] = useState(emptyForm);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   const totals = netWorthTotals(accounts, debts);
   const series = useMemo(() => historySeries(settings), [settings]);
@@ -70,20 +51,14 @@ export default function NetWorth({ store, goTo }) {
   // Switching type resets the kind to that type's first option and clears the confirmation.
   const update = (field) => (e) =>
     setForm((f) =>
-      field === "type"
+      field === 'type'
         ? {
             ...f,
             type: e.target.value,
-            kind: (e.target.value === "asset"
-              ? ASSET_KINDS
-              : LIABILITY_KINDS)[0].id,
+            kind: (e.target.value === 'asset' ? ASSET_KINDS : LIABILITY_KINDS)[0].id,
             notInDebtPlanner: false,
           }
-        : {
-            ...f,
-            [field]:
-              field === "notInDebtPlanner" ? e.target.checked : e.target.value,
-          },
+        : { ...f, [field]: field === 'notInDebtPlanner' ? e.target.checked : e.target.value },
     );
   const mustConfirm = needsDebtConfirmation(form.type, debts);
 
@@ -93,33 +68,23 @@ export default function NetWorth({ store, goTo }) {
     if (result.error) return setError(result.error);
     setAccounts((prev) => [...readAccounts(prev), result.account]);
     setForm(emptyForm);
-    setError("");
+    setError('');
   };
 
-  const setBalance = (id, value) =>
-    setAccounts((prev) => updateBalance(readAccounts(prev), id, value));
-  const remove = (id) =>
-    setAccounts((prev) => readAccounts(prev).filter((a) => a.id !== id));
+  const setBalance = (id, value) => setAccounts((prev) => updateBalance(readAccounts(prev), id, value));
+  const remove = (id) => setAccounts((prev) => readAccounts(prev).filter((a) => a.id !== id));
   // Payment details on a liability: change(account) returns the edited copy.
   const changeAccount = (id, change) =>
-    setAccounts((prev) =>
-      readAccounts(prev).map((a) => (a.id === id ? change(a) : a)),
-    );
+    setAccounts((prev) => readAccounts(prev).map((a) => (a.id === id ? change(a) : a)));
 
-  const assets = accounts.filter((a) => a.type === "asset");
-  const liabilities = accounts.filter((a) => a.type === "liability");
-  const financed =
-    form.type === "asset" &&
-    (form.kind === "property" || form.kind === "vehicle");
+  const assets = accounts.filter((a) => a.type === 'asset');
+  const liabilities = accounts.filter((a) => a.type === 'liability');
+  const financed = form.type === 'asset' && (form.kind === 'property' || form.kind === 'vehicle');
 
   return (
     <div className="stack">
       <div className="grid grid-stats">
-        <StatCard
-          label="Assets"
-          value={<CountUp value={totals.assets} format={formatCurrency} />}
-          hint={`${assets.length} account(s)`}
-        />
+        <StatCard label="Assets" value={<CountUp value={totals.assets} format={formatCurrency} />} hint={`${assets.length} account(s)`} />
         <StatCard
           label="Liabilities"
           value={<CountUp value={totals.liabilities} format={formatCurrency} />}
@@ -130,10 +95,10 @@ export default function NetWorth({ store, goTo }) {
           value={<CountUp value={totals.netWorth} format={formatCurrency} />}
           hint={
             accounts.length === 0
-              ? "Add your accounts below to see it"
+              ? 'Add your accounts below to see it'
               : change
                 ? `${signed(change.amount)} since ${change.since}`
-                : "Change appears after your first full month"
+                : 'Change appears after your first full month'
           }
         />
       </div>
@@ -142,20 +107,14 @@ export default function NetWorth({ store, goTo }) {
         <section className="card">
           <h2>Net worth over time</h2>
           <p className="sub">
-            Recorded snapshots: the latest totals Finnelee saw during each
-            month, not month-end statements. Months where balances weren't
-            updated may be out of date.
+            Recorded snapshots: the latest totals Finnelee saw during each month, not month-end
+            statements. Months where balances weren't updated may be out of date.
           </p>
           <div className="chart">
             <ResponsiveContainer>
               <LineChart data={series} margin={{ left: 0, right: 8 }}>
                 <CartesianGrid vertical={false} stroke={palette.grid} />
-                <XAxis
-                  dataKey="label"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: palette.axis, fontSize: 12 }}
-                />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} />
                 <YAxis
                   tickFormatter={(v) => formatCurrency(v, { compact: true })}
                   tickLine={false}
@@ -164,14 +123,7 @@ export default function NetWorth({ store, goTo }) {
                   width={60}
                 />
                 <Tooltip content={<ChartTooltip />} />
-                <Line
-                  isAnimationActive={animate}
-                  dataKey="netWorth"
-                  name="Net worth"
-                  stroke={palette.series[0]}
-                  strokeWidth={2.5}
-                  dot={{ r: 3 }}
-                />
+                <Line isAnimationActive={animate} dataKey="netWorth" name="Net worth" stroke={palette.series[0]} strokeWidth={2.5} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -181,96 +133,68 @@ export default function NetWorth({ store, goTo }) {
       <section className="card">
         <h2>Add an account</h2>
         <p className="sub">
-          Balances are entered by hand and stay in this browser. Update them
-          whenever you check your bank.
+          Balances are entered by hand and stay in this browser. Update them whenever you check
+          your bank.
         </p>
         <form className="form" onSubmit={addAccount}>
           <label className="field">
             Name
-            <input
-              value={form.name}
-              onChange={update("name")}
-              placeholder="e.g. Ally savings"
-            />
+            <input value={form.name} onChange={update('name')} placeholder="e.g. Ally savings" />
           </label>
           <label className="field">
             Type
-            <select value={form.type} onChange={update("type")}>
+            <select value={form.type} onChange={update('type')}>
               <option value="asset">Asset (what you own)</option>
               <option value="liability">Liability (what you owe)</option>
             </select>
           </label>
           <label className="field">
             Kind
-            <select value={form.kind} onChange={update("kind")}>
-              {(form.type === "asset" ? ASSET_KINDS : LIABILITY_KINDS).map(
-                (k) => (
-                  <option key={k.id} value={k.id}>
-                    {k.label}
-                  </option>
-                ),
-              )}
+            <select value={form.kind} onChange={update('kind')}>
+              {(form.type === 'asset' ? ASSET_KINDS : LIABILITY_KINDS).map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.label}
+                </option>
+              ))}
             </select>
           </label>
           <label className="field">
-            {financed ? "Market value" : "Balance"}
-            <input
-              type="number"
-              min="0"
-              step="any"
-              value={form.balance}
-              onChange={update("balance")}
-            />
+            {financed ? 'Market value' : 'Balance'}
+            <input type="number" min="0" step="any" value={form.balance} onChange={update('balance')} />
           </label>
-          <button
-            className="btn btn-primary"
-            disabled={mustConfirm && !form.notInDebtPlanner}
-          >
+          <button className="btn btn-primary" disabled={mustConfirm && !form.notInDebtPlanner}>
             Add account
           </button>
         </form>
 
         {/* Guidance that prevents double counting, shown where the mistake would happen. */}
-        {form.type === "liability" && (
+        {form.type === 'liability' && (
           <Notice icon="debt" style={{ marginTop: 12 }}>
             <span>
               Loans and credit cards in the Debt Planner are already counted
               {debts.length > 0
-                ? `: ${debts.map((d) => d.name).join(", ")} (${formatCurrency(totals.debtLiabilities)}).`
-                : "."}{" "}
-              Only add a debt here if it isn't in the Debt Planner.{" "}
-              <strong>
-                If your mortgage is already in the Debt Planner, don't add it
-                again.
-              </strong>
+                ? `: ${debts.map((d) => d.name).join(', ')} (${formatCurrency(totals.debtLiabilities)}).`
+                : '.'}{' '}
+              Only add a debt here if it isn't in the Debt Planner. <strong>If your mortgage is
+              already in the Debt Planner, don't add it again.</strong>
             </span>
           </Notice>
         )}
         {/* A required tick (not name matching) is the safeguard: Add stays disabled until it's checked. */}
         {mustConfirm && (
           <label className="row small" style={{ gap: 8, marginTop: 10 }}>
-            <input
-              type="checkbox"
-              checked={form.notInDebtPlanner}
-              onChange={update("notInDebtPlanner")}
-            />
+            <input type="checkbox" checked={form.notInDebtPlanner} onChange={update('notInDebtPlanner')} />
             This debt is not in the Debt Planner, so it isn't counted yet.
           </label>
         )}
         {financed && (
           <Notice icon="idea" style={{ marginTop: 12 }}>
-            Enter what it would sell for today, without subtracting the loan.
-            The loan is tracked separately: in the Debt Planner, or here as a
-            mortgage if it isn't there.
+            Enter what it would sell for today, without subtracting the loan. The loan is tracked
+            separately: in the Debt Planner, or here as a mortgage if it isn't there.
           </Notice>
         )}
         {error && (
-          <Status
-            tone="critical"
-            as="p"
-            role="alert"
-            style={{ marginBottom: 0 }}
-          >
+          <Status tone="critical" as="p" role="alert" style={{ marginBottom: 0 }}>
             {error}
           </Status>
         )}
@@ -281,26 +205,16 @@ export default function NetWorth({ store, goTo }) {
         rows={assets}
         onBalance={setBalance}
         onDelete={remove}
-        empty={{
-          title: "No assets yet",
-          text: "Add a checking, savings or investment account above.",
-        }}
+        empty={{ title: 'No assets yet', text: 'Add a checking, savings or investment account above.' }}
       />
       <AccountTable
         title="Other liabilities"
         rows={liabilities}
         onBalance={setBalance}
         onDelete={remove}
-        empty={{
-          title: "No other liabilities",
-          text: "Debts in the Debt Planner are counted automatically (below).",
-        }}
+        empty={{ title: 'No other liabilities', text: 'Debts in the Debt Planner are counted automatically (below).' }}
         details={(a) => (
-          <LiabilityDetails
-            account={a}
-            debts={debts}
-            onChange={(change) => changeAccount(a.id, change)}
-          />
+          <LiabilityDetails account={a} debts={debts} onChange={(change) => changeAccount(a.id, change)} />
         )}
       />
 
@@ -308,20 +222,14 @@ export default function NetWorth({ store, goTo }) {
         <div className="row" style={{ marginBottom: 8 }}>
           <h2 style={{ margin: 0 }}>From the Debt Planner</h2>
           <span className="spacer" />
-          <button className="btn" onClick={() => goTo("debt")}>
+          <button className="btn" onClick={() => goTo('debt')}>
             <Icon name="debt" />
             Edit debts
           </button>
         </div>
-        <p className="sub">
-          Counted automatically, and always using the current balances.
-        </p>
+        <p className="sub">Counted automatically, and always using the current balances.</p>
         {debts.length === 0 ? (
-          <EmptyState
-            icon="debt"
-            title="No debts in the Debt Planner"
-            compact
-          />
+          <EmptyState icon="debt" title="No debts in the Debt Planner" compact />
         ) : (
           <ul className="list">
             {debts.map((d) => (
@@ -336,10 +244,9 @@ export default function NetWorth({ store, goTo }) {
 
       {liquid.count > 0 && (
         <p className="small muted" style={{ margin: 0 }}>
-          Your cash and savings accounts total {formatCurrency(liquid.amount)}.
-          To use them as your savings in the Forecast and emergency-fund
-          numbers, choose it on the{" "}
-          <button className="link-btn" onClick={() => goTo("forecast")}>
+          Your cash and savings accounts total {formatCurrency(liquid.amount)}. To use them as your
+          savings in the Forecast and emergency-fund numbers, choose it on the{' '}
+          <button className="link-btn" onClick={() => goTo('forecast')}>
             Forecast page
           </button>
           .
@@ -373,7 +280,7 @@ function AccountTable({ title, rows, onBalance, onDelete, empty, details }) {
             </thead>
             <tbody>
               {rows.map((a) => [
-                <tr key={a.id} className={isNew(a.id) ? "row-new" : undefined}>
+                <tr key={a.id} className={isNew(a.id) ? 'row-new' : undefined}>
                   <td>{a.name}</td>
                   <td className="muted">{kindLabel(a.type, a.kind)}</td>
                   <td>
@@ -382,20 +289,14 @@ function AccountTable({ title, rows, onBalance, onDelete, empty, details }) {
                   <td>
                     {isStale(a) ? (
                       <Status tone="warning" icon="clock">
-                        {a.updated ? formatDate(a.updated) : "Never"}: update it
+                        {a.updated ? formatDate(a.updated) : 'Never'}: update it
                       </Status>
                     ) : (
-                      <span className="muted small">
-                        {formatDate(a.updated)}
-                      </span>
+                      <span className="muted small">{formatDate(a.updated)}</span>
                     )}
                   </td>
                   <td className="num">
-                    <button
-                      className="btn-icon"
-                      onClick={() => onDelete(a.id)}
-                      aria-label={`Delete ${a.name}`}
-                    >
+                    <button className="btn-icon" onClick={() => onDelete(a.id)} aria-label={`Delete ${a.name}`}>
                       <Icon name="close" />
                     </button>
                   </td>
@@ -419,67 +320,50 @@ function AccountTable({ title, rows, onBalance, onDelete, empty, details }) {
  * A liability's payment details, all optional: monthly payment (for Debt load), due day,
  * "Same as Debt Planner debt" (so one loan is counted once) and Mark paid. A linked
  * liability is marked paid on its debt instead, so the month is recorded in one place.
+ * Number boxes save only valid values (see OptionalNumber).
  */
 function LiabilityDetails({ account: a, debts, onChange }) {
   const id = useId();
   const options = debtOptions(debts);
   const linked = options.find((o) => o.value === String(a.debtId));
-  const broken = a.debtId != null && a.debtId !== "" && !linked;
-  const payProblem = paymentProblem(a.monthlyPayment);
-  const dayProblem = dueDayProblem(a.dueDay);
+  const broken = a.debtId != null && a.debtId !== '' && !linked;
   return (
     <div className="obligation-fields">
       <div className="field-box">
-        <label className="field">
+        <label className="field" htmlFor={`${id}-pay`}>
           Monthly payment
-          <input
-            type="number"
-            min="0"
-            step="any"
-            placeholder="Optional"
-            value={a.monthlyPayment ?? ""}
-            onChange={(e) =>
-              onChange((x) => setOptional(x, "monthlyPayment", e.target.value))
-            }
-            aria-invalid={Boolean(payProblem)}
-            aria-describedby={payProblem ? `${id}-pay` : undefined}
-          />
         </label>
-        {payProblem && (
-          <span id={`${id}-pay`} className="small status-critical">
-            {payProblem}
-          </span>
-        )}
+        <OptionalNumber
+          id={`${id}-pay`}
+          value={a.monthlyPayment}
+          problemOf={paymentProblem}
+          onSave={(text) => onChange((x) => setOptional(x, 'monthlyPayment', text))}
+          min="0"
+          step="any"
+          placeholder="Optional"
+        />
       </div>
       <div className="field-box">
-        <label className="field">
+        <label className="field" htmlFor={`${id}-day`}>
           Due day
-          <input
-            type="number"
-            min="1"
-            max="31"
-            step="1"
-            placeholder="Optional"
-            value={a.dueDay ?? ""}
-            onChange={(e) =>
-              onChange((x) => setOptional(x, "dueDay", e.target.value))
-            }
-            aria-invalid={Boolean(dayProblem)}
-            aria-describedby={dayProblem ? `${id}-day` : undefined}
-          />
         </label>
-        {dayProblem && (
-          <span id={`${id}-day`} className="small status-critical">
-            {dayProblem}
-          </span>
-        )}
+        <OptionalNumber
+          id={`${id}-day`}
+          value={a.dueDay}
+          problemOf={dueDayProblem}
+          onSave={(text) => onChange((x) => setOptional(x, 'dueDay', text))}
+          min="1"
+          max="31"
+          step="1"
+          placeholder="Optional"
+        />
       </div>
       {(options.length > 0 || broken) && (
         <div className="field-box">
           <label className="field">
             Same as Debt Planner debt
             <select
-              value={linked ? linked.value : ""}
+              value={linked ? linked.value : ''}
               onChange={(e) => onChange((x) => setDebtLink(x, e.target.value))}
               aria-describedby={broken ? `${id}-link` : undefined}
             >
@@ -493,12 +377,8 @@ function LiabilityDetails({ account: a, debts, onChange }) {
           </label>
           {broken && (
             <span id={`${id}-link`} className="small status-warning">
-              The linked debt was deleted or paid off. Choose again or{" "}
-              <button
-                type="button"
-                className="link-btn"
-                onClick={() => onChange((x) => setDebtLink(x, ""))}
-              >
+              The linked debt was deleted or paid off. Choose again or{' '}
+              <button type="button" className="link-btn" onClick={() => onChange((x) => setDebtLink(x, ''))}>
                 leave unlinked
               </button>
               .
@@ -509,9 +389,7 @@ function LiabilityDetails({ account: a, debts, onChange }) {
       <div className="field-box">
         <span className="field-label">Payment</span>
         {linked ? (
-          <span className="small muted">
-            Mark it paid on the Debt Planner, under {linked.label}.
-          </span>
+          <span className="small muted">Mark it paid on the Debt Planner, under {linked.label}.</span>
         ) : (
           <PaidControl
             record={a}
@@ -550,11 +428,9 @@ function BalanceInput({ account, onSave }) {
         onBlur={() => setDraft(null)}
         aria-label={`${account.name} balance`}
         aria-invalid={Boolean(problem)}
-        style={{ width: "100%" }}
+        style={{ width: '100%' }}
       />
-      {problem && (
-        <div className="small status-critical">{problem} Not saved.</div>
-      )}
+      {problem && <div className="small status-critical">{problem} Not saved.</div>}
     </>
   );
 }

@@ -32,9 +32,7 @@
   /* Glass: translucent panel + blur. Only for chrome that floats over the aurora. */
   --glass: rgb(255 255 255 / 0.68);
   --glass-border: rgb(255 255 255 / 0.9);
-  --backdrop: rgb(
-    8 24 19 / 0.42
-  ); /* dims the page behind dialogs and the drawer */
+  --backdrop: rgb(8 24 19 / 0.42); /* dims the page behind dialogs and the drawer */
 
   /* The aurora: two soft brand glows behind the top of every page. Static (no animation). */
   --aurora-1: rgb(27 175 122 / 0.16);
@@ -50,25 +48,15 @@
 
   /* Type: a characterful display face for headings and big numbers, a quiet body face,
      and a mono face for labels and codes. All self-hosted (see src/main.jsx). */
-  --font-display:
-    "Bricolage Grotesque Variable", "Avenir Next", system-ui, sans-serif;
-  --font-body:
-    "Instrument Sans Variable", system-ui, -apple-system, "Segoe UI", Roboto,
-    sans-serif;
-  --font-mono:
-    "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas,
-    monospace;
+  --font-display: 'Bricolage Grotesque Variable', 'Avenir Next', system-ui, sans-serif;
+  --font-body: 'Instrument Sans Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* Motion: one easing, one spring and a few durations, so everything moves the same way.
      <html data-motion="full | calm | off"> (utils/motion.js) tunes them at the end of
      this file: Calm keeps short fades with no travel, Off shows end states at once. */
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1); /* quick start, soft landing */
-  --ease-spring: cubic-bezier(
-    0.34,
-    1.4,
-    0.64,
-    1
-  ); /* overshoots a little, then settles */
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1); /* overshoots a little, then settles */
   --dur-fast: 150ms;
   --dur: 250ms;
   --dur-slow: 600ms;
@@ -127,8 +115,7 @@
     --backdrop: rgb(0 0 0 / 0.55);
     --aurora-1: rgb(63 224 165 / 0.16);
     --aurora-2: rgb(76 201 232 / 0.11);
-    --shadow:
-      0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 30px rgb(0 0 0 / 0.32);
+    --shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 30px rgb(0 0 0 / 0.32);
     --shadow-lg: 0 30px 70px rgb(0 0 0 / 0.55);
   }
 }
@@ -145,8 +132,7 @@ body {
   /* The aurora is painted once on the page background: no extra layers, nothing animates. */
   background:
     radial-gradient(900px 420px at 18% -80px, var(--aurora-1), transparent 70%),
-    radial-gradient(760px 380px at 92% -40px, var(--aurora-2), transparent 70%),
-    var(--bg);
+    radial-gradient(760px 380px at 92% -40px, var(--aurora-2), transparent 70%), var(--bg);
   background-repeat: no-repeat;
   background-color: var(--bg);
 }
@@ -234,20 +220,17 @@ a {
 }
 /* Full motion: the icon lifts on hover and keyboard focus alike, redraws its strokes when
    its page opens (pathLength="1" in Icon.jsx), and the item presses in when tapped. */
-:root[data-motion="full"] .nav-item:is(:hover, :focus-visible, .active) .icon {
+:root[data-motion='full'] .nav-item:is(:hover, :focus-visible, .active) .icon {
   transform: translateY(-1px) scale(1.08);
 }
-:root[data-motion="full"]
-  .nav-item:is(:hover, :focus-visible):not(.active)
-  .icon
-  [pathLength],
-:root[data-motion="full"] .nav-item.active .icon [pathLength] {
+:root[data-motion='full'] .nav-item:is(:hover, :focus-visible):not(.active) .icon [pathLength],
+:root[data-motion='full'] .nav-item.active .icon [pathLength] {
   animation: icon-draw 650ms var(--ease);
 }
-:root[data-motion="full"] .nav-item:active {
+:root[data-motion='full'] .nav-item:active {
   transform: scale(0.97);
 }
-:root[data-motion="full"] .nav-item:active .icon {
+:root[data-motion='full'] .nav-item:active .icon {
   transform: rotate(-8deg) scale(0.94);
 }
 .nav-item.active {
@@ -269,7 +252,7 @@ a {
   transition: transform var(--dur) var(--ease);
 }
 .nav-indicator::before {
-  content: "";
+  content: '';
   position: absolute;
   left: -14px;
   top: 9px;
@@ -383,9 +366,7 @@ a {
     z-index: 20;
     width: min(280px, 85vw);
     height: 100dvh;
-    background: var(
-      --surface
-    ); /* solid in the drawer: it sits over busy page content */
+    background: var(--surface); /* solid in the drawer: it sits over busy page content */
     transform: translateX(-100%);
     transition: transform var(--dur) var(--ease);
     box-shadow: var(--shadow-lg);
@@ -582,7 +563,7 @@ textarea {
     box-shadow var(--dur-fast);
 }
 /* Slightly stronger edge so fields read as fields, not just text. */
-input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+input:not([type='checkbox']):not([type='radio']):not([type='file']),
 select,
 textarea {
   box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.04);
@@ -607,18 +588,18 @@ summary:focus-visible,
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-input[type="checkbox"],
-input[type="radio"] {
+input[type='checkbox'],
+input[type='radio'] {
   min-height: 0;
   width: 16px;
   height: 16px;
   accent-color: var(--accent);
 }
-input[type="file"] {
+input[type='file'] {
   min-height: 0;
   padding: 6px;
 }
-input[type="file"]::file-selector-button {
+input[type='file']::file-selector-button {
   margin-right: 10px;
   padding: 6px 12px;
   border: 1px solid var(--border);
@@ -629,8 +610,8 @@ input[type="file"]::file-selector-button {
   font-weight: 600;
   cursor: pointer;
 }
-input[type="date"],
-input[type="month"] {
+input[type='date'],
+input[type='month'] {
   font-variant-numeric: tabular-nums;
 }
 input:disabled,
@@ -638,7 +619,7 @@ select:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
-input[aria-invalid="true"] {
+input[aria-invalid='true'] {
   border-color: var(--critical);
 }
 /* Windows high-contrast mode drops box-shadow, so fall back to a real outline there. */
@@ -760,7 +741,7 @@ td select {
   padding: 5px 8px;
   font-size: 0.88rem;
 }
-td input[type="number"] {
+td input[type='number'] {
   min-width: 76px;
 }
 .amount-income {
@@ -891,8 +872,8 @@ h2 > .icon {
   font-size: 0.9rem;
 }
 /* "Saved" / error messages slide in when they appear (they mount, so this plays once). */
-.insight[role="status"],
-.insight[role="alert"] {
+.insight[role='status'],
+.insight[role='alert'] {
   animation: fade-in var(--dur) var(--ease) both;
 }
 .insight > .icon {
@@ -966,7 +947,7 @@ h2 > .icon {
   overflow: hidden;
 }
 .splash-bar::after {
-  content: "";
+  content: '';
   display: block;
   width: 40%;
   height: 100%;
@@ -1029,12 +1010,7 @@ h2 > .icon {
   color: #f2fbf7;
   background:
     radial-gradient(120% 90% at 0% 0%, rgb(63 224 165 / 0.45), transparent 60%),
-    radial-gradient(
-      100% 80% at 100% 100%,
-      rgb(76 201 232 / 0.35),
-      transparent 60%
-    ),
-    #0b2a22;
+    radial-gradient(100% 80% at 100% 100%, rgb(76 201 232 / 0.35), transparent 60%), #0b2a22;
   display: grid;
   place-items: center;
   padding: 48px;
@@ -1042,7 +1018,7 @@ h2 > .icon {
 /* Two soft light blobs drifting slowly behind the content. Only transform animates (cheap). */
 .auth-hero::before,
 .auth-hero::after {
-  content: "";
+  content: '';
   position: absolute;
   width: 70%;
   aspect-ratio: 1;
@@ -1143,7 +1119,7 @@ h2 > .icon {
   color: var(--text-2);
   transition: color var(--dur-fast);
 }
-.segmented button[aria-pressed="true"] {
+.segmented button[aria-pressed='true'] {
   color: var(--text);
 }
 .segmented-pill {
@@ -1157,7 +1133,7 @@ h2 > .icon {
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
   transition: transform var(--dur) var(--ease);
 }
-.segmented[data-mode="signup"] .segmented-pill {
+.segmented[data-mode='signup'] .segmented-pill {
   transform: translateX(100%);
 }
 .back-link {
@@ -1249,16 +1225,16 @@ h2 > .icon {
   background: var(--surface-2);
   transition: background-color var(--dur) var(--ease);
 }
-.strength[data-score="1"] span:nth-child(-n + 1) {
+.strength[data-score='1'] span:nth-child(-n + 1) {
   background: var(--critical);
 }
-.strength[data-score="2"] span:nth-child(-n + 2) {
+.strength[data-score='2'] span:nth-child(-n + 2) {
   background: var(--warning);
 }
-.strength[data-score="3"] span:nth-child(-n + 3) {
+.strength[data-score='3'] span:nth-child(-n + 3) {
   background: var(--accent-2);
 }
-.strength[data-score="4"] span {
+.strength[data-score='4'] span {
   background: var(--good);
 }
 
@@ -1635,8 +1611,7 @@ h2 > .icon {
     --spot var(--dur) var(--ease);
 }
 .grid-stats > .card:hover {
-  transform: perspective(900px) translateY(-2px) rotateX(var(--rx))
-    rotateY(var(--ry));
+  transform: perspective(900px) translateY(-2px) rotateX(var(--rx)) rotateY(var(--ry));
   box-shadow:
     var(--shadow),
     0 14px 30px rgb(0 0 0 / 0.08);
@@ -1657,7 +1632,7 @@ h2 > .icon {
    --mx/--my). --spot is registered so the glow can fade; browsers without @property just
    show it without the fade. Keyboard focus on a tile lights it from the middle. */
 @property --spot {
-  syntax: "<percentage>";
+  syntax: '<percentage>';
   inherits: false;
   initial-value: 0%;
 }
@@ -1711,8 +1686,7 @@ h2 > .icon {
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(calc(14px * var(--travel)))
-      scale(calc(1 - 0.02 * var(--travel)));
+    transform: translateY(calc(14px * var(--travel))) scale(calc(1 - 0.02 * var(--travel)));
   }
 }
 @keyframes grow {
@@ -1743,8 +1717,7 @@ h2 > .icon {
 @keyframes dialog-in {
   from {
     opacity: 0;
-    transform: translateY(calc(8px * var(--travel)))
-      scale(calc(1 - 0.03 * var(--travel)));
+    transform: translateY(calc(8px * var(--travel))) scale(calc(1 - 0.03 * var(--travel)));
   }
 }
 @keyframes grow-x {
@@ -1783,30 +1756,30 @@ h2 > .icon {
    moving because they say "still working", and the phone drawer keeps a brief (150ms)
    slide because it shows where the menu lives. Chosen in Settings, or the device default
    when it asks for reduced motion (utils/motion.js). */
-:root[data-motion="calm"] {
+:root[data-motion='calm'] {
   --dur: 150ms;
   --dur-slow: 200ms;
   --stagger: 0ms;
   --travel: 0;
 }
-:root[data-motion="calm"] .auth-hero::before,
-:root[data-motion="calm"] .auth-hero::after {
+:root[data-motion='calm'] .auth-hero::before,
+:root[data-motion='calm'] .auth-hero::after {
   animation: none;
 }
-:root[data-motion="calm"] .grid-stats > .card,
-:root[data-motion="calm"] .grid-stats > .card:hover,
-:root[data-motion="calm"] .grid-stats > .stat-link:active,
-:root[data-motion="calm"] .btn:active {
+:root[data-motion='calm'] .grid-stats > .card,
+:root[data-motion='calm'] .grid-stats > .card:hover,
+:root[data-motion='calm'] .grid-stats > .stat-link:active,
+:root[data-motion='calm'] .btn:active {
   transform: none;
 }
-:root[data-motion="calm"] .nav-indicator {
+:root[data-motion='calm'] .nav-indicator {
   transition: none;
 }
 
 /* Off: every animation and transition lands on its end state at once. */
-:root[data-motion="off"] *,
-:root[data-motion="off"] *::before,
-:root[data-motion="off"] *::after {
+:root[data-motion='off'] *,
+:root[data-motion='off'] *::before,
+:root[data-motion='off'] *::after {
   animation-duration: 0.01ms !important;
   animation-delay: 0ms !important;
   animation-iteration-count: 1 !important;
@@ -1815,11 +1788,11 @@ h2 > .icon {
   scroll-behavior: auto !important;
 }
 /* Loaders that only loop would freeze mid-way; show a still, full bar instead. */
-:root[data-motion="off"] .splash-bar::after {
+:root[data-motion='off'] .splash-bar::after {
   width: 100%;
   transform: none;
 }
-:root[data-motion="off"] .skeleton {
+:root[data-motion='off'] .skeleton {
   background: var(--surface-2);
 }
 
