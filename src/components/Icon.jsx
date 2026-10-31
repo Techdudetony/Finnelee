@@ -86,6 +86,12 @@ const ICONS = {
       <path d="M12 7.5V12l3 2" />
     </>
   ),
+  calendar: (
+    <>
+      <rect x="4" y="5.5" width="16" height="14.5" rx="2.5" />
+      <path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" />
+    </>
+  ),
 
   // Actions and small marks
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,

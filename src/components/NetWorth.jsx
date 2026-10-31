@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import ChartTooltip from './ChartTooltip';
 import Icon from './Icon';
 import EmptyState from './EmptyState';
+import OptionalNumber from './OptionalNumber';
+import PaidControl from './PaidControl';
 import StatCard from './StatCard';
 import CountUp from './CountUp';
 import { useNewItems } from '../hooks/useNewItems';
@@ -26,6 +28,8 @@ import {
   readAccounts,
   updateBalance,
 } from '../utils/netWorth';
+import { markPaid, undoPaid } from '../utils/obligations';
+import { debtOptions, dueDayProblem, paymentProblem, setDebtLink, setOptional } from '../utils/payments';
 
 const emptyForm = { name: '', type: 'asset', kind: 'cash', balance: '', notInDebtPlanner: false };
 const signed = (n) => (n > 0 ? '+' : '') + formatCurrency(n);
@@ -69,6 +73,9 @@ export default function NetWorth({ store, goTo }) {
 
   const setBalance = (id, value) => setAccounts((prev) => updateBalance(readAccounts(prev), id, value));
   const remove = (id) => setAccounts((prev) => readAccounts(prev).filter((a) => a.id !== id));
+  // Payment details on a liability: change(account) returns the edited copy.
+  const changeAccount = (id, change) =>
+    setAccounts((prev) => readAccounts(prev).map((a) => (a.id === id ? change(a) : a)));
 
   const assets = accounts.filter((a) => a.type === 'asset');
   const liabilities = accounts.filter((a) => a.type === 'liability');
@@ -206,6 +213,9 @@ export default function NetWorth({ store, goTo }) {
         onBalance={setBalance}
         onDelete={remove}
         empty={{ title: 'No other liabilities', text: 'Debts in the Debt Planner are counted automatically (below).' }}
+        details={(a) => (
+          <LiabilityDetails account={a} debts={debts} onChange={(change) => changeAccount(a.id, change)} />
+        )}
       />
 
       <section className="card">
@@ -247,7 +257,7 @@ export default function NetWorth({ store, goTo }) {
 }
 
 /** One table of accounts with inline balance editing. */
-function AccountTable({ title, rows, onBalance, onDelete, empty }) {
+function AccountTable({ title, rows, onBalance, onDelete, empty, details }) {
   const isNew = useNewItems(rows); // only accounts added after the page opened fade in
   return (
     <section className="card">
@@ -269,7 +279,7 @@ function AccountTable({ title, rows, onBalance, onDelete, empty }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((a) => (
+              {rows.map((a) => [
                 <tr key={a.id} className={isNew(a.id) ? 'row-new' : undefined}>
                   <td>{a.name}</td>
                   <td className="muted">{kindLabel(a.type, a.kind)}</td>
@@ -290,13 +300,106 @@ function AccountTable({ title, rows, onBalance, onDelete, empty }) {
                       <Icon name="close" />
                     </button>
                   </td>
-                </tr>
-              ))}
+                </tr>,
+                // Optional second row (liabilities): payment, due day, link, Mark paid.
+                details && (
+                  <tr key={`${a.id}-details`} className="row-details">
+                    <td colSpan={5}>{details(a)}</td>
+                  </tr>
+                ),
+              ])}
             </tbody>
           </table>
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * A liability's payment details, all optional: monthly payment (for Debt load), due day,
+ * "Same as Debt Planner debt" (so one loan is counted once) and Mark paid. A linked
+ * liability is marked paid on its debt instead, so the month is recorded in one place.
+ * Number boxes save only valid values (see OptionalNumber).
+ */
+function LiabilityDetails({ account: a, debts, onChange }) {
+  const id = useId();
+  const options = debtOptions(debts);
+  const linked = options.find((o) => o.value === String(a.debtId));
+  const broken = a.debtId != null && a.debtId !== '' && !linked;
+  return (
+    <div className="obligation-fields">
+      <div className="field-box">
+        <label className="field" htmlFor={`${id}-pay`}>
+          Monthly payment
+        </label>
+        <OptionalNumber
+          id={`${id}-pay`}
+          value={a.monthlyPayment}
+          problemOf={paymentProblem}
+          onSave={(text) => onChange((x) => setOptional(x, 'monthlyPayment', text))}
+          min="0"
+          step="any"
+          placeholder="Optional"
+        />
+      </div>
+      <div className="field-box">
+        <label className="field" htmlFor={`${id}-day`}>
+          Due day
+        </label>
+        <OptionalNumber
+          id={`${id}-day`}
+          value={a.dueDay}
+          problemOf={dueDayProblem}
+          onSave={(text) => onChange((x) => setOptional(x, 'dueDay', text))}
+          min="1"
+          max="31"
+          step="1"
+          placeholder="Optional"
+        />
+      </div>
+      {(options.length > 0 || broken) && (
+        <div className="field-box">
+          <label className="field">
+            Same as Debt Planner debt
+            <select
+              value={linked ? linked.value : ''}
+              onChange={(e) => onChange((x) => setDebtLink(x, e.target.value))}
+              aria-describedby={broken ? `${id}-link` : undefined}
+            >
+              <option value="">Not linked</option>
+              {options.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {broken && (
+            <span id={`${id}-link`} className="small status-warning">
+              The linked debt was deleted or paid off. Choose again or{' '}
+              <button type="button" className="link-btn" onClick={() => onChange((x) => setDebtLink(x, ''))}>
+                leave unlinked
+              </button>
+              .
+            </span>
+          )}
+        </div>
+      )}
+      <div className="field-box">
+        <span className="field-label">Payment</span>
+        {linked ? (
+          <span className="small muted">Mark it paid on the Debt Planner, under {linked.label}.</span>
+        ) : (
+          <PaidControl
+            record={a}
+            name={a.name}
+            onMark={(month) => onChange((x) => markPaid(x, month))}
+            onUndo={(month) => onChange((x) => undoPaid(x, month))}
+          />
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -1,18 +1,23 @@
 import { useMemo, useState } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import ChartTooltip from './ChartTooltip';
+import EmptyState from './EmptyState';
 import Icon from './Icon';
+import OptionalNumber from './OptionalNumber';
+import PaidControl from './PaidControl';
 import Status from './Status';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { useMotion } from '../hooks/useMotion';
 import { getPalette } from '../utils/colors';
 import { formatCurrency, uid } from '../utils/format';
 import { simulateDebtPayoff, monthsFromNowLabel } from '../utils/finance';
+import { markPaid, undoPaid } from '../utils/obligations';
+import { dueDayProblem, setOptional } from '../utils/payments';
 
 const emptyDebt = { name: '', balance: '', apr: '', minPayment: '' };
 
 export default function DebtPlanner({ store }) {
-  const { debts, setDebts } = store;
+  const { debts, setDebts, settings, setSettings } = store;
   const palette = getPalette(useColorScheme());
   const animate = useMotion() === 'full'; // charts draw in at Full motion only
   const [extra, setExtra] = useState(200);
@@ -38,7 +43,18 @@ export default function DebtPlanner({ store }) {
     if (!d.name || d.balance <= 0 || d.minPayment <= 0) return;
     setDebts((prev) => [...prev, d]);
     setForm(emptyDebt);
+    if (settings.noDebtsConfirmed) confirmNoDebts(false); // there is a debt now
   };
+
+  // Due day, Mark paid and Undo: optional fields, saved on the debt itself.
+  const changeDebt = (id, change) => setDebts((prev) => prev.map((d) => (d.id === id ? change(d) : d)));
+
+  // "I don't have any debts" lets Debt load score 100 instead of "Needs data".
+  const confirmNoDebts = (yes) =>
+    setSettings((prev) => {
+      const { noDebtsConfirmed: _old, ...rest } = prev; // _old: replaced on purpose
+      return yes ? { ...rest, noDebtsConfirmed: true } : rest;
+    });
 
   // Edit a single field of a single debt in place (immutably).
   const updateDebt = (id, field, value) =>
@@ -56,7 +72,7 @@ export default function DebtPlanner({ store }) {
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Name</th><th>Balance</th><th>APR %</th><th>Min. payment</th><th /></tr>
+              <tr><th>Name</th><th>Balance</th><th>APR %</th><th>Min. payment</th><th>Due day</th><th>This month</th><th /></tr>
             </thead>
             <tbody>
               {debts.map((d) => (
@@ -67,6 +83,29 @@ export default function DebtPlanner({ store }) {
                       <input type="number" min="0" step="any" value={d[field]} onChange={(e) => updateDebt(d.id, field, e.target.value)} aria-label={`${d.name} ${field}`} style={{ width: '100%' }} />
                     </td>
                   ))}
+                  <td>
+                    {/* Optional. Blank = date unknown: the minimum counts as owed until marked paid. */}
+                    <OptionalNumber
+                      id={`due-${d.id}`}
+                      value={d.dueDay}
+                      problemOf={dueDayProblem}
+                      onSave={(text) => changeDebt(d.id, (x) => setOptional(x, 'dueDay', text))}
+                      min="1"
+                      max="31"
+                      step="1"
+                      placeholder="Optional"
+                      aria-label={`${d.name} due day`}
+                      className="input-day"
+                    />
+                  </td>
+                  <td>
+                    <PaidControl
+                      record={d}
+                      name={d.name}
+                      onMark={(month) => changeDebt(d.id, (x) => markPaid(x, month))}
+                      onUndo={(month) => changeDebt(d.id, (x) => undoPaid(x, month))}
+                    />
+                  </td>
                   <td className="num">
                     <button className="btn-icon" onClick={() => setDebts((p) => p.filter((x) => x.id !== d.id))} aria-label={`Delete ${d.name}`}><Icon name="close" /></button>
                   </td>
@@ -75,6 +114,7 @@ export default function DebtPlanner({ store }) {
             </tbody>
           </table>
         </div>
+        {debts.length === 0 && <NoDebts confirmed={settings.noDebtsConfirmed === true} onConfirm={confirmNoDebts} />}
         <form className="form" onSubmit={addDebt} style={{ marginTop: 14 }}>
           <input placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Debt name" />
           <input type="number" min="0" step="any" placeholder="Balance" value={form.balance} onChange={(e) => setForm({ ...form, balance: e.target.value })} aria-label="Balance" />
@@ -133,6 +173,42 @@ export default function DebtPlanner({ store }) {
         </>
       )}
     </div>
+  );
+}
+
+/** Empty list: say so, and let the user confirm they have no debts (reversible). */
+function NoDebts({ confirmed, onConfirm }) {
+  if (confirmed)
+    return (
+      <EmptyState
+        icon="debt"
+        title="No debts"
+        compact
+        action={
+          <span className="paid-line">
+            <Status tone="good">You confirmed you don't have any debts</Status>
+            <button type="button" className="link-btn paid-undo" aria-label="Undo: I don't have any debts" onClick={() => onConfirm(false)}>
+              Undo
+            </button>
+          </span>
+        }
+      >
+        Debt load scores 100 in your Financial health. Adding a debt below clears this.
+      </EmptyState>
+    );
+  return (
+    <EmptyState
+      icon="debt"
+      title="No debts added"
+      compact
+      action={
+        <button type="button" className="btn" onClick={() => onConfirm(true)}>
+          I don't have any debts
+        </button>
+      }
+    >
+      Add a loan or card below, or confirm you have none so Financial health can score Debt load.
+    </EmptyState>
   );
 }
 
