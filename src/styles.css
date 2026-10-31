@@ -20,7 +20,7 @@
   --accent: #0a7d56; /* 5.1:1 on white, so it works as link text too */
   --accent-2: #0f7fa0;
   --accent-text: #ffffff;
-  --accent-soft: rgb(10 125 86 / 0.10); /* selected nav item, soft chips */
+  --accent-soft: rgb(10 125 86 / 0.1); /* selected nav item, soft chips */
   --focus-ring: rgb(10 125 86 / 0.28);
 
   /* Status colors are reserved for good/warning/bad states and always paired with text. */
@@ -68,9 +68,26 @@
 /* A real spring (overshoot, then settle) where the browser supports linear() easing. */
 @supports (transition-timing-function: linear(0, 1)) {
   :root {
-    --ease-spring: linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017 19.4%,
-      1.067, 1.099 24.3%, 1.108 26%, 1.1 27.8%, 1.079 30%, 1.017 36.4%, 0.993 40.5%, 0.987 44.1%,
-      0.996 54.3%, 1.001 61.4%, 1);
+    --ease-spring: linear(
+      0,
+      0.009,
+      0.035 2.1%,
+      0.141 4.4%,
+      0.723 12.9%,
+      0.938 16.7%,
+      1.017 19.4%,
+      1.067,
+      1.099 24.3%,
+      1.108 26%,
+      1.1 27.8%,
+      1.079 30%,
+      1.017 36.4%,
+      0.993 40.5%,
+      0.987 44.1%,
+      0.996 54.3%,
+      1.001 61.4%,
+      1
+    );
   }
 }
 
@@ -103,151 +120,328 @@
   }
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 body {
-  margin: 0; color: var(--text); font-size: 15px; line-height: 1.5;
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   /* The aurora is painted once on the page background: no extra layers, nothing animates. */
   background:
     radial-gradient(900px 420px at 18% -80px, var(--aurora-1), transparent 70%),
-    radial-gradient(760px 380px at 92% -40px, var(--aurora-2), transparent 70%),
-    var(--bg);
+    radial-gradient(760px 380px at 92% -40px, var(--aurora-2), transparent 70%), var(--bg);
   background-repeat: no-repeat;
   background-color: var(--bg);
 }
-h1, h2, h3 { margin: 0; font-family: var(--font-display); letter-spacing: -0.015em; text-wrap: balance; }
-button, input, select, textarea { font: inherit; color: inherit; }
-::selection { background: var(--focus-ring); }
-a { color: var(--accent); }
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+::selection {
+  background: var(--focus-ring);
+}
+a {
+  color: var(--accent);
+}
 
 /* ---------- Layout: sidebar + content. Grid makes the two-column split one line. ---------- */
-.layout { display: grid; grid-template-columns: 236px 1fr; min-height: 100vh; }
+.layout {
+  display: grid;
+  grid-template-columns: 236px 1fr;
+  min-height: 100vh;
+}
 .sidebar {
-  display: flex; flex-direction: column; /* lets the profile block sit at the bottom */
+  display: flex;
+  flex-direction: column; /* lets the profile block sit at the bottom */
   /* Translucent, so the aurora glows through. No backdrop blur here: only the static page
      background sits behind the sidebar, and blurring it cost frames while scrolling. */
   background: var(--glass);
   border-right: 1px solid var(--border);
   padding: 22px 14px;
-  position: sticky; top: 0; height: 100vh; /* sidebar stays put while content scrolls */
+  position: sticky;
+  top: 0;
+  height: 100vh; /* sidebar stays put while content scrolls */
 }
 .brand {
-  display: flex; align-items: center; gap: 10px; padding: 0 8px 22px;
-  font-family: var(--font-display); font-weight: 800; font-size: 1.25rem; letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px 22px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
 }
-.nav { position: relative; display: flex; flex-direction: column; gap: 2px; }
+.nav {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 .nav-item {
-  position: relative; z-index: 1; /* above the sliding indicator */
-  display: flex; gap: 11px; align-items: center;
-  padding: 9px 10px; border: 0; border-radius: var(--radius-sm);
-  background: transparent; cursor: pointer; text-align: left; color: var(--text-2); font-weight: 500;
-  transition: color var(--dur-fast), background-color var(--dur-fast), transform var(--dur-fast) var(--ease);
+  position: relative;
+  z-index: 1; /* above the sliding indicator */
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-2);
+  font-weight: 500;
+  transition:
+    color var(--dur-fast),
+    background-color var(--dur-fast),
+    transform var(--dur-fast) var(--ease);
 }
-.nav-item:hover { background: var(--surface-2); color: var(--text); }
-.nav-item .icon { transition: transform var(--dur) var(--ease-spring); }
+.nav-item:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.nav-item .icon {
+  transition: transform var(--dur) var(--ease-spring);
+}
 /* Full motion: the icon lifts on hover and keyboard focus alike, redraws its strokes when
    its page opens (pathLength="1" in Icon.jsx), and the item presses in when tapped. */
-:root[data-motion='full'] .nav-item:is(:hover, :focus-visible, .active) .icon { transform: translateY(-1px) scale(1.08); }
+:root[data-motion='full'] .nav-item:is(:hover, :focus-visible, .active) .icon {
+  transform: translateY(-1px) scale(1.08);
+}
 :root[data-motion='full'] .nav-item:is(:hover, :focus-visible):not(.active) .icon [pathLength],
-:root[data-motion='full'] .nav-item.active .icon [pathLength] { animation: icon-draw 650ms var(--ease); }
-:root[data-motion='full'] .nav-item:active { transform: scale(0.97); }
-:root[data-motion='full'] .nav-item:active .icon { transform: rotate(-8deg) scale(0.94); }
-.nav-item.active { color: var(--text); font-weight: 600; }
-.nav-item.active:hover { background: transparent; } /* the indicator is the highlight */
+:root[data-motion='full'] .nav-item.active .icon [pathLength] {
+  animation: icon-draw 650ms var(--ease);
+}
+:root[data-motion='full'] .nav-item:active {
+  transform: scale(0.97);
+}
+:root[data-motion='full'] .nav-item:active .icon {
+  transform: rotate(-8deg) scale(0.94);
+}
+.nav-item.active {
+  color: var(--text);
+  font-weight: 600;
+}
+.nav-item.active:hover {
+  background: transparent;
+} /* the indicator is the highlight */
 /* One highlight that slides between items (top/height set in App.jsx). Only transform animates.
    The brand rail on its left edge marks the current page without relying on color fill alone. */
 .nav-indicator {
-  position: absolute; top: 0; left: 0; right: 0; border-radius: var(--radius-sm); background: var(--accent-soft);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
   transition: transform var(--dur) var(--ease);
 }
 .nav-indicator::before {
-  content: ''; position: absolute; left: -14px; top: 9px; bottom: 9px; width: 3px;
-  border-radius: 0 3px 3px 0; background: var(--accent);
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
 }
 
 /* Fills whatever screen it's on: no max width, and the side padding grows a little on
    big monitors so content never presses against the edge. */
-.content { padding: 30px clamp(20px, 2.5vw, 56px) 48px; width: 100%; min-width: 0; }
-.page-title { font-size: 1.85rem; font-weight: 700; letter-spacing: -0.025em; line-height: 1.15; margin-bottom: 22px; }
+.content {
+  padding: 30px clamp(20px, 2.5vw, 56px) 48px;
+  width: 100%;
+  min-width: 0;
+}
+.page-title {
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  margin-bottom: 22px;
+}
 /* Page changes at Full motion run as a View Transition (utils/motion.js): the old page
    fades out, the new one fades in with its usual entrance, and the title (or the
    Dashboard tile that was tapped) morphs between the two. Browsers without View
    Transitions, and Calm/Off, just switch pages. */
-.content .page-title { view-transition-name: page-hero; width: fit-content; }
-:root.vt-from .content .page-title { view-transition-name: none; }
-::view-transition-old(root) { animation: fade var(--dur-fast) var(--ease) reverse both; }
-::view-transition-new(root) { animation: fade var(--dur) var(--ease) both; }
+.content .page-title {
+  view-transition-name: page-hero;
+  width: fit-content;
+}
+:root.vt-from .content .page-title {
+  view-transition-name: none;
+}
+::view-transition-old(root) {
+  animation: fade var(--dur-fast) var(--ease) reverse both;
+}
+::view-transition-new(root) {
+  animation: fade var(--dur) var(--ease) both;
+}
 ::view-transition-group(page-hero) {
-  animation-duration: 420ms; animation-timing-function: var(--ease-spring);
-  overflow: hidden; border-radius: var(--radius); /* the tile is clipped down to the title */
+  animation-duration: 420ms;
+  animation-timing-function: var(--ease-spring);
+  overflow: hidden;
+  border-radius: var(--radius); /* the tile is clipped down to the title */
 }
-::view-transition-old(page-hero), ::view-transition-new(page-hero) {
-  height: 100%; object-fit: none; object-position: left top; /* no stretching while it morphs */
+::view-transition-old(page-hero),
+::view-transition-new(page-hero) {
+  height: 100%;
+  object-fit: none;
+  object-position: left top; /* no stretching while it morphs */
 }
-::view-transition-old(page-hero) { animation: fade 200ms var(--ease) reverse both; }
-::view-transition-new(page-hero) { animation: fade 260ms var(--ease) 120ms both; }
+::view-transition-old(page-hero) {
+  animation: fade 200ms var(--ease) reverse both;
+}
+::view-transition-new(page-hero) {
+  animation: fade 260ms var(--ease) 120ms both;
+}
 /* Page entrance: content fades up, then each top-level block follows 40ms later.
    Plays when a page mounts (key={page} in App.jsx), never on rerenders. */
-.page-enter > :not(.stack), .page-enter > .stack > * { animation: fade-in var(--dur) var(--ease) both; }
-.page-enter > .stack > :nth-child(2) { animation-delay: var(--stagger); }
-.page-enter > .stack > :nth-child(3) { animation-delay: calc(var(--stagger) * 2); }
-.page-enter > .stack > :nth-child(4) { animation-delay: calc(var(--stagger) * 3); }
-.page-enter > .stack > :nth-child(n + 5) { animation-delay: calc(var(--stagger) * 4); }
+.page-enter > :not(.stack),
+.page-enter > .stack > * {
+  animation: fade-in var(--dur) var(--ease) both;
+}
+.page-enter > .stack > :nth-child(2) {
+  animation-delay: var(--stagger);
+}
+.page-enter > .stack > :nth-child(3) {
+  animation-delay: calc(var(--stagger) * 2);
+}
+.page-enter > .stack > :nth-child(4) {
+  animation-delay: calc(var(--stagger) * 3);
+}
+.page-enter > .stack > :nth-child(n + 5) {
+  animation-delay: calc(var(--stagger) * 4);
+}
 
 /* The phone top bar only exists on phones. */
-.mobile-bar { display: none; }
+.mobile-bar {
+  display: none;
+}
 
 /* Phones: the sidebar becomes a drawer that slides in over the page. */
 @media (max-width: 760px) {
   /* minmax(0,…) lets the column shrink below its content width. Rows: the top bar takes
      only its own height, the page gets the rest (else short pages stretch the bar). */
-  .layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
   .mobile-bar {
-    display: flex; align-items: center; gap: 8px; padding: 10px 12px;
-    position: sticky; top: 0; z-index: 5;
-    background: var(--glass); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
     border-bottom: 1px solid var(--border);
   }
-  .menu-button { color: var(--text); padding: 6px; }
+  .menu-button {
+    color: var(--text);
+    padding: 6px;
+  }
   .sidebar {
-    position: fixed; inset: 0 auto 0 0; z-index: 20; width: min(280px, 85vw); height: 100dvh;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 20;
+    width: min(280px, 85vw);
+    height: 100dvh;
     background: var(--surface); /* solid in the drawer: it sits over busy page content */
-    transform: translateX(-100%); transition: transform var(--dur) var(--ease);
-    box-shadow: var(--shadow-lg); overflow-y: auto;
+    transform: translateX(-100%);
+    transition: transform var(--dur) var(--ease);
+    box-shadow: var(--shadow-lg);
+    overflow-y: auto;
     touch-action: pan-y; /* vertical drags scroll the menu; sideways ones swipe it shut */
   }
   /* While a finger drags it (hooks/useSwipeToClose.js), it follows exactly; on release
      the transition carries it shut or back open. */
-  .sidebar.dragging { transition: none; }
+  .sidebar.dragging {
+    transition: none;
+  }
   /* Closed, it's off-screen and `inert` (set in App.jsx), so it can't be tabbed to or read out.
      No visibility toggle: that delays focus moving into the drawer when it opens. */
-  .drawer-open .sidebar { transform: none; }
+  .drawer-open .sidebar {
+    transform: none;
+  }
   /* No page scrolling behind the drawer. Locking the root (instead of shrinking the
      layout to one screen) keeps the scroll position, so closing returns you to your place. */
-  :root:has(.drawer-open) { overflow: hidden; }
+  :root:has(.drawer-open) {
+    overflow: hidden;
+  }
   .drawer-backdrop {
-    position: fixed; inset: 0; z-index: 15; background: var(--backdrop);
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    background: var(--backdrop);
     animation: fade var(--dur) var(--ease) both;
     transition: opacity var(--dur) var(--ease); /* follows the swipe, then settles */
   }
-  .drawer-close { margin-left: auto; }
-  .content { padding: 20px 16px 40px; }
-  .page-title { font-size: 1.5rem; margin-bottom: 18px; }
+  .drawer-close {
+    margin-left: auto;
+  }
+  .content {
+    padding: 20px 16px 40px;
+  }
+  .page-title {
+    font-size: 1.5rem;
+    margin-bottom: 18px;
+  }
 }
-.drawer-close { color: var(--text-2); }
+.drawer-close {
+  color: var(--text-2);
+}
 
 /* ---------- Reusable building blocks ---------- */
-.grid { display: grid; gap: var(--gap); }
+.grid {
+  display: grid;
+  gap: var(--gap);
+}
 /* auto-fit + minmax = as many columns as fit, each at least N px wide. Responsive with no media query. */
-.grid-stats { grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); }
+.grid-stats {
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+}
 /* Two columns at most (pairs of cards stay side by side on wide screens), one when
    each would be under 340px. min(100%, …) keeps a column inside a small phone screen. */
 .grid-2 {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(340px, (100% - var(--gap)) / 2)), 1fr));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, max(340px, (100% - var(--gap)) / 2)), 1fr)
+  );
 }
-.stack { display: flex; flex-direction: column; gap: var(--gap); }
-.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.spacer { flex: 1; }
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.spacer {
+  flex: 1;
+}
 
 .card {
   background: var(--surface);
@@ -257,423 +451,1306 @@ a { color: var(--accent); }
   box-shadow: var(--shadow);
   min-width: 0; /* lets charts shrink inside grid cells instead of overflowing */
 }
-.card h2 { font-size: 1.08rem; font-weight: 700; margin-bottom: 4px; }
-.card .sub { color: var(--text-3); font-size: 0.84rem; margin: 0 0 16px; }
+.card h2 {
+  font-size: 1.08rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.card .sub {
+  color: var(--text-3);
+  font-size: 0.84rem;
+  margin: 0 0 16px;
+}
 
 /* KPI tiles: the number is the point, so it gets the display face. */
-.stat-label { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 0.84rem; font-weight: 500; }
-.stat-value, .stat-hint { display: block; }
-.stat-value {
-  font-family: var(--font-display); font-size: 1.7rem; font-weight: 700; letter-spacing: -0.03em;
-  line-height: 1.15; margin: 6px 0 4px; font-variant-numeric: tabular-nums;
+.stat-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 0.84rem;
+  font-weight: 500;
 }
-.stat-hint { color: var(--text-3); font-size: 0.8rem; }
+.stat-value,
+.stat-hint {
+  display: block;
+}
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 6px 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-hint {
+  color: var(--text-3);
+  font-size: 0.8rem;
+}
 /* A tile that opens a page (StatCard onOpen): the whole card is the button. */
-.stat-link { display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
-.stat-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.stat-open { margin-left: auto; color: var(--text-3); transition: transform var(--dur) var(--ease-spring), color var(--dur-fast); }
-.stat-link:is(:hover, :focus-visible) .stat-open { color: var(--accent); transform: translateX(3px); }
+.stat-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.stat-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.stat-open {
+  margin-left: auto;
+  color: var(--text-3);
+  transition:
+    transform var(--dur) var(--ease-spring),
+    color var(--dur-fast);
+}
+.stat-link:is(:hover, :focus-visible) .stat-open {
+  color: var(--accent);
+  transform: translateX(3px);
+}
 
-.muted { color: var(--text-2); }
-.small { font-size: 0.85rem; }
-.num { font-variant-numeric: tabular-nums; text-align: right; } /* digits line up in columns */
+.muted {
+  color: var(--text-2);
+}
+.small {
+  font-size: 0.85rem;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+} /* digits line up in columns */
 /* Small uppercase labels (eyebrows) use the mono face with a little letter-spacing. */
 .eyebrow {
-  font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500;
-  letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
 }
 
 /* ---------- Forms ---------- */
-.form { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); align-items: end; }
-label.field { display: flex; flex-direction: column; gap: 5px; font-size: 0.8rem; font-weight: 500; color: var(--text-2); }
-input, select, textarea {
-  min-height: 40px; padding: 8px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm);
-  background: var(--surface); min-width: 0; font-size: 0.92rem;
-  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+.form {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  align-items: end;
+}
+label.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-2);
+}
+input,
+select,
+textarea {
+  min-height: 40px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  min-width: 0;
+  font-size: 0.92rem;
+  transition:
+    border-color var(--dur-fast),
+    box-shadow var(--dur-fast);
 }
 /* Slightly stronger edge so fields read as fields, not just text. */
-input:not([type='checkbox']):not([type='radio']):not([type='file']), select, textarea {
+input:not([type='checkbox']):not([type='radio']):not([type='file']),
+select,
+textarea {
   box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.04);
 }
-input:hover, select:hover, textarea:hover { border-color: color-mix(in srgb, var(--text-3) 45%, var(--border)); }
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: color-mix(in srgb, var(--text-3) 45%, var(--border));
+}
 /* Fields get a soft brand ring; buttons get an outline (focus-visible = keyboard only). */
-input:focus, select:focus, textarea:focus {
-  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring);
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
-button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
-  outline: 2px solid var(--accent); outline-offset: 2px;
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
-input[type='checkbox'], input[type='radio'] { min-height: 0; width: 16px; height: 16px; accent-color: var(--accent); }
-input[type='file'] { min-height: 0; padding: 6px; }
+input[type='checkbox'],
+input[type='radio'] {
+  min-height: 0;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+input[type='file'] {
+  min-height: 0;
+  padding: 6px;
+}
 input[type='file']::file-selector-button {
-  margin-right: 10px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--surface-2); color: var(--text); font: inherit; font-weight: 600; cursor: pointer;
+  margin-right: 10px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }
-input[type='date'], input[type='month'] { font-variant-numeric: tabular-nums; }
-input:disabled, select:disabled { opacity: 0.6; cursor: not-allowed; }
-input[aria-invalid='true'] { border-color: var(--critical); }
+input[type='date'],
+input[type='month'] {
+  font-variant-numeric: tabular-nums;
+}
+input:disabled,
+select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+input[aria-invalid='true'] {
+  border-color: var(--critical);
+}
 /* Windows high-contrast mode drops box-shadow, so fall back to a real outline there. */
 @media (forced-colors: active) {
-  input:focus, select:focus, textarea:focus { outline: 2px solid; }
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: 2px solid;
+  }
 }
 
 /* ---------- Buttons ---------- */
 .btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  min-height: 38px; padding: 8px 15px; border-radius: var(--radius-sm); border: 1px solid var(--border);
-  background: var(--surface); cursor: pointer; white-space: nowrap; font-weight: 600; font-size: 0.9rem;
-  transition: background-color var(--dur-fast), border-color var(--dur-fast), filter var(--dur-fast), transform var(--dur-fast) var(--ease);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 8px 15px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition:
+    background-color var(--dur-fast),
+    border-color var(--dur-fast),
+    filter var(--dur-fast),
+    transform var(--dur-fast) var(--ease);
 }
-.btn:hover { background: var(--surface-2); }
-.btn:active:not(:disabled) { transform: scale(0.97); } /* a small press, like a physical key */
+.btn:hover {
+  background: var(--surface-2);
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+} /* a small press, like a physical key */
 .btn-primary {
-  background: var(--accent); border-color: transparent; color: var(--accent-text);
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-text);
   box-shadow: 0 6px 16px var(--accent-soft);
 }
-.btn-primary:hover { background: var(--accent); filter: brightness(1.07); }
-.btn-danger { color: var(--critical); }
-.btn-danger:hover { background: color-mix(in srgb, var(--critical) 10%, var(--surface)); }
-.btn-icon {
-  display: inline-grid; place-items: center; min-width: 32px; min-height: 32px;
-  border: 0; background: transparent; cursor: pointer; color: var(--text-3); padding: 4px 8px; border-radius: 8px;
-  transition: background-color var(--dur-fast), color var(--dur-fast);
+.btn-primary:hover {
+  background: var(--accent);
+  filter: brightness(1.07);
 }
-.btn-icon:hover { background: var(--surface-2); color: var(--critical); }
+.btn-danger {
+  color: var(--critical);
+}
+.btn-danger:hover {
+  background: color-mix(in srgb, var(--critical) 10%, var(--surface));
+}
+.btn-icon {
+  display: inline-grid;
+  place-items: center;
+  min-width: 32px;
+  min-height: 32px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-3);
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition:
+    background-color var(--dur-fast),
+    color var(--dur-fast);
+}
+.btn-icon:hover {
+  background: var(--surface-2);
+  color: var(--critical);
+}
 /* Touch screens and phones: icon-only buttons get a full 44 × 44 tap area (WCAG 2.5.5). */
 @media (pointer: coarse), (max-width: 760px) {
-  .btn-icon { min-width: 44px; min-height: 44px; }
+  .btn-icon {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
-.menu-button:hover, .drawer-close:hover { color: var(--text); }
+.menu-button:hover,
+.drawer-close:hover {
+  color: var(--text);
+}
 
 /* ---------- Tables (kept calm: no motion except a new row's one-time fade) ---------- */
-.table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-th {
-  text-align: left; color: var(--text-3); font-weight: 600; font-size: 0.74rem;
-  letter-spacing: 0.06em; text-transform: uppercase;
+.table-wrap {
+  overflow-x: auto;
 }
-th, td { padding: 10px 8px; border-bottom: 1px solid var(--border); }
-tbody tr:hover td { background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
-tr:last-child td { border-bottom: 0; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+th {
+  text-align: left;
+  color: var(--text-3);
+  font-weight: 600;
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+th,
+td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+}
+tbody tr:hover td {
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+tr:last-child td {
+  border-bottom: 0;
+}
 /* Inline-edit fields inside table cells are a size smaller, so rows stay compact.
    Number fields keep room for a few digits; narrow screens scroll the table instead. */
-td input, td select { min-height: 34px; padding: 5px 8px; font-size: 0.88rem; }
-td input[type='number'] { min-width: 76px; }
-.amount-income { color: var(--good); font-weight: 600; }
+td input,
+td select {
+  min-height: 34px;
+  padding: 5px 8px;
+  font-size: 0.88rem;
+}
+td input[type='number'] {
+  min-width: 76px;
+}
+.amount-income {
+  color: var(--good);
+  font-weight: 600;
+}
 
 /* ---------- Progress bars & status pills ---------- */
-.progress { height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+.progress {
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: 99px;
+  overflow: hidden;
+}
 /* Bars fill from the left once, when they first appear. No width transition: a bar that
    changes because the data changed just shows the new value (no replay on rerender). */
 .progress > span {
-  display: block; height: 100%; border-radius: 99px;
-  transform-origin: left; animation: grow-x var(--dur-slow) var(--ease) both;
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  transform-origin: left;
+  animation: grow-x var(--dur-slow) var(--ease) both;
 }
-.status { font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 /* ---------- Icons (see components/Icon.jsx) ---------- */
-.icon { flex-shrink: 0; vertical-align: -0.2em; }
-.status > .icon, h1 > .icon, h2 > .icon { margin-right: 6px; }
-.status-good { color: var(--good); }
-.status-warning { color: var(--warning-text); }
-.status-critical { color: var(--critical); }
+.icon {
+  flex-shrink: 0;
+  vertical-align: -0.2em;
+}
+.status > .icon,
+h1 > .icon,
+h2 > .icon {
+  margin-right: 6px;
+}
+.status-good {
+  color: var(--good);
+}
+.status-warning {
+  color: var(--warning-text);
+}
+.status-critical {
+  color: var(--critical);
+}
 
 .pill {
-  display: inline-block; padding: 3px 9px; border-radius: 99px; background: var(--surface-2);
-  font-size: 0.74rem; font-weight: 600; color: var(--text-2); white-space: nowrap;
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
 }
-.dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
 
 /* ---------- Charts ---------- */
-.chart { width: 100%; height: 280px; }
-.chart text { font-family: var(--font-body); }
-.chart-tooltip {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 9px 11px; font-size: 0.84rem; box-shadow: var(--shadow-lg);
+.chart {
+  width: 100%;
+  height: 280px;
 }
-.chart-tooltip .t-title { font-weight: 600; margin-bottom: 4px; }
-.chart-tooltip .t-row { display: flex; gap: 12px; justify-content: space-between; font-variant-numeric: tabular-nums; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.8rem; color: var(--text-2); margin-top: 10px; }
+.chart text {
+  font-family: var(--font-body);
+}
+.chart-tooltip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  font-size: 0.84rem;
+  box-shadow: var(--shadow-lg);
+}
+.chart-tooltip .t-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.chart-tooltip .t-row {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 0.8rem;
+  color: var(--text-2);
+  margin-top: 10px;
+}
 
 /* ---------- Lists ---------- */
-.list { list-style: none; margin: 0; padding: 0; }
-.list li { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
-.list li:last-child { border-bottom: 0; }
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.list li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.list li:last-child {
+  border-bottom: 0;
+}
 /* Notices: an icon in a small tile, then the message. */
 .insight {
-  display: flex; gap: 10px; align-items: flex-start; padding: 11px 13px;
-  border-radius: 12px; background: var(--surface-2); font-size: 0.9rem;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 0.9rem;
 }
 /* "Saved" / error messages slide in when they appear (they mount, so this plays once). */
-.insight[role='status'], .insight[role='alert'] { animation: fade-in var(--dur) var(--ease) both; }
-.insight > .icon { margin-top: 1px; }
+.insight[role='status'],
+.insight[role='alert'] {
+  animation: fade-in var(--dur) var(--ease) both;
+}
+.insight > .icon {
+  margin-top: 1px;
+}
 
 /* ---------- Empty states (components/EmptyState.jsx) ---------- */
 /* Old one-line form, still used for a few in-table messages. */
-.empty { color: var(--text-3); text-align: center; padding: 24px; }
+.empty {
+  color: var(--text-3);
+  text-align: center;
+  padding: 24px;
+}
 .empty-state {
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: 28px 16px; text-align: center; color: var(--text-2); list-style: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--text-2);
+  list-style: none;
 }
 .empty-state-icon {
-  width: 44px; height: 44px; margin-bottom: 6px; border-radius: 14px; display: grid; place-items: center;
-  background: var(--accent-soft); color: var(--accent);
+  width: 44px;
+  height: 44px;
+  margin-bottom: 6px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
-.empty-state-title { font-family: var(--font-display); font-weight: 700; font-size: 1rem; color: var(--text); }
-.empty-state-text { margin: 0; font-size: 0.88rem; max-width: 42ch; }
-.empty-state .btn { margin-top: 8px; }
-.empty-state.compact { padding: 16px 8px; }
+.empty-state-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text);
+}
+.empty-state-text {
+  margin: 0;
+  font-size: 0.88rem;
+  max-width: 42ch;
+}
+.empty-state .btn {
+  margin-top: 8px;
+}
+.empty-state.compact {
+  padding: 16px 8px;
+}
 
 /* ---------- Loading states ---------- */
 /* Full-screen splash while the saved session is checked (App.jsx). */
-.splash { min-height: 100vh; display: grid; place-items: center; align-content: center; gap: 14px; color: var(--text-2); }
-.splash .brand { padding: 0; font-size: 1.4rem; }
-.splash-bar { width: 140px; height: 4px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.splash {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 14px;
+  color: var(--text-2);
+}
+.splash .brand {
+  padding: 0;
+  font-size: 1.4rem;
+}
+.splash-bar {
+  width: 140px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
 .splash-bar::after {
-  content: ''; display: block; width: 40%; height: 100%; border-radius: inherit;
+  content: '';
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: inherit;
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
   animation: slide 1.1s var(--ease) infinite;
 }
 /* Placeholder blocks for content that is on its way. The shimmer is a moving gradient. */
 .skeleton {
-  display: block; border-radius: 8px; min-height: 12px;
-  background: linear-gradient(90deg, var(--surface-2) 30%, color-mix(in srgb, var(--surface-2) 40%, var(--surface)) 50%, var(--surface-2) 70%);
-  background-size: 300% 100%; animation: shimmer 1.4s linear infinite;
+  display: block;
+  border-radius: 8px;
+  min-height: 12px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 30%,
+    color-mix(in srgb, var(--surface-2) 40%, var(--surface)) 50%,
+    var(--surface-2) 70%
+  );
+  background-size: 300% 100%;
+  animation: shimmer 1.4s linear infinite;
 }
-.loading-row { display: flex; align-items: center; gap: 10px; color: var(--text-2); }
+.loading-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-2);
+}
 
 /* ---------- Accounts: sign-in page + sidebar profile ---------- */
 /* Split layout: brand panel left, form right. Phones get the form alone. */
-.auth-page { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-.auth-main { display: grid; place-items: center; padding: 24px 16px; }
-.auth-loading { min-height: 100vh; } /* the brief "Loading…" before the saved session is checked */
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.auth-main {
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+.auth-loading {
+  min-height: 100vh;
+} /* the brief "Loading…" before the saved session is checked */
 .auth-card {
-  width: 100%; max-width: 430px; padding: 30px; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 430px;
+  padding: 30px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   animation: rise var(--dur-slow) var(--ease) both;
 }
-.auth-card .brand { font-size: 1.3rem; }
+.auth-card .brand {
+  font-size: 1.3rem;
+}
 
 /* Brand panel: deep green ink with the aurora glowing through it. */
 .auth-hero {
-  position: relative; overflow: hidden; color: #f2fbf7;
+  position: relative;
+  overflow: hidden;
+  color: #f2fbf7;
   background:
     radial-gradient(120% 90% at 0% 0%, rgb(63 224 165 / 0.45), transparent 60%),
-    radial-gradient(100% 80% at 100% 100%, rgb(76 201 232 / 0.35), transparent 60%),
-    #0b2a22;
-  display: grid; place-items: center; padding: 48px;
+    radial-gradient(100% 80% at 100% 100%, rgb(76 201 232 / 0.35), transparent 60%), #0b2a22;
+  display: grid;
+  place-items: center;
+  padding: 48px;
 }
 /* Two soft light blobs drifting slowly behind the content. Only transform animates (cheap). */
-.auth-hero::before, .auth-hero::after {
-  content: ''; position: absolute; width: 70%; aspect-ratio: 1; border-radius: 50%;
+.auth-hero::before,
+.auth-hero::after {
+  content: '';
+  position: absolute;
+  width: 70%;
+  aspect-ratio: 1;
+  border-radius: 50%;
   background: radial-gradient(circle, rgb(255 255 255 / 0.14), transparent 65%);
   animation: drift 18s ease-in-out infinite alternate;
 }
-.auth-hero::before { top: -20%; left: -15%; }
-.auth-hero::after { bottom: -25%; right: -20%; animation-duration: 24s; animation-direction: alternate-reverse; }
+.auth-hero::before {
+  top: -20%;
+  left: -15%;
+}
+.auth-hero::after {
+  bottom: -25%;
+  right: -20%;
+  animation-duration: 24s;
+  animation-direction: alternate-reverse;
+}
 /* Phones and narrow windows: form only. (Placed after .auth-hero so it wins.) */
 @media (max-width: 860px) {
-  .auth-page { grid-template-columns: minmax(0, 1fr); }
-  .auth-hero { display: none; }
+  .auth-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .auth-hero {
+    display: none;
+  }
 }
-.auth-hero-inner { position: relative; max-width: 400px; display: grid; gap: 22px; }
-.auth-hero-brand { padding: 0; font-size: 1.5rem; }
+.auth-hero-inner {
+  position: relative;
+  max-width: 400px;
+  display: grid;
+  gap: 22px;
+}
+.auth-hero-brand {
+  padding: 0;
+  font-size: 1.5rem;
+}
 .auth-hero-pitch {
-  font-family: var(--font-display); font-size: 2.1rem; font-weight: 800; letter-spacing: -0.03em;
-  line-height: 1.1; margin: 0; text-wrap: balance;
+  font-family: var(--font-display);
+  font-size: 2.1rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin: 0;
+  text-wrap: balance;
 }
-.auth-hero-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; opacity: 0.92; }
-.auth-hero-points .icon { margin-right: 8px; color: #7ff0c4; }
-.hero-chart { width: 100%; height: auto; }
+.auth-hero-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  opacity: 0.92;
+}
+.auth-hero-points .icon {
+  margin-right: 8px;
+  color: #7ff0c4;
+}
+.hero-chart {
+  width: 100%;
+  height: auto;
+}
 .hero-bar {
   fill: rgb(255 255 255 / 0.22);
-  transform-box: fill-box; transform-origin: bottom; /* grow up from the baseline */
+  transform-box: fill-box;
+  transform-origin: bottom; /* grow up from the baseline */
   animation: grow var(--dur-slow) var(--ease) both;
 }
 .hero-line {
-  fill: none; stroke: #7ff0c4; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round;
-  stroke-dasharray: 1; stroke-dashoffset: 1; /* pathLength="1" in the SVG makes 1 = the whole line */
+  fill: none;
+  stroke: #7ff0c4;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1; /* pathLength="1" in the SVG makes 1 = the whole line */
   animation: draw calc(var(--dur-slow) * 2) var(--ease) 0.5s forwards; /* forwards: stays drawn */
 }
 
 /* Sign in / Create account switch: the pill slides between the two buttons. */
 .segmented {
-  position: relative; display: grid; grid-template-columns: 1fr 1fr;
-  margin-top: 18px; padding: 4px; border-radius: 12px; background: var(--surface-2);
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 18px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface-2);
 }
 .segmented button {
-  position: relative; z-index: 1; border: 0; background: none; padding: 8px; border-radius: 9px;
-  cursor: pointer; font-weight: 600; color: var(--text-2); transition: color var(--dur-fast);
+  position: relative;
+  z-index: 1;
+  border: 0;
+  background: none;
+  padding: 8px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-2);
+  transition: color var(--dur-fast);
 }
-.segmented button[aria-pressed='true'] { color: var(--text); }
+.segmented button[aria-pressed='true'] {
+  color: var(--text);
+}
 .segmented-pill {
-  position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px);
-  border-radius: 9px; background: var(--surface); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
   transition: transform var(--dur) var(--ease);
 }
-.segmented[data-mode='signup'] .segmented-pill { transform: translateX(100%); }
-.back-link { margin-top: 18px; }
-.forgot-link { align-self: flex-end; margin-top: -4px; }
+.segmented[data-mode='signup'] .segmented-pill {
+  transform: translateX(100%);
+}
+.back-link {
+  margin-top: 18px;
+}
+.forgot-link {
+  align-self: flex-end;
+  margin-top: -4px;
+}
 
 /* LAYOUT ANIMATION EXCEPTION: the auth card animates `height` (set by AutoHeight in
    AuthScreen.jsx) so switching modes doesn't jump. It's one small element on a page with
    nothing else moving; everything else in the app animates only transform/opacity. */
-.auto-height { overflow: hidden; transition: height var(--dur) var(--ease); }
-.auto-height > div { padding: 3px; margin: -3px; } /* room for focus rings inside overflow:hidden */
+.auto-height {
+  overflow: hidden;
+  transition: height var(--dur) var(--ease);
+}
+.auto-height > div {
+  padding: 3px;
+  margin: -3px;
+} /* room for focus rings inside overflow:hidden */
 
 /* Floating labels: the label sits inside the box, then moves up on focus or once filled. */
-.float-field { position: relative; display: grid; }
-.float-field input { width: 100%; min-height: 50px; padding: 21px 12px 6px; border-radius: 12px; }
-.float-field.has-action input { padding-right: 64px; }
+.float-field {
+  position: relative;
+  display: grid;
+}
+.float-field input {
+  width: 100%;
+  min-height: 50px;
+  padding: 21px 12px 6px;
+  border-radius: 12px;
+}
+.float-field.has-action input {
+  padding-right: 64px;
+}
 .float-field label {
-  position: absolute; left: 13px; top: 15px; color: var(--text-3); pointer-events: none;
-  transform-origin: left top; transition: transform var(--dur-fast) var(--ease), color var(--dur-fast);
+  position: absolute;
+  left: 13px;
+  top: 15px;
+  color: var(--text-3);
+  pointer-events: none;
+  transform-origin: left top;
+  transition:
+    transform var(--dur-fast) var(--ease),
+    color var(--dur-fast);
 }
 .float-field input:focus + label,
-.float-field input:not(:placeholder-shown) + label { transform: translateY(-9px) scale(0.78); }
-.float-field input:focus + label { color: var(--accent); }
-.float-field .field-action {
-  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
-  border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 0.8rem;
-  padding: 6px 8px; border-radius: 6px; cursor: pointer;
+.float-field input:not(:placeholder-shown) + label {
+  transform: translateY(-9px) scale(0.78);
 }
-.mono { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.04em; }
+.float-field input:focus + label {
+  color: var(--accent);
+}
+.float-field .field-action {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.8rem;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.mono {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 
 /* Password strength: four bars fill in with color as the score goes up. */
-.strength-row { display: grid; gap: 4px; margin-top: -4px; }
-.strength { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-.strength span { height: 4px; border-radius: 2px; background: var(--surface-2); transition: background-color var(--dur) var(--ease); }
-.strength[data-score='1'] span:nth-child(-n + 1) { background: var(--critical); }
-.strength[data-score='2'] span:nth-child(-n + 2) { background: var(--warning); }
-.strength[data-score='3'] span:nth-child(-n + 3) { background: var(--accent-2); }
-.strength[data-score='4'] span { background: var(--good); }
+.strength-row {
+  display: grid;
+  gap: 4px;
+  margin-top: -4px;
+}
+.strength {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.strength span {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  transition: background-color var(--dur) var(--ease);
+}
+.strength[data-score='1'] span:nth-child(-n + 1) {
+  background: var(--critical);
+}
+.strength[data-score='2'] span:nth-child(-n + 2) {
+  background: var(--warning);
+}
+.strength[data-score='3'] span:nth-child(-n + 3) {
+  background: var(--accent-2);
+}
+.strength[data-score='4'] span {
+  background: var(--good);
+}
 
-.btn-block { width: 100%; min-height: 46px; padding: 10px 14px; font-size: 0.95rem; }
+.btn-block {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+}
 .spinner {
-  display: inline-block; width: 14px; height: 14px; margin-right: 8px; vertical-align: -2px;
-  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
-.fade-in { animation: fade-in var(--dur) var(--ease) both; }
+.fade-in {
+  animation: fade-in var(--dur) var(--ease) both;
+}
 
 /* Recovery key: big, monospaced, select-all on click. */
 .recovery-key {
-  display: block; margin-top: 8px; padding: 16px; border-radius: 12px; background: var(--surface-2);
+  display: block;
+  margin-top: 8px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--surface-2);
   border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--border));
-  font-family: var(--font-mono); font-size: 1.1rem; font-weight: 600;
-  letter-spacing: 0.06em; text-align: center; word-break: break-all; user-select: all;
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: center;
+  word-break: break-all;
+  user-select: all;
 }
-.recovery-dialog { width: min(520px, calc(100vw - 32px)); }
-.link-btn { border: 0; background: none; padding: 0; color: var(--accent); cursor: pointer; font-weight: 600; }
-.link-btn:hover { text-decoration: underline; text-underline-offset: 3px; }
-.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.recovery-dialog {
+  width: min(520px, calc(100vw - 32px));
+}
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 600;
+}
+.link-btn:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 .profile {
   margin-top: auto; /* in a flex column, auto margin pushes this block to the bottom */
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
 }
-.profile-text { min-width: 0; flex: 1; }
-.profile-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* long emails get "…" */
+.profile-text {
+  min-width: 0;
+  flex: 1;
+}
+.profile-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+} /* long emails get "…" */
 .avatar {
-  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
-  display: grid; place-items: center;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--accent-text); font-weight: 700;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: var(--accent-text);
+  font-weight: 700;
 }
 @media (max-width: 760px) {
-  .profile { margin-top: 14px; }
+  .profile {
+    margin-top: 14px;
+  }
 }
 
 /* ---------- Dialogs (native <dialog>): one look for every popup ---------- */
 .summary-dialog {
-  width: min(640px, calc(100vw - 32px)); /* never wider than the screen minus a 16px gutter each side */
-  max-height: calc(100vh - 48px); overflow-y: auto;
-  border: 1px solid var(--border); border-radius: var(--radius-lg);
-  background: var(--surface); color: var(--text);
-  padding: 24px; box-shadow: var(--shadow-lg);
+  width: min(
+    640px,
+    calc(100vw - 32px)
+  ); /* never wider than the screen minus a 16px gutter each side */
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  padding: 24px;
+  box-shadow: var(--shadow-lg);
 }
 /* The dimmed page behind the popup, softly blurred so the dialog is the only sharp thing. */
-.summary-dialog::backdrop { background: var(--backdrop); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.summary-dialog::backdrop {
+  background: var(--backdrop);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
 /* Popups scale up and fade in; the backdrop fades in behind them. */
-.summary-dialog[open] { animation: dialog-in var(--dur) var(--ease) both; }
-.summary-dialog[open]::backdrop { animation: fade var(--dur) var(--ease) both; }
-.summary-dialog h2 { font-size: 1.35rem; }
-.summary-tile { background: var(--surface-2); border-radius: 12px; padding: 13px; }
+.summary-dialog[open] {
+  animation: dialog-in var(--dur) var(--ease) both;
+}
+.summary-dialog[open]::backdrop {
+  animation: fade var(--dur) var(--ease) both;
+}
+.summary-dialog h2 {
+  font-size: 1.35rem;
+}
+.summary-tile {
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 13px;
+}
 @media (max-width: 760px) {
-  .summary-dialog { padding: 18px; }
+  .summary-dialog {
+    padding: 18px;
+  }
 }
 
 /* Radio cards (Settings > Motion): the whole card is the click and tap target. */
 .choice-group {
-  border: 0; margin: 0; padding: 0; display: grid; gap: 10px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
   grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
 }
 .choice {
-  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; cursor: pointer;
-  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
-  transition: border-color var(--dur-fast), background-color var(--dur-fast);
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition:
+    border-color var(--dur-fast),
+    background-color var(--dur-fast);
 }
-.choice input { margin: 3px 0 0; accent-color: var(--accent); }
-.choice:hover { background: var(--surface-2); }
-.choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
-.choice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-.choice-title { display: block; font-weight: 600; }
-.choice-text { display: block; color: var(--text-2); font-size: 0.84rem; }
+.choice input {
+  margin: 3px 0 0;
+  accent-color: var(--accent);
+}
+.choice:hover {
+  background: var(--surface-2);
+}
+.choice:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.choice:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.choice-title {
+  display: block;
+  font-weight: 600;
+}
+.choice-text {
+  display: block;
+  color: var(--text-2);
+  font-size: 0.84rem;
+}
+
+/* ---------- Financial Health Orb (HealthOrb.jsx) ---------- */
+/* One column on phones; the orb and headline beside the pillar list on wide screens. */
+.orb-card {
+  display: grid;
+  gap: 20px 32px;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 1000px) {
+  .orb-card {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  }
+  .orb-foot {
+    grid-column: 1 / -1;
+  }
+}
+.orb-hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: center;
+}
+.orb-summary {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.orb-summary h2 {
+  margin: 0;
+}
+.orb-headline {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+.orb-summary p {
+  margin: 0;
+}
+/* The canvas is decorative; the score on top is real text (crisp, never animated). */
+.orb {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  flex: none;
+  touch-action: pan-y; /* a finger can sway the liquid and still scroll the page */
+}
+@media (max-width: 560px) {
+  .orb {
+    margin-inline: auto; /* centred above the headline on phones */
+  }
+}
+.orb canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.orb-score {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  pointer-events: none;
+  color: var(--text);
+  text-shadow: 0 0 8px var(--surface); /* a halo keeps 4.5:1 over the liquid */
+}
+.orb-number {
+  font-family: var(--font-display);
+  font-size: 3.2rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.orb-of,
+.orb-about,
+.orb-score-empty {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+/* Pillars: real buttons, every value visible as text. */
+.orb-pillars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.orb-pillar {
+  width: 100%;
+  min-height: 44px;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast),
+    border-color var(--dur-fast);
+}
+.orb-pillar:hover {
+  background: var(--surface-2);
+}
+.orb-pillar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.orb-pillar.is-missing {
+  border-style: dashed; /* matches its dashed ring segment */
+}
+.orb-pillar-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+}
+.orb-pillar-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.orb-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px dashed var(--text-3);
+  flex: none;
+}
+.orb-pillar:not(.is-missing) .orb-dot {
+  border: 0;
+}
+.orb-pillar-score {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.orb-pillar-value {
+  font-size: 0.9rem;
+}
+.orb-pillar-detail {
+  font-size: 0.8rem;
+  color: var(--text-3);
+}
+.orb-pillar-detail.status-warning {
+  color: var(--warning-text);
+}
+.orb-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+.orb-disclosure {
+  margin: 0;
+  flex: 1 1 260px;
+}
+.how-list {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.how-list dt {
+  font-weight: 700;
+}
+.how-list dd {
+  margin: 2px 0 0;
+  font-size: 0.88rem;
+  color: var(--text-2);
+}
 
 /* ---------- Motion details ---------- */
 /* Stat tiles lift slightly on hover (they hold no inputs, so nothing jumps under the cursor)
    and, at Full motion with a mouse, tilt toward it (utils/surfaces.js sets --rx/--ry). */
 .grid-stats > .card {
-  --rx: 0deg; --ry: 0deg;
-  transition: transform var(--dur) var(--ease-spring), box-shadow var(--dur-fast) var(--ease), --spot var(--dur) var(--ease);
+  --rx: 0deg;
+  --ry: 0deg;
+  transition:
+    transform var(--dur) var(--ease-spring),
+    box-shadow var(--dur-fast) var(--ease),
+    --spot var(--dur) var(--ease);
 }
 .grid-stats > .card:hover {
   transform: perspective(900px) translateY(-2px) rotateX(var(--rx)) rotateY(var(--ry));
-  box-shadow: var(--shadow), 0 14px 30px rgb(0 0 0 / 0.08);
+  box-shadow:
+    var(--shadow),
+    0 14px 30px rgb(0 0 0 / 0.08);
 }
 /* While following the pointer the tilt tracks it closely; on leave it springs back flat. */
-.grid-stats > .card.tilting { transition: transform 90ms linear, box-shadow var(--dur-fast) var(--ease), --spot var(--dur) var(--ease); }
+.grid-stats > .card.tilting {
+  transition:
+    transform 90ms linear,
+    box-shadow var(--dur-fast) var(--ease),
+    --spot var(--dur) var(--ease);
+}
 /* Touch gets a press instead of a tilt: the tile gives a little under the finger. */
-.grid-stats > .stat-link:active { transform: scale(0.98); }
+.grid-stats > .stat-link:active {
+  transform: scale(0.98);
+}
 
 /* Glow under the pointer on stat tiles and paired cards (surfaces.js adds .lit and sets
    --mx/--my). --spot is registered so the glow can fade; browsers without @property just
    show it without the fade. Keyboard focus on a tile lights it from the middle. */
-@property --spot { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
-.grid-stats > .card, .grid-2 > .card {
-  --mx: 50%; --my: 50%;
+@property --spot {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+.grid-stats > .card,
+.grid-2 > .card {
+  --mx: 50%;
+  --my: 50%;
   background-image: radial-gradient(
     360px circle at var(--mx) var(--my),
     color-mix(in srgb, var(--accent) var(--spot), transparent),
     transparent 70%
   );
 }
-.grid-2 > .card { transition: --spot var(--dur) var(--ease); }
-.grid-stats > .card.lit, .grid-2 > .card.lit { --spot: 12%; }
-.grid-stats > .stat-link:focus-visible { --spot: 10%; }
+.grid-2 > .card {
+  transition: --spot var(--dur) var(--ease);
+}
+.grid-stats > .card.lit,
+.grid-2 > .card.lit {
+  --spot: 12%;
+}
+.grid-stats > .stat-link:focus-visible {
+  --spot: 10%;
+}
 /* Rows and cards added AFTER a page opened (see hooks/useNewItems.js) fade in once. */
-.row-new { animation: fade-in var(--dur) var(--ease) both; }
+.row-new {
+  animation: fade-in var(--dur) var(--ease) both;
+}
 /* Visually hidden but read by screen readers (e.g. the final value behind a count-up). */
 .sr-only {
-  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ==========================================================================
    Keyframes, and the reduced-motion switch for all of them
    ========================================================================== */
 /* var(--travel) scales the movement: Calm sets it to 0, so these become plain fades. */
-@keyframes fade-in { from { opacity: 0; transform: translateY(calc(6px * var(--travel))); } }
-@keyframes rise { from { opacity: 0; transform: translateY(calc(14px * var(--travel))) scale(calc(1 - 0.02 * var(--travel))); } }
-@keyframes grow { from { transform: scaleY(calc(1 - var(--travel))); } }
-@keyframes draw { to { stroke-dashoffset: 0; } }
-@keyframes drift { to { transform: translate(12%, 10%) scale(1.1); } }
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes fade { from { opacity: 0; } }
-@keyframes dialog-in { from { opacity: 0; transform: translateY(calc(8px * var(--travel))) scale(calc(1 - 0.03 * var(--travel))); } }
-@keyframes grow-x { from { transform: scaleX(calc(1 - var(--travel))); } }
-@keyframes icon-draw { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
-@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
-@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(6px * var(--travel)));
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(calc(14px * var(--travel))) scale(calc(1 - 0.02 * var(--travel)));
+  }
+}
+@keyframes grow {
+  from {
+    transform: scaleY(calc(1 - var(--travel)));
+  }
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes drift {
+  to {
+    transform: translate(12%, 10%) scale(1.1);
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(8px * var(--travel))) scale(calc(1 - 0.03 * var(--travel)));
+  }
+}
+@keyframes grow-x {
+  from {
+    transform: scaleX(calc(1 - var(--travel)));
+  }
+}
+@keyframes icon-draw {
+  from {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
 
 /* Calm: short fades, nothing travels, scales or loops for decoration. Loaders keep
    moving because they say "still working", and the phone drawer keeps a brief (150ms)
@@ -685,15 +1762,24 @@ td input[type='number'] { min-width: 76px; }
   --stagger: 0ms;
   --travel: 0;
 }
-:root[data-motion='calm'] .auth-hero::before, :root[data-motion='calm'] .auth-hero::after { animation: none; }
+:root[data-motion='calm'] .auth-hero::before,
+:root[data-motion='calm'] .auth-hero::after {
+  animation: none;
+}
 :root[data-motion='calm'] .grid-stats > .card,
 :root[data-motion='calm'] .grid-stats > .card:hover,
 :root[data-motion='calm'] .grid-stats > .stat-link:active,
-:root[data-motion='calm'] .btn:active { transform: none; }
-:root[data-motion='calm'] .nav-indicator { transition: none; }
+:root[data-motion='calm'] .btn:active {
+  transform: none;
+}
+:root[data-motion='calm'] .nav-indicator {
+  transition: none;
+}
 
 /* Off: every animation and transition lands on its end state at once. */
-:root[data-motion='off'] *, :root[data-motion='off'] *::before, :root[data-motion='off'] *::after {
+:root[data-motion='off'] *,
+:root[data-motion='off'] *::before,
+:root[data-motion='off'] *::after {
   animation-duration: 0.01ms !important;
   animation-delay: 0ms !important;
   animation-iteration-count: 1 !important;
@@ -702,5 +1788,10 @@ td input[type='number'] { min-width: 76px; }
   scroll-behavior: auto !important;
 }
 /* Loaders that only loop would freeze mid-way; show a still, full bar instead. */
-:root[data-motion='off'] .splash-bar::after { width: 100%; transform: none; }
-:root[data-motion='off'] .skeleton { background: var(--surface-2); }
+:root[data-motion='off'] .splash-bar::after {
+  width: 100%;
+  transform: none;
+}
+:root[data-motion='off'] .skeleton {
+  background: var(--surface-2);
+}

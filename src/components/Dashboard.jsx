@@ -15,6 +15,7 @@ import StatCard from './StatCard';
 import CountUp from './CountUp';
 import Icon from './Icon';
 import EmptyState from './EmptyState';
+import HealthOrb from './HealthOrb';
 import { Notice } from './Status';
 import ChartTooltip from './ChartTooltip';
 import { useColorScheme } from '../hooks/useColorScheme';
@@ -35,7 +36,8 @@ import { buildInsights } from '../utils/insights';
 import { netWorthTotals, readAccounts } from '../utils/netWorth';
 
 export default function Dashboard({ store, goTo, openSummary }) {
-  const { user, transactions, budgets, bills, categories, accounts, debts, settings, setSettings } = store;
+  const { user, transactions, budgets, bills, categories, accounts, debts, settings, setSettings } =
+    store;
   // Accounts made before recovery keys existed get a one-time, dismissible nudge.
   const showKeyReminder = !user.hasRecoveryKey && !settings.recoveryReminderDismissed;
   const palette = getPalette(useColorScheme());
@@ -63,12 +65,18 @@ export default function Dashboard({ store, goTo, openSummary }) {
 
   // "+12% vs last month" helper; returns '' when there's nothing to compare against.
   const change = (now, before) =>
-    before > 0
-      ? <>
-          <Icon name={now >= before ? 'up' : 'down'} size={14} label={now >= before ? 'Up' : 'Down'} />{' '}
-          {formatPercent(Math.abs(now / before - 1))} vs {previous.label}
-        </>
-      : '';
+    before > 0 ? (
+      <>
+        <Icon
+          name={now >= before ? 'up' : 'down'}
+          size={14}
+          label={now >= before ? 'Up' : 'Down'}
+        />{' '}
+        {formatPercent(Math.abs(now / before - 1))} vs {previous.label}
+      </>
+    ) : (
+      ''
+    );
 
   return (
     <div className="stack">
@@ -112,6 +120,9 @@ export default function Dashboard({ store, goTo, openSummary }) {
       )}
 
       {/* Each tile opens the page behind its number; at Full motion it grows into that page. */}
+      {/* Financial health: the Orb, its five pillars and how they're scored. */}
+      <HealthOrb store={store} goTo={goTo} />
+
       <div className="grid grid-stats">
         <StatCard
           label={`Income · ${current.label}`}
@@ -255,7 +266,9 @@ export default function Dashboard({ store, goTo, openSummary }) {
                   <li key={c.category} className="small">
                     <span
                       className="dot"
-                      style={{ background: categoryColor(c.category, categories, palette) }}
+                      style={{
+                        background: categoryColor(c.category, categories, palette),
+                      }}
                     />
                     <span>{c.category}</span>
                     <span className="spacer" />

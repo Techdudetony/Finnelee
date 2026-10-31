@@ -102,6 +102,12 @@ const ICONS = {
     </>
   ),
   'trend-up': <path d="M3.5 17 9 11.5l4 4L20.5 8M15 8h5.5v5.5" />,
+  info: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 11v5.5M12 7.8h.01" />
+    </>
+  ),
   idea: (
     <>
       <path d="M12 3.5a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1v.6h5v-.6c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3.5z" />
@@ -177,7 +183,14 @@ export default function Icon({ name, size = 18, label, className = '' }) {
 /** The Finnelee mark: an F whose top stroke ends in a forward arrow, on an accent tile. */
 export function BrandMark({ size = 24 }) {
   return (
-    <svg className="icon" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <svg
+      className="icon"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
       <rect width="24" height="24" rx="6" fill="var(--accent)" />
       <path
         d="M9 18V6.5h6.5M9 12.25h4.5M14 4.5l2 2-2 2"
