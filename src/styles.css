@@ -620,9 +620,36 @@ td input[type='number'] { min-width: 76px; }
 .choice-text { display: block; color: var(--text-2); font-size: 0.84rem; }
 
 /* ---------- Motion details ---------- */
-/* Stat tiles lift slightly on hover (they hold no inputs, so nothing jumps under the cursor). */
-.grid-stats > .card { transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
-.grid-stats > .card:hover { transform: translateY(-2px); box-shadow: var(--shadow), 0 14px 30px rgb(0 0 0 / 0.08); }
+/* Stat tiles lift slightly on hover (they hold no inputs, so nothing jumps under the cursor)
+   and, at Full motion with a mouse, tilt toward it (utils/surfaces.js sets --rx/--ry). */
+.grid-stats > .card {
+  --rx: 0deg; --ry: 0deg;
+  transition: transform var(--dur) var(--ease-spring), box-shadow var(--dur-fast) var(--ease), --spot var(--dur) var(--ease);
+}
+.grid-stats > .card:hover {
+  transform: perspective(900px) translateY(-2px) rotateX(var(--rx)) rotateY(var(--ry));
+  box-shadow: var(--shadow), 0 14px 30px rgb(0 0 0 / 0.08);
+}
+/* While following the pointer the tilt tracks it closely; on leave it springs back flat. */
+.grid-stats > .card.tilting { transition: transform 90ms linear, box-shadow var(--dur-fast) var(--ease), --spot var(--dur) var(--ease); }
+/* Touch gets a press instead of a tilt: the tile gives a little under the finger. */
+.grid-stats > .stat-link:active { transform: scale(0.98); }
+
+/* Glow under the pointer on stat tiles and paired cards (surfaces.js adds .lit and sets
+   --mx/--my). --spot is registered so the glow can fade; browsers without @property just
+   show it without the fade. Keyboard focus on a tile lights it from the middle. */
+@property --spot { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+.grid-stats > .card, .grid-2 > .card {
+  --mx: 50%; --my: 50%;
+  background-image: radial-gradient(
+    360px circle at var(--mx) var(--my),
+    color-mix(in srgb, var(--accent) var(--spot), transparent),
+    transparent 70%
+  );
+}
+.grid-2 > .card { transition: --spot var(--dur) var(--ease); }
+.grid-stats > .card.lit, .grid-2 > .card.lit { --spot: 12%; }
+.grid-stats > .stat-link:focus-visible { --spot: 10%; }
 /* Rows and cards added AFTER a page opened (see hooks/useNewItems.js) fade in once. */
 .row-new { animation: fade-in var(--dur) var(--ease) both; }
 /* Visually hidden but read by screen readers (e.g. the final value behind a count-up). */
@@ -659,7 +686,9 @@ td input[type='number'] { min-width: 76px; }
   --travel: 0;
 }
 :root[data-motion='calm'] .auth-hero::before, :root[data-motion='calm'] .auth-hero::after { animation: none; }
+:root[data-motion='calm'] .grid-stats > .card,
 :root[data-motion='calm'] .grid-stats > .card:hover,
+:root[data-motion='calm'] .grid-stats > .stat-link:active,
 :root[data-motion='calm'] .btn:active { transform: none; }
 :root[data-motion='calm'] .nav-indicator { transition: none; }
 
