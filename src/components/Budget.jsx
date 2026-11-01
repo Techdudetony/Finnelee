@@ -43,9 +43,12 @@ export default function Budget({ store }) {
   // until typing pauses, then compares the month before and after (in cents).
   const party = useCelebration();
   const leftCard = useRef(null);
+  const shownMonth = useRef(month);
+  shownMonth.current = month;
   const watcher = useRef(null);
   watcher.current ??= createSettleWatcher((start, after) => {
-    if (budgetCompleted(start, after))
+    // Only for the month still on screen: a pause that ends after switching months is dropped.
+    if (after.month === shownMonth.current && budgetCompleted(start, after))
       party.celebrate(budgetMessage(monthLabel(after.month, true)), leftCard.current, 'budget');
   });
   useEffect(() => () => watcher.current.cancel(), [month]); // new month or page closed: drop it

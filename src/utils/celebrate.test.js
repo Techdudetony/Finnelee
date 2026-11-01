@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  addToGoal,
   budgetCompleted,
   createSettleWatcher,
   goalReached,
@@ -40,6 +41,35 @@ describe("goalReached", () => {
 
   it("never celebrates a goal with no target", () => {
     expect(goalReached(goal(0, 0), goal(10, 0))).toBe(false);
+  });
+});
+
+describe("addToGoal", () => {
+  const goals = [
+    { id: "ef", saved: 4100, target: 5000 },
+    { id: "trip", saved: 10, target: 2000 },
+  ];
+
+  it("changes only that goal, never below $0", () => {
+    const { goals: next, before, after } = addToGoal(goals, "ef", -5000);
+    expect(before).toBe(goals[0]);
+    expect(after.saved).toBe(0);
+    expect(next[1]).toBe(goals[1]);
+    expect(addToGoal(goals, "nope", 5).after).toBeNull();
+  });
+
+  it("checks rapid contributions against each other, not the first state", () => {
+    // Two $500 clicks before React re-renders: the second one reaches the target.
+    const first = addToGoal(goals, "ef", 500);
+    const second = addToGoal(first.goals, "ef", 500);
+    expect(goalReached(first.before, first.after)).toBe(false);
+    expect(goalReached(second.before, second.after)).toBe(true);
+    expect(second.after.saved).toBe(5100);
+    // Two $900 clicks: only the first crosses the target.
+    const a = addToGoal(goals, "ef", 900);
+    const b = addToGoal(a.goals, "ef", 900);
+    expect(goalReached(a.before, a.after)).toBe(true);
+    expect(goalReached(b.before, b.after)).toBe(false);
   });
 });
 

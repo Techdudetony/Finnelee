@@ -11,6 +11,24 @@ export function toCents(value) {
 }
 
 /**
+ * Adds money to one goal (a negative amount takes it out; saved never goes below 0).
+ * Used both for the saved update and for the celebration check, so the check always
+ * sees the same before and after that gets saved. Returns { goals, before, after };
+ * before/after are null when there's no goal with that id.
+ */
+export function addToGoal(goals, id, amount) {
+  let before = null;
+  let after = null;
+  const next = goals.map((g) => {
+    if (g.id !== id) return g;
+    before = g;
+    after = { ...g, saved: Math.max(0, g.saved + amount) };
+    return after;
+  });
+  return { goals: next, before, after };
+}
+
+/**
  * True when a goal went from below its target to at or above it because money was
  * added. Lowering the target alone never counts, and neither does a goal that was
  * already reached. before/after: { saved, target }.

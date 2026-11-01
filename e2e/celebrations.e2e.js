@@ -212,6 +212,48 @@ test("assigning every dollar celebrates after typing pauses, never on the way", 
   await expect(announced(page)).toHaveText("");
 });
 
+test("switching months before typing pauses doesn't celebrate the month left behind", async ({
+  page,
+}) => {
+  await signUp(page);
+  await nav(page, "Budget");
+  await page.getByLabel("Income for Nov 2026").fill("100");
+  await page.waitForTimeout(1000); // income settles first (not complete yet)
+  await page.getByLabel("Housing allocation for Nov 2026").fill("100");
+  await page.getByRole("button", { name: "Next month" }).click(); // within 700 ms
+  await expect(page.getByLabel("Income for Dec 2026")).toBeVisible();
+  await expectNoConfettiFor(page, 1500);
+  await expect(announced(page)).toHaveText("");
+  // November did get every dollar assigned; it's saved as typed.
+  await page.getByRole("button", { name: "Previous month" }).click();
+  await expect(
+    page.getByText("Every dollar assigned", { exact: true }),
+  ).toBeVisible();
+});
+
+test("two quick contributions before a re-render: the one that reaches the goal celebrates", async ({
+  page,
+}) => {
+  await signUp(page);
+  await seedGoals(page, [emergency]);
+  await nav(page, "Goals");
+  await page.getByLabel("Contribute to Emergency fund").fill("500");
+  // Submit $500 twice in one task, so React can't re-render in between: 4,100 -> 5,100.
+  await page.evaluate(() => {
+    const form = document
+      .querySelector('[aria-label="Contribute to Emergency fund"]')
+      .closest("form");
+    form.requestSubmit();
+    form.requestSubmit();
+  });
+  await expect(
+    page.locator(".card", { hasText: "Emergency fund" }),
+  ).toContainText("$5,100.00");
+  await expect(announced(page)).toHaveText(
+    "Emergency fund goal reached: $5,100.00 saved.",
+  );
+});
+
 test("a suggested (unconfirmed) income at $0.00 left doesn't celebrate", async ({
   page,
 }) => {
