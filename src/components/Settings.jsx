@@ -17,7 +17,7 @@ const MOTION_OPTIONS = [
   { id: 'off', label: 'Off', text: 'No animation. Everything appears at once.' },
 ];
 
-export default function Settings({ store }) {
+export default function Settings({ store, startTour }) {
   const fileInput = useRef(null); // useRef = a handle to a real DOM element (the hidden file input)
   const [message, setMessage] = useState('');
   const { user, updateProfile, signOut, createRecoveryKey } = useAuth();
@@ -157,6 +157,14 @@ export default function Settings({ store }) {
         )}
       </section>
 
+      <section className="card">
+        <h2>Guided tour</h2>
+        <p className="sub">A short walk through the Dashboard and where everything lives. About a minute.</p>
+        <button className="btn" onClick={startTour}>
+          Replay tour
+        </button>
+      </section>
+
       <section className="card" id="recovery-key">
         <h2>Recovery key</h2>
         <p className="sub">
@@ -195,7 +203,7 @@ export default function Settings({ store }) {
           in the current account.
         </p>
         <div className="row">
-          <button className="btn btn-primary" onClick={exportBackup}>
+          <button className="btn btn-primary" onClick={exportBackup} data-focus-target="export-backup">
             Export backup (.json)
           </button>
           <button className="btn" onClick={() => fileInput.current.click()}>

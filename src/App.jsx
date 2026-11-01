@@ -14,6 +14,8 @@ import AuthScreen from './components/AuthScreen';
 import WelcomeSummary from './components/WelcomeSummary';
 import RecoveryKeyDialog from './components/RecoveryKeyDialog';
 import PayScheduleStep from './components/PayScheduleStep';
+import GuidedTour from './components/GuidedTour';
+import { markTourEnded, markTourOffered, shouldOfferTour } from './utils/tour';
 import CommandPalette, { shortcutLabel } from './components/CommandPalette';
 import PageErrorBoundary from './components/PageErrorBoundary';
 import Dashboard from './components/Dashboard';
@@ -309,6 +311,37 @@ function FinanceApp({ user }) {
     );
   }, [focusRequest]);
 
+  // ---------- Guided tour (GuidedTour.jsx, utils/tour.js) ----------
+  // Offered once to a new account, after the sign-up steps and the welcome summary.
+  // Settings > Guided tour replays it for anyone. It always runs on the Dashboard.
+  const [tour, setTour] = useState(null); // null, or { replay } while it's showing
+  const tourOpener = useRef(null); // focus goes back here when it ends
+  const startTour = (replay) => {
+    tourOpener.current = document.activeElement;
+    if (!replay) setSettings((s) => markTourOffered(s, new Date().toISOString()));
+    setPage('dashboard'); // no page transition: the tour fades in over it
+    setDrawerOpen(false); // the tour never opens over the phone menu
+    setTour({ replay });
+  };
+  const otherDialog = newRecoveryKey || askPaySchedule || showSummary || paletteOpen;
+  useEffect(() => {
+    if (!otherDialog && !tour && shouldOfferTour(settings)) startTour(false);
+  });
+  // `open` ({ page, focus, label }): Show me, or a page from Explore all features. It
+  // moves focus itself; otherwise focus goes back to where it was, or the page heading.
+  const endTour = (outcome, open) => {
+    setSettings((s) => markTourEnded(s, outcome, new Date().toISOString()));
+    setTour(null);
+    if (open) return openTask(open.page, open.focus, open.label);
+    const back = tourOpener.current;
+    requestAnimationFrame(() => {
+      if (back?.isConnected && back !== document.body) return back.focus();
+      const h = document.querySelector('main.content h1');
+      h?.setAttribute('tabindex', '-1');
+      h?.focus();
+    });
+  };
+
   const current = PAGES.find((p) => p.id === page) ?? PAGES[0];
   const { Component } = current; // Capitalized so JSX treats it as a component
  
@@ -386,6 +419,7 @@ function FinanceApp({ user }) {
           {PAGES.map((p) => (
             <button
               key={p.id} // React needs a stable key for each item in a list
+              data-tour={p.id} // what the guided tour highlights
               className={`nav-item ${p.id === page ? 'active' : ''}`}
               aria-current={p.id === page ? 'page' : undefined}
               onClick={() => goTo(p.id)}
@@ -417,7 +451,7 @@ function FinanceApp({ user }) {
           {/* The dashboard renders its own greeting, so skip the generic title there */}
           {page !== 'dashboard' && <h1 className="page-title">{current.label}</h1>}
           <PageErrorBoundary label={current.label} onHome={page !== 'dashboard' ? () => goTo('dashboard') : null}>
-            <Component store={store} goTo={goTo} openTask={openTask} openSummary={() => setShowSummary(true)} />
+            <Component store={store} goTo={goTo} openTask={openTask} openSummary={() => setShowSummary(true)} startTour={() => startTour(true)} />
           </PageErrorBoundary>
         </div>
       </main>
@@ -434,6 +468,14 @@ function FinanceApp({ user }) {
         <PayScheduleStep store={store} onClose={() => setAskPaySchedule(false)} />
       ) : (
         showSummary && <WelcomeSummary store={store} goTo={goTo} onClose={closeSummary} />
+      )}
+      {tour && (
+        <GuidedTour
+          replay={tour.replay}
+          phone={isMobile}
+          pages={PAGES.map(({ id, label }) => ({ id, label }))}
+          onEnd={endTour}
+        />
       )}
       {paletteOpen && (
         <CommandPalette commands={commands} onRun={runCommand} onClose={closePalette} />

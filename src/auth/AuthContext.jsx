@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import * as auth from './authService';
 import { migrateLegacyData, seedUserData } from './userStorage';
 import { emptyData, generateSampleData } from '../data/sampleData';
+import { markNewAccount } from '../utils/tour';
 
 // React Context lets any component read the current user without passing it
 // down through every level as a prop ("prop drilling").
@@ -27,7 +28,10 @@ export function AuthProvider({ children }) {
   // that receive these functions don't re-render unnecessarily.
   const signUp = useCallback(async ({ name, email, password, withSampleData }) => {
     const { user: newUser, isFirstUser, recoveryKey } = await auth.signUp({ name, email, password });
-    seedUserData(newUser.id, withSampleData ? generateSampleData() : emptyData());
+    const data = withSampleData ? generateSampleData() : emptyData();
+    // Marks the account as new, so the guided tour is offered once (utils/tour.js).
+    data.settings = markNewAccount(data.settings);
+    seedUserData(newUser.id, data);
     // The first account on this browser also adopts any data saved before accounts
     // existed. It's copied after seeding, so the old data wins wherever it exists.
     if (isFirstUser) migrateLegacyData(newUser.id);

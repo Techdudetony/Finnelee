@@ -33,6 +33,7 @@
   --glass: rgb(255 255 255 / 0.68);
   --glass-border: rgb(255 255 255 / 0.9);
   --backdrop: rgb(8 24 19 / 0.42); /* dims the page behind dialogs and the drawer */
+  --tour-dim: rgb(8 24 19 / 0.55); /* the guided tour's dim layer */
 
   /* The aurora: two soft brand glows behind the top of every page. Static (no animation). */
   --aurora-1: rgb(27 175 122 / 0.16);
@@ -113,6 +114,7 @@
     --glass: rgb(17 30 26 / 0.66);
     --glass-border: rgb(255 255 255 / 0.09);
     --backdrop: rgb(0 0 0 / 0.55);
+    --tour-dim: rgb(0 0 0 / 0.62);
     --aurora-1: rgb(63 224 165 / 0.16);
     --aurora-2: rgb(76 201 232 / 0.11);
     --shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 30px rgb(0 0 0 / 0.32);
@@ -1452,6 +1454,255 @@ h2 > .icon {
   .summary-dialog {
     padding: 18px;
   }
+}
+
+/* ---------- Guided tour (GuidedTour.jsx) ----------
+   One full-screen modal <dialog>. A dim layer covers the page, except for a "hole"
+   over the highlighted element, which shows through but can't be clicked. */
+.tour {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  overflow: hidden;
+}
+.tour::backdrop {
+  background: transparent; /* the shade below does the dimming */
+}
+.tour-shade,
+.tour-ring {
+  position: fixed;
+  pointer-events: none;
+}
+.tour-shade {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: var(--tour-dim);
+}
+/* A restrained ring around each hole marks what to look at. */
+.tour-ring {
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 0 7px var(--accent-soft);
+}
+.tour-card {
+  position: fixed;
+  box-sizing: border-box;
+  width: min(380px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(420px 160px at 10% -40px, var(--aurora-1), transparent 70%),
+    radial-gradient(360px 160px at 100% -60px, var(--aurora-2), transparent 70%),
+    var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: dialog-in var(--dur) var(--ease) both;
+}
+/* Phones: docked at the bottom, never taller than about half the screen. Long text
+   scrolls inside the card while the step count and buttons stay put. */
+.tour-card.is-phone {
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  width: auto;
+  max-height: min(46vh, 440px);
+  padding: 18px;
+}
+.tour-card.is-phone.is-tall {
+  max-height: calc(100vh - 96px); /* stays clear of the top bar it points at */
+}
+.tour-card.is-phone.is-centered {
+  bottom: auto;
+  top: 50%;
+  translate: 0 -50%;
+}
+.tour-head,
+.tour-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tour-count {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.tour-progress {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 4px;
+}
+.tour-progress span {
+  height: 4px;
+  border-radius: 4px;
+  background: var(--border);
+}
+.tour-progress .is-done {
+  background: var(--accent);
+}
+.tour-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin: -4px; /* room for focus rings inside the scroll area */
+  padding: 4px;
+}
+.tour-body h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  line-height: 1.15;
+}
+.tour-body p {
+  margin: 0;
+  color: var(--text-2);
+}
+.tour-card.is-phone .tour-body h2 {
+  font-size: 1.35rem;
+}
+.tour-action {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tour-foot {
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.tour-foot .btn {
+  min-height: 44px;
+}
+.tour-foot-gap {
+  flex: 1;
+}
+.tour-skip {
+  white-space: nowrap;
+  min-height: 44px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+/* The phone menu preview: a picture of the menu, with the step's page(s) marked. */
+.tour-menu {
+  align-self: stretch;
+  display: grid;
+  gap: 6px;
+}
+.tour-body .tour-menu-label {
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.tour-body .tour-menu-hint {
+  font-size: 0.8rem;
+}
+.tour-menu ul {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.tour-menu li {
+  padding: 6px 10px;
+  border-radius: 9px;
+  font-size: 0.85rem;
+  color: var(--text-2);
+}
+.tour-menu li.is-on {
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+/* "Explore all features" */
+.tour-body h2:focus {
+  outline: none;
+}
+.tour-features {
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+.tour-features button {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tour-features button:hover {
+  background: var(--accent-soft);
+}
+.tour-feature-name {
+  font-weight: 700;
+}
+.tour-feature-text {
+  font-size: 0.85rem;
+  color: var(--text-2);
+}
+/* Motion. Full: the highlight and card glide to each step. Calm: each step's text
+   fades in, nothing travels. Off: everything appears at once (see the Off rules). */
+.tour-full .tour-shade path {
+  transition: d var(--dur-slow) var(--ease); /* where supported; else the hole jumps */
+}
+.tour-full .tour-ring,
+.tour-full .tour-card {
+  transition:
+    left var(--dur-slow) var(--ease),
+    top var(--dur-slow) var(--ease),
+    width var(--dur-slow) var(--ease),
+    height var(--dur-slow) var(--ease);
+}
+.tour-full .tour-body,
+.tour-calm .tour-body {
+  animation: fade var(--dur) var(--ease) both;
+}
+.tour-off .tour-card,
+.tour-off .tour-body {
+  animation: none;
 }
 
 /* Radio cards (Settings > Motion): the whole card is the click and tap target. */
