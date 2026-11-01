@@ -15,6 +15,7 @@ import StatCard from './StatCard';
 import CountUp from './CountUp';
 import Icon from './Icon';
 import EmptyState from './EmptyState';
+import { incomeSpendingState } from '../utils/emptyStates';
 import HealthOrb from './HealthOrb';
 import Runway from './Runway';
 import SpendingCard from './SpendingCard';
@@ -37,7 +38,7 @@ import { monthlySeries, spendingByCategory, nextDueDate } from '../utils/finance
 import { buildInsights } from '../utils/insights';
 import { netWorthTotals, readAccounts } from '../utils/netWorth';
 
-export default function Dashboard({ store, goTo, openSummary }) {
+export default function Dashboard({ store, goTo, openTask, openSummary }) {
   const { user, transactions, budgets, bills, categories, accounts, debts, settings, setSettings } =
     store;
   // Accounts made before recovery keys existed get a one-time, dismissible nudge.
@@ -49,6 +50,7 @@ export default function Dashboard({ store, goTo, openSummary }) {
   // useMemo caches a calculation and only re-runs it when its dependencies change.
   // Without it, these loops would run on every render (e.g. every hover).
   const series = useMemo(() => monthlySeries(transactions, 6), [transactions]);
+  const addTransaction = () => openTask('transactions', ['add-transaction'], 'Add a transaction');
   const byCategory = useMemo(
     () => spendingByCategory(transactions, thisMonth),
     [transactions, thisMonth],
@@ -179,55 +181,71 @@ export default function Dashboard({ store, goTo, openSummary }) {
         <section className="card">
           <h2>Income vs. spending</h2>
           <p className="sub">Last 6 months</p>
-          <div className="chart">
-            {/* ResponsiveContainer makes the chart fill its parent's width/height. */}
-            <ResponsiveContainer>
-              <BarChart data={series} barGap={2} margin={{ left: 0, right: 8 }}>
-                <CartesianGrid vertical={false} stroke={palette.grid} />
-                <XAxis
-                  dataKey="label"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: palette.axis, fontSize: 12 }}
-                />
-                <YAxis
-                  tickFormatter={(v) => formatCurrency(v, { compact: true })}
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: palette.axis, fontSize: 12 }}
-                  width={56}
-                />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: palette.grid, opacity: 0.4 }} />
-                {/* radius=[top-left, top-right, bottom-right, bottom-left]: rounded tops only */}
-                <Bar
-                  isAnimationActive={animate}
-                  dataKey="income"
-                  name="Income"
-                  fill={palette.series[0]}
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={28}
-                />
-                <Bar
-                  isAnimationActive={animate}
-                  dataKey="expenses"
-                  name="Spending"
-                  fill={palette.series[1]}
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={28}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="legend">
-            <span>
-              <span className="dot" style={{ background: palette.series[0] }} />
-              Income
-            </span>
-            <span>
-              <span className="dot" style={{ background: palette.series[1] }} />
-              Spending
-            </span>
-          </div>
+          {incomeSpendingState(series) === 'empty' ? (
+            <EmptyState
+              icon="forecast"
+              title="No income or spending yet"
+              action={
+                <button type="button" className="btn" onClick={addTransaction}>
+                  Add a transaction
+                </button>
+              }
+            >
+              Your last 6 months of money in and out appear here as you add transactions.
+            </EmptyState>
+          ) : (
+            <>
+              <div className="chart">
+                {/* ResponsiveContainer makes the chart fill its parent's width/height. */}
+                <ResponsiveContainer>
+                  <BarChart data={series} barGap={2} margin={{ left: 0, right: 8 }}>
+                    <CartesianGrid vertical={false} stroke={palette.grid} />
+                    <XAxis
+                      dataKey="label"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fill: palette.axis, fontSize: 12 }}
+                    />
+                    <YAxis
+                      tickFormatter={(v) => formatCurrency(v, { compact: true })}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fill: palette.axis, fontSize: 12 }}
+                      width={56}
+                    />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: palette.grid, opacity: 0.4 }} />
+                    {/* radius=[top-left, top-right, bottom-right, bottom-left]: rounded tops only */}
+                    <Bar
+                      isAnimationActive={animate}
+                      dataKey="income"
+                      name="Income"
+                      fill={palette.series[0]}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={28}
+                    />
+                    <Bar
+                      isAnimationActive={animate}
+                      dataKey="expenses"
+                      name="Spending"
+                      fill={palette.series[1]}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={28}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="legend">
+                <span>
+                  <span className="dot" style={{ background: palette.series[0] }} />
+                  Income
+                </span>
+                <span>
+                  <span className="dot" style={{ background: palette.series[1] }} />
+                  Spending
+                </span>
+              </div>
+            </>
+          )}
         </section>
 
         <section className="card">
@@ -236,7 +254,15 @@ export default function Dashboard({ store, goTo, openSummary }) {
             {monthLabel(thisMonth, true)} · {formatCurrency(current.expenses)} total
           </p>
           {byCategory.length === 0 ? (
-            <EmptyState icon="categories" title="No spending this month yet">
+            <EmptyState
+              icon="categories"
+              title="No spending this month yet"
+              action={
+                <button type="button" className="btn" onClick={addTransaction}>
+                  Add an expense
+                </button>
+              }
+            >
               Expenses you add show up here, grouped by category.
             </EmptyState>
           ) : (
@@ -315,7 +341,21 @@ export default function Dashboard({ store, goTo, openSummary }) {
           </div>
           <ul className="list">
             {upcoming.length === 0 && (
-              <EmptyState as="li" icon="bills" title="No recurring bills yet" compact>
+              <EmptyState
+                as="li"
+                icon="bills"
+                title="No recurring bills yet"
+                compact
+                action={
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => openTask('bills', ['add-bill'], 'Add a bill')}
+                  >
+                    Add a bill
+                  </button>
+                }
+              >
                 Add rent, subscriptions and other repeats on the Bills page.
               </EmptyState>
             )}

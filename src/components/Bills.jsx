@@ -26,7 +26,7 @@ const emptyBill = (categories) => ({
   category: namesOf(categories, 'expense')[0] ?? '',
 });
 
-export default function Bills({ store }) {
+export default function Bills({ store, openTask }) {
   const { bills, setBills, transactions, setTransactions, categories, debts, accounts } = store;
   const [form, setForm] = useState(() => emptyBill(categories));
   const [notice, setNotice] = useState(''); // said after an Undo that kept a transaction
@@ -256,7 +256,19 @@ export default function Bills({ store }) {
             </tbody>
           </table>
           {bills.length === 0 && (
-            <EmptyState icon="bills" title="No recurring bills yet">
+            <EmptyState
+              icon="bills"
+              title="No recurring bills yet"
+              action={
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => openTask('bills', ['add-bill'], 'Add a bill')}
+                >
+                  Add a bill
+                </button>
+              }
+            >
               Add one above to see what's due and when.
             </EmptyState>
           )}

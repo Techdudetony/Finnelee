@@ -17,7 +17,7 @@ const emptyForm = (categories) => ({
   amount: '',
 });
 
-export default function Transactions({ store }) {
+export default function Transactions({ store, openTask }) {
   const { transactions, setTransactions, categories: allCategories } = store;
   const isNew = useNewItems(transactions); // rows added or imported after the page opened fade in
   const [form, setForm] = useState(() => emptyForm(allCategories));
@@ -220,7 +220,28 @@ export default function Transactions({ store }) {
           </table>
           {visible.length === 0 &&
             (transactions.length === 0 ? (
-              <EmptyState icon="transactions" title="No transactions yet">
+              <EmptyState
+                icon="transactions"
+                title="No transactions yet"
+                action={
+                  <>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => openTask('transactions', ['add-transaction'], 'Add a transaction')}
+                    >
+                      Add a transaction
+                    </button>
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={() => openTask('transactions', ['import-statement'], 'Import a statement')}
+                    >
+                      Import a statement
+                    </button>
+                  </>
+                }
+              >
                 Add one above, or import a CSV or PDF bank statement.
               </EmptyState>
             ) : (

@@ -99,8 +99,13 @@ describe('readPdfPages with a real PDF', () => {
         [510, 700, '2,954.90'],
       ],
     ]);
-    const pages = await readPdfPages(pdf, pdfjs);
+    const progress = [];
+    const pages = await readPdfPages(pdf, pdfjs, (done, total) => progress.push([done, total]));
     expect(pages.map((p) => p.number)).toEqual([1, 2]);
+    expect(progress).toEqual([
+      [1, 2],
+      [2, 2],
+    ]); // one progress call per page read
     expect(pages[0].lines[2].cells.map((c) => c.text)).toEqual([
       '10/03',
       'GROCERY OUTLET',

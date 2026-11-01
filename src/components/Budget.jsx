@@ -3,6 +3,7 @@ import ProgressBar from './ProgressBar';
 import StatCard from './StatCard';
 import Status, { Notice } from './Status';
 import { useCelebration } from './Celebrate';
+import EmptyState from './EmptyState';
 import { needsChecker } from '../data/categories';
 import { formatCurrency, formatPercent, monthKey, monthLabel } from '../utils/format';
 import { debtToIncome, fiftyThirtyTwenty, monthTotals, spendingByCategory } from '../utils/finance';
@@ -17,12 +18,13 @@ import {
   suggestedIncome,
 } from '../utils/budgeting';
 import { budgetCompleted, budgetMessage, createSettleWatcher } from '../utils/celebrate';
+import { budgetPlanState } from '../utils/emptyStates';
 
 // +$40.00 / -$100.00: carryover shows its sign so the direction is never color-only.
 const signed = (n) => (n > 0 ? '+' : '') + formatCurrency(n);
 const tone = (n) => (n > 0 ? 'amount-income' : n < 0 ? 'status-critical' : 'muted');
 
-export default function Budget({ store }) {
+export default function Budget({ store, openTask }) {
   const { transactions, budgets, setBudgets, settings, setSettings, debts, categories, goals } =
     store;
   const current = monthKey(new Date());
@@ -94,8 +96,11 @@ export default function Budget({ store }) {
     .filter((r) => r.allocation > 0 && /sav|invest/i.test(r.category))
     .map((r) => r.category);
 
+  const planState = budgetPlanState(plan); // 'empty': no income and nothing assigned yet
   const leftStatus =
-    plan.left === 0
+    planState === 'empty'
+      ? { tone: 'info', icon: 'info', text: 'Add planned income to start' }
+      : plan.left === 0
       ? { tone: 'good', text: 'Every dollar assigned' }
       : plan.left > 0
         ? { tone: 'warning', text: `${formatCurrency(plan.left)} to assign` }
@@ -146,7 +151,7 @@ export default function Budget({ store }) {
           <div ref={leftCard} className={`card${party.glow === 'budget' ? ' celebrate-glow' : ''}`}>
             <div className="stat-label">Left to assign</div>
             <div className="stat-value">{formatCurrency(plan.left)}</div>
-            <Status tone={leftStatus.tone} as="div">
+            <Status tone={leftStatus.tone} icon={leftStatus.icon} as="div">
               {leftStatus.text}
             </Status>
           </div>
@@ -157,6 +162,38 @@ export default function Budget({ store }) {
           <StatCard label="Spent" value={formatCurrency(totals.spent)} />
           <StatCard label="Remaining (incl. carryover)" value={formatCurrency(totals.remaining)} />
         </div>
+      )}
+
+      {editable && planState !== 'ready' && (
+        <EmptyState
+          icon="budget"
+          title={`Plan ${monthLabel(month, true)}`}
+          className="card"
+          action={
+            <>
+              {!plan.confirmed && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => openTask('budget', ['planned-income'], 'Enter planned income')}
+                >
+                  Enter planned income
+                </button>
+              )}
+              <button
+                type="button"
+                className={plan.confirmed ? 'btn btn-primary' : 'btn'}
+                onClick={() => openTask('budget', ['category-limit'], 'Set a category limit')}
+              >
+                Set a category limit
+              </button>
+            </>
+          }
+        >
+          {plan.confirmed
+            ? `Give each category a limit until left to assign reaches $0.00.`
+            : `Confirm this month's income, then give each category a limit until left to assign reaches $0.00.`}
+        </EmptyState>
       )}
 
       {editable && (
@@ -177,6 +214,7 @@ export default function Budget({ store }) {
                 value={plan.confirmed ? plan.income : ''}
                 placeholder={suggestion ? String(suggestion) : 'Amount'}
                 onChange={(e) => changeIncome(e.target.value)}
+                data-focus-target="planned-income"
               />
             </label>
             {!plan.confirmed && suggestion !== null && (
@@ -238,6 +276,7 @@ export default function Budget({ store }) {
                         }
                         onChange={(e) => changeLimit(r.category, e.target.value)}
                         aria-label={`${r.category} allocation for ${monthLabel(month, true)}`}
+                        data-focus-target="category-limit"
                         style={{ width: '100%' }}
                       />
                     ) : (
