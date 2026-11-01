@@ -272,10 +272,13 @@ function FinanceApp({ user }) {
   useEffect(() => {
     if (!focusRequest) return undefined;
     const { page: target, focus, label } = focusRequest;
-    const heading = () => document.querySelector('main.content h1');
+    // Where "Go to" lands: the page's h1 (on Dashboard, its greeting), or the error message
+    // when the page couldn't be drawn. The page area itself is the last resort.
+    const heading = () =>
+      document.querySelector('main.content h1') ?? document.querySelector('main.content .empty-error');
     const onPage = () => pageNow.current === target;
     const focusHeading = () => {
-      const h = heading();
+      const h = heading() ?? document.querySelector('main.content');
       h?.setAttribute('tabindex', '-1');
       h?.focus();
     };

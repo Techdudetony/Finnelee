@@ -46,7 +46,7 @@ export default function NetWorth({ store, goTo, openTask }) {
 
   const totals = netWorthTotals(accounts, debts);
   const series = useMemo(() => historySeries(settings), [settings]);
-  const history = netWorthHistoryState(series.length, accounts.length); // the line needs 2 months
+  const history = netWorthHistoryState(series.length, accounts.length, debts); // the line needs 2 months
   const change = changeSinceLastSnapshot(settings, totals.netWorth);
   const liquid = liquidSavings(accounts);
 
@@ -114,9 +114,17 @@ export default function NetWorth({ store, goTo, openTask }) {
             progress={history}
             title="Your history starts here"
             compact
+            action={
+              history.needsAccount && (
+                <button type="button" className="btn" onClick={() => openTask('networth', ['add-account'], 'Add an account')}>
+                  Add an account
+                </button>
+              )
+            }
           >
-            Finnelee saves one snapshot a month when your balances change. The chart appears once{' '}
-            {history.need} months are recorded ({history.have} so far), so update a balance next month.
+            {history.needsAccount
+              ? `Your Debt Planner debts already count toward net worth. Snapshots start once you add an account, such as checking or savings, and the chart appears after ${history.need} months (${history.have} so far).`
+              : `Finnelee saves one snapshot a month when your balances change. The chart appears once ${history.need} months are recorded (${history.have} so far), so update a balance next month.`}
           </EmptyState>
         </section>
       )}

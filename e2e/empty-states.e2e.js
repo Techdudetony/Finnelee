@@ -266,6 +266,65 @@ test("a page that fails to draw is contained, and saved data is untouched", asyn
   expect(await readSlice(page, "goals")).toBe(before);
 });
 
+test("debt-only users see net worth history start, not a hidden card", async ({
+  page,
+}) => {
+  await signUp(page);
+  const debt = {
+    id: "d1",
+    name: "Car loan",
+    balance: 8000,
+    apr: 6.5,
+    minPayment: 250,
+  };
+  await store(page, "debts", [debt]);
+  await goTo(page, "Net Worth");
+  const history = page.locator(".card", { hasText: "Net worth over time" });
+  const notYet = history.locator(".empty-insufficient");
+  await expect(notYet).toContainText("Your Debt Planner debts already count");
+  await expect(notYet).toContainText("(0 so far)");
+  await expect(history.locator(".recharts-wrapper")).toHaveCount(0);
+
+  // One snapshot from an earlier month (an account that was later removed): still
+  // short of the two the chart needs.
+  const settings = JSON.parse(await readSlice(page, "settings"));
+  await store(page, "settings", {
+    ...settings,
+    netWorthHistory: { "2026-10": { assets: 0, liabilities: 8000 } },
+  });
+  await goTo(page, "Net Worth");
+  await expect(notYet).toContainText("(1 so far)");
+  await expect(history.locator(".recharts-wrapper")).toHaveCount(0);
+
+  await notYet.getByRole("button", { name: "Add an account" }).click();
+  await expect.poll(() => focused(page)).toBe("add-account");
+});
+
+test("going to Dashboard from the palette puts focus on its greeting", async ({
+  page,
+}) => {
+  await signUp(page);
+  await goTo(page, "Bills");
+  const opener = page.locator(".nav-item", { hasText: "Goals" });
+  await opener.focus();
+  await page.keyboard.press("Control+k");
+  await page.keyboard.type("Dashboard");
+  await page.keyboard.press("Enter");
+  await expect(heading(page)).toHaveText(/^Good/);
+  await expect(heading(page)).toBeFocused();
+  await page.waitForTimeout(400); // the closing palette must not pull focus back
+  await expect(heading(page)).toBeFocused();
+  await expect(opener).not.toBeFocused();
+
+  // When the Dashboard can't be drawn there's no greeting: focus goes to the error.
+  await store(page, "goals", [null]);
+  await goTo(page, "Bills");
+  await page.keyboard.press("Control+k");
+  await page.keyboard.type("Dashboard");
+  await page.keyboard.press("Enter");
+  await expect(page.locator("main .empty-error")).toBeFocused();
+});
+
 test("the illustration fades in at Full motion only", async ({ page }) => {
   await signUp(page);
   const art = page.locator("main .empty-art").first();

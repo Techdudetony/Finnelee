@@ -138,12 +138,40 @@ describe("netWorthHistoryState", () => {
       state: "insufficient",
       have: 1,
       need: 2,
+      needsAccount: false,
     });
     expect(netWorthHistoryState(0, 1)).toEqual({
       state: "insufficient",
       have: 0,
       need: 2,
+      needsAccount: false,
     });
+  });
+  it("counts Debt Planner debts: debt-only users see the insufficient state", () => {
+    const debts = [{ id: "d", name: "Car loan", balance: 8000 }];
+    expect(netWorthHistoryState(0, 0, debts)).toEqual({
+      state: "insufficient",
+      have: 0,
+      need: 2,
+      needsAccount: true,
+    });
+    expect(netWorthHistoryState(1, 0, debts)).toMatchObject({
+      state: "insufficient",
+      have: 1,
+      needsAccount: true,
+    });
+  });
+  it("ignores paid-off debts with a $0 balance", () => {
+    const debts = [{ id: "d", name: "Old card", balance: 0 }];
+    expect(netWorthHistoryState(0, 0, debts).state).toBe("hidden");
+  });
+  it("only asks for an account when there is none", () => {
+    expect(netWorthHistoryState(1, 1, [{ balance: 500 }]).needsAccount).toBe(
+      false,
+    );
+  });
+  it("still needs 2 snapshots with debts", () => {
+    expect(netWorthHistoryState(2, 0, [{ balance: 500 }]).state).toBe("ready");
   });
   it("is ready with 2 or more months, even after accounts are removed", () => {
     expect(netWorthHistoryState(2, 1).state).toBe("ready");
