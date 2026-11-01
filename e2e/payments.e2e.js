@@ -217,3 +217,61 @@ test("without a pay schedule: 14-day window, no paydays and no projection", asyn
     "Counting payments in the next 14 days",
   );
 });
+
+/** Changes one stored slice for this user, then reloads. */
+async function editSlice(page, slice, change) {
+  await page.evaluate(
+    ([slice, change]) => {
+      const key = Object.keys(localStorage).find((k) =>
+        k.endsWith(`.${slice}`),
+      );
+      const value = JSON.parse(localStorage.getItem(key));
+      localStorage.setItem(
+        key,
+        JSON.stringify(new Function("v", change)(value)),
+      );
+    },
+    [slice, change],
+  );
+  await page.reload();
+  await closeDialogs(page);
+}
+
+test("an unknown payment links to the page where it's entered", async ({
+  page,
+}) => {
+  // A standalone bill with no amount, due in the window: Bills, not Net Worth.
+  await editSlice(
+    page,
+    "bills",
+    "return [...v, { id: 'gym', name: 'Gym', amount: '', dueDay: 4, category: 'Health' }]",
+  );
+  await expect(spending(page)).toContainText("Estimate incomplete");
+  await spending(page)
+    .getByRole("button", {
+      name: "Gym payment unknown. Add it to finish this estimate.",
+    })
+    .click();
+  await expect(page.locator(".page-title")).toHaveText("Bills");
+});
+
+test("after midnight the runway shows the new day's dates and events together", async ({
+  page,
+}) => {
+  // Due on the 16th: one day past today's 14-day window (Nov 2-15), inside tomorrow's.
+  await editSlice(
+    page,
+    "bills",
+    "return [...v, { id: 'gym', name: 'Gym', amount: 30, dueDay: 16, category: 'Health' }]",
+  );
+  await expect(runway(page).locator(".runway-list")).not.toContainText("Gym");
+  await page.clock.setFixedTime(new Date("2026-11-03T00:00:05"));
+  await runway(page).locator(".runway-day").nth(1).click(); // any rerender
+  await expect(
+    runway(page).locator(".runway-day").first(),
+  ).toHaveAccessibleName(/^Nov 3, 2026/);
+  await expect(runway(page).locator(".runway-day").last()).toHaveAccessibleName(
+    "Nov 16, 2026: Gym, $30.00",
+  );
+  await expect(runway(page).locator(".runway-list")).toContainText("Gym");
+});

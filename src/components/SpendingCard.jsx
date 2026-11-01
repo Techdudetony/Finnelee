@@ -1,8 +1,14 @@
 import { useMemo } from "react";
 import Icon from "./Icon";
 import Status from "./Status";
-import { formatCurrency, formatDate } from "../utils/format";
+import {
+  formatCurrency,
+  formatDate,
+  parseDate,
+  toISODate,
+} from "../utils/format";
 import { spendingEstimate } from "../utils/health";
+import { buildObligations, paymentsOwed } from "../utils/obligations";
 
 /**
  * "This month's spending room": the budget estimate and the estimated spendable amount,
@@ -11,17 +17,21 @@ import { spendingEstimate } from "../utils/health";
  */
 export default function SpendingCard({ store, goTo }) {
   const { transactions, bills, goals, debts, accounts, settings } = store;
+  const day = toISODate(new Date()); // recomputes after midnight
   const est = useMemo(
     () =>
-      spendingEstimate({
-        transactions,
-        bills,
-        goals,
-        debts,
-        accounts,
-        settings,
-      }),
-    [transactions, bills, goals, debts, accounts, settings],
+      spendingEstimate(
+        {
+          transactions,
+          bills,
+          goals,
+          debts,
+          accounts,
+          settings,
+        },
+        parseDate(day),
+      ),
+    [transactions, bills, goals, debts, accounts, settings, day],
   );
   const { spendable, budget, headline, window: win } = est;
 
@@ -35,9 +45,28 @@ export default function SpendingCard({ store, goTo }) {
         ? { label: budget.label, amount: budget.amount }
         : null;
 
-  // "Mortgage payment unknown": open the page where that payment is entered.
-  const missingPage = (name) =>
-    debts.some((d) => d.name === name) ? "debt" : "networth";
+  // "Mortgage payment unknown": each unknown payment links to the page where its amount
+  // is entered, found from the record itself (ids), never by matching names.
+  const unknown = useMemo(() => {
+    if (spendable.status !== "incomplete") return [];
+    const owed = paymentsOwed(
+      buildObligations({ debts, accounts, bills }),
+      win.start,
+      win.end,
+    );
+    const found = new Map();
+    for (const i of owed.items.filter((x) => x.amount === null)) {
+      const page =
+        i.bill || i.key.startsWith("bill:")
+          ? "bills"
+          : i.key.startsWith("debt:")
+            ? "debt"
+            : "networth";
+      const name = i.bill ?? i.name;
+      found.set(`${page}:${name}`, { name, page });
+    }
+    return [...found.values()];
+  }, [spendable.status, debts, accounts, bills, win.start, win.end]);
 
   return (
     <section className="card spend-card" aria-labelledby="spend-title">
@@ -68,12 +97,12 @@ export default function SpendingCard({ store, goTo }) {
       )}
       {spendable.status === "incomplete" && (
         <div className="stack spend-incomplete">
-          {spendable.missing.map((name) => (
+          {unknown.map(({ name, page }) => (
             <button
-              key={name}
+              key={`${page}:${name}`}
               type="button"
               className="link-btn"
-              onClick={() => goTo(missingPage(name))}
+              onClick={() => goTo(page)}
             >
               {name} payment unknown. Add it to finish this estimate.
             </button>

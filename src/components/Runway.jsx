@@ -21,11 +21,13 @@ const dayNumber = (iso) => Number(iso.slice(8));
  */
 export default function Runway({ store, goTo }) {
   const { bills, debts, accounts, settings } = store;
+  // One calendar day for both the events and the dates shown: after midnight the next
+  // render recomputes both, so they never mix two days.
+  const start = toISODate(new Date());
   const run = useMemo(
-    () => runwayEvents({ bills, debts, accounts, settings }),
-    [bills, debts, accounts, settings],
+    () => runwayEvents({ bills, debts, accounts, settings }, parseDate(start)),
+    [bills, debts, accounts, settings, start],
   );
-  const start = toISODate(new Date()); // local calendar day, same as runwayEvents
   const dates = Array.from({ length: DAYS }, (_, i) => addDays(start, i));
   const byDate = new Map(run.days.map((d) => [d.date, d]));
   const payOn = new Map(run.paydays.map((p) => [p.date, p]));
