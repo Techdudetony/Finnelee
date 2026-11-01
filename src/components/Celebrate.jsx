@@ -65,7 +65,7 @@ export function useCelebration() {
 /**
  * The confetti burst, at Full motion only. Drawn on one canvas over the page that
  * ignores clicks and is hidden from screen readers. Animation frames run only while
- * the burst falls; switching Motion below Full or leaving the page stops it at once.
+ * the burst falls; switching Motion below Full or leaving the page ends it for good.
  */
 function Confetti({ x, y, onDone }) {
   const motion = useMotion();
@@ -75,7 +75,9 @@ function Confetti({ x, y, onDone }) {
   const full = motion === "full";
 
   useEffect(() => {
-    if (!full) return;
+    // Below Full the burst is dropped, not kept: turning Motion back up later must not
+    // start confetti for an old celebration.
+    if (!full) return done.current();
     const canvas = ref.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return done.current();

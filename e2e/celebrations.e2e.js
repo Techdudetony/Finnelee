@@ -51,6 +51,14 @@ const nav = (page, name) =>
 const announced = (page) => page.locator("main [role=status].sr-only");
 const confetti = (page) => page.locator("canvas.confetti");
 
+/** Fails if a confetti canvas shows up at any point during `ms` (no retry hides it). */
+async function expectNoConfettiFor(page, ms = 1500) {
+  for (let t = 0; t < ms; t += 100) {
+    expect(await confetti(page).count()).toBe(0);
+    await page.waitForTimeout(100);
+  }
+}
+
 const emergency = {
   id: "ef",
   name: "Emergency fund",
@@ -131,6 +139,24 @@ test("with reduced motion: no confetti, but the glow and the announcement", asyn
   await expect(page.locator(".card.celebrate-glow")).toHaveCount(1);
   await page.waitForTimeout(300);
   await expect(confetti(page)).toHaveCount(0);
+
+  // Turning reduced motion off afterwards doesn't start confetti for that old goal.
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await expectNoConfettiFor(page);
+});
+
+test("a burst stopped by reduced motion mid-way doesn't come back", async ({
+  page,
+}) => {
+  await signUp(page);
+  await seedGoals(page, [emergency]);
+  await nav(page, "Goals");
+  await addMoney(page, "Emergency fund", 900);
+  await expect(confetti(page)).toHaveCount(1);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(confetti(page)).toHaveCount(0);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await expectNoConfettiFor(page);
 });
 
 test("Motion Off: the announcement only", async ({ page }) => {
