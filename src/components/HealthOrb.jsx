@@ -5,7 +5,8 @@ import { useColorScheme } from '../hooks/useColorScheme';
 import { useMotion } from '../hooks/useMotion';
 import { getPalette } from '../utils/colors';
 import { healthScore } from '../utils/health';
-import { MAX_DPR, createOrbLoop, drawOrb, orbSegments } from '../utils/orb';
+import { FILL_MS, MAX_DPR, createOrbLoop, drawOrb, orbSegments } from '../utils/orb';
+import { failOrb3d, orb3dAllowed } from '../utils/orb3d';
 
 // Which page improves each pillar (the pillar's button opens it).
 const PILLAR_PAGE = {
@@ -90,7 +91,7 @@ export default function HealthOrb({ store, goTo }) {
   return (
     <section className="card orb-card" aria-labelledby="orb-title">
       <div className="orb-hero">
-        <OrbCanvas health={health} />
+        <OrbCanvas health={health} on3d={settings.orb3d} />
         <div className="orb-summary">
           <h2 id="orb-title">Financial health</h2>
           {health.band && <Status tone={tone}>{health.band}</Status>}
@@ -171,8 +172,9 @@ function PillarRow({ pillar: p, color, goTo }) {
  * The canvas. Its label carries the same words as the text beside it, and the score is
  * HTML on top (crisp, never animated). At Full motion the liquid moves whenever the orb
  * is on screen in a visible tab; offscreen, hidden, Calm or Off, no frames run.
+ * `on3d` (Settings > 3D Orb) adds the experimental WebGL liquid on top (utils/orbGl.js).
  */
-function OrbCanvas({ health }) {
+function OrbCanvas({ health, on3d }) {
   const canvasRef = useRef(null);
   const loopRef = useRef(null);
   const visibleRef = useRef(true);
@@ -180,6 +182,8 @@ function OrbCanvas({ health }) {
   const full = useMotion() === 'full';
   const fullRef = useRef(full);
   fullRef.current = full;
+  const glRef = useRef(null); // the WebGL Orb while it runs
+  const want3d = orb3dAllowed(on3d, full);
 
   const segments = useMemo(() => orbSegments(health.pillars), [health]);
   const colors = useMemo(() => {
@@ -202,8 +206,9 @@ function OrbCanvas({ health }) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const loop = createOrbLoop({
+      // With the 3D Orb running, its frame() draws instead (the flat ring plus the 3D glass).
       render: (progress, phase, lean) =>
-        drawOrb(ctx, {
+        (glRef.current?.frame ?? drawOrb)(ctx, {
           size: ORB_SIZE,
           score: health.score,
           segments,
@@ -227,6 +232,29 @@ function OrbCanvas({ health }) {
     if (full) loopRef.current?.resume();
     else loopRef.current?.redraw();
   }, [full]);
+
+  // 3D Orb: after the fill, load the WebGL Orb and warm it up out of sight; the flat Orb
+  // stays until it has drawn and passed. Calm, Off or leaving the Dashboard releases it.
+  // A failure keeps the flat Orb for the rest of the session (Settings says why).
+  useEffect(() => {
+    if (!want3d) return undefined;
+    let gl;
+    let on = true;
+    const timer = setTimeout(() => {
+      import('../utils/orbGl').then(
+        ({ startOrbGl }) => {
+          if (on) glRef.current = gl = startOrbGl(canvasRef.current.parentNode, failOrb3d);
+        },
+        () => failOrb3d('unsupported'),
+      );
+    }, FILL_MS);
+    return () => {
+      on = false;
+      clearTimeout(timer);
+      gl?.dispose();
+      glRef.current = null;
+    };
+  }, [want3d]);
 
   // Offscreen or a hidden tab stops the loop; coming back starts it again.
   useEffect(() => {
