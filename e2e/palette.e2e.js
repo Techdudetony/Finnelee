@@ -151,6 +151,29 @@ test("tasks open the page with focus in the field, once", async ({ page }) => {
   await expect(page.locator('[data-focus-target="add-account"]')).toBeFocused();
 });
 
+test("import a statement after an earlier import focuses Import another file", async ({
+  page,
+}) => {
+  await signUp(page);
+  await page.locator(".nav-item", { hasText: "Transactions" }).click();
+  await page.locator('[data-focus-target="import-statement"]').setInputFiles({
+    name: "bank.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Date,Description,Amount\n2026-10-30,Coffee,-4.50\n"),
+  });
+  await page.getByRole("button", { name: /^Import 1 transaction/ }).click();
+  await expect(
+    page.getByRole("button", { name: "Import another file" }),
+  ).toBeVisible();
+
+  await page.keyboard.press(`${MOD}+k`);
+  await search(page).fill("import");
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("button", { name: "Import another file" }),
+  ).toBeFocused();
+});
+
 test("checking balance focuses the first cash account when there is one", async ({
   page,
 }) => {

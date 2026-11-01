@@ -33,7 +33,8 @@ const TASKS = [
     id: "task:import-statement",
     label: "Import a statement",
     page: "transactions",
-    focus: ["import-statement"],
+    // The file box; after an import, "Import another file"; mid-import, the section.
+    focus: ["import-statement", "import-another", "import-section"],
     aliases: ["csv", "pdf", "upload", "bank statement"],
   },
   {

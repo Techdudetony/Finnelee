@@ -146,7 +146,7 @@ export default function TransactionImport({ store }) {
 
   return (
     <section className="card">
-      <h2>Import transactions</h2>
+      <h2 data-focus-target="import-section" tabIndex={-1}>Import transactions</h2>
 
       {step === 'pick' && (
         <>
@@ -285,7 +285,7 @@ export default function TransactionImport({ store }) {
             </p>
           )}
           <div>
-            <button className="btn" onClick={reset}>
+            <button className="btn" onClick={reset} data-focus-target="import-another">
               Import another file
             </button>
           </div>
