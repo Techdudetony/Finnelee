@@ -17,32 +17,15 @@ import {
 export default function PaySchedule({ store }) {
   const { settings, setSettings } = store;
   const id = useId();
-  const [form, setForm] = useState(() => scheduleForm(settings));
-  const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false); // "Saved" note until the next edit
+  const [formKey, setFormKey] = useState(0); // a new key resets the form after Remove
   const upcoming = upcomingPaydays(settings, new Date());
-  const field = (name) => (e) => {
-    setForm((f) => ({ ...f, [name]: e.target.value }));
-    setSaved(false);
-  };
-
-  const save = (e) => {
-    e.preventDefault();
-    const result = readScheduleForm(form);
-    if (result.error) return setError(result.error);
-    setSettings((prev) => ({ ...prev, paySchedule: result.schedule }));
-    setError("");
-    setSaved(true);
-  };
 
   const remove = () => {
     setSettings((prev) => {
       const { paySchedule: _old, ...rest } = prev; // _old: removed on purpose
       return rest;
     });
-    setForm(scheduleForm({}));
-    setError("");
-    setSaved(false);
+    setFormKey((k) => k + 1);
   };
 
   return (
@@ -55,6 +38,56 @@ export default function PaySchedule({ store }) {
         Optional. Finnelee uses it to count bills up to your next payday instead
         of the next 14 days. Paydays are only ever taken from here.
       </p>
+      <PayScheduleForm
+        key={formKey}
+        settings={settings}
+        setSettings={setSettings}
+      />
+
+      {upcoming.length > 0 ? (
+        <div className="row pay-upcoming">
+          <span className="small">
+            Next paydays: {upcoming.map(formatDate).join(", ")}
+          </span>
+          <span className="spacer" />
+          <button type="button" className="btn" onClick={remove}>
+            Remove schedule
+          </button>
+        </div>
+      ) : (
+        <p className="small muted" style={{ margin: 0 }}>
+          No pay schedule saved, so no paydays are shown.
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The pay schedule fields, shared by the Bills card and the optional step after sign-up.
+ * Saves only a complete schedule; onSaved runs after a save (the sign-up step closes).
+ */
+export function PayScheduleForm({ settings, setSettings, onSaved, children }) {
+  const [form, setForm] = useState(() => scheduleForm(settings));
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false); // "Saved" note until the next edit
+  const field = (name) => (e) => {
+    setForm((f) => ({ ...f, [name]: e.target.value }));
+    setSaved(false);
+  };
+
+  const save = (e) => {
+    e.preventDefault();
+    const result = readScheduleForm(form);
+    if (result.error) return setError(result.error);
+    setSettings((prev) => ({ ...prev, paySchedule: result.schedule }));
+    setError("");
+    setSaved(true);
+    onSaved?.();
+  };
+
+  return (
+    <>
       <form className="form" onSubmit={save} noValidate>
         <label className="field">
           How often
@@ -109,6 +142,7 @@ export default function PaySchedule({ store }) {
           />
         </label>
         <button className="btn btn-primary">Save schedule</button>
+        {children /* extra buttons, e.g. "Skip for now" */}
       </form>
 
       <div role="status" className="pay-result">
@@ -122,22 +156,6 @@ export default function PaySchedule({ store }) {
           </Status>
         ) : null}
       </div>
-
-      {upcoming.length > 0 ? (
-        <div className="row pay-upcoming">
-          <span className="small">
-            Next paydays: {upcoming.map(formatDate).join(", ")}
-          </span>
-          <span className="spacer" />
-          <button type="button" className="btn" onClick={remove}>
-            Remove schedule
-          </button>
-        </div>
-      ) : (
-        <p className="small muted" style={{ margin: 0 }}>
-          No pay schedule saved, so no paydays are shown.
-        </p>
-      )}
-    </section>
+    </>
   );
 }
