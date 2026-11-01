@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useAuth } from './auth/AuthContext';
 import { userKey } from './auth/userStorage';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useSwipeToClose } from './hooks/useSwipeToClose';
-import { setSavedMotion, transitionTo } from './utils/motion';
+import { resolveMotion, setSavedMotion, transitionTo } from './utils/motion';
+import { buildCommands, isPaletteShortcut } from './utils/commands';
 import { emptyData } from './data/sampleData';
 import { syncBudgets } from './utils/budgeting';
 import { recordSnapshot } from './utils/netWorth';
@@ -13,6 +14,7 @@ import AuthScreen from './components/AuthScreen';
 import WelcomeSummary from './components/WelcomeSummary';
 import RecoveryKeyDialog from './components/RecoveryKeyDialog';
 import PayScheduleStep from './components/PayScheduleStep';
+import CommandPalette, { shortcutLabel } from './components/CommandPalette';
 import Dashboard from './components/Dashboard';
 import NetWorth from './components/NetWorth';
 import Transactions from './components/Transactions';
@@ -195,6 +197,88 @@ function FinanceApp({ user }) {
     setCategories,
   };
  
+  // ---------- Command palette (Ctrl K, or ⌘K on a Mac) ----------
+  // Opens pages, puts focus in a form field, or changes Motion. It never edits records.
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const paletteOpener = useRef(null); // focus goes back here when it closes
+  const commands = useMemo(() => buildCommands(PAGES), []);
+  const [focusRequest, setFocusRequest] = useState(null); // { page, focus } from a task
+  const [notice, setNotice] = useState(''); // read out after a Motion change
+  const openPalette = () => {
+    paletteOpener.current = document.activeElement;
+    setPaletteOpen(true);
+  };
+  const restoreFocus = () => {
+    const back = paletteOpener.current;
+    requestAnimationFrame(() => back?.isConnected && back.focus());
+  };
+  const closePalette = () => {
+    setPaletteOpen(false);
+    restoreFocus();
+  };
+  const runCommand = ({ action }) => {
+    setPaletteOpen(false);
+    if (action.type === 'motion') {
+      setSettings((s) => ({ ...s, motion: action.level }));
+      const name = { full: 'Full', calm: 'Calm', off: 'Off' }[action.level];
+      setNotice(
+        resolveMotion(action.level) === action.level
+          ? `Motion set to ${name}.`
+          : `Motion set to ${name}. Your device asks for reduced motion, so it plays as Calm.`,
+      );
+      restoreFocus();
+      return;
+    }
+    setFocusRequest({ page: action.page, focus: action.focus ?? [] });
+    goTo(action.page);
+  };
+
+  // The shortcut works only here, in the signed-in app, and not while another dialog or
+  // the phone menu is open. Pressed again, it closes the palette.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!isPaletteShortcut(e)) return;
+      if (paletteOpen) {
+        e.preventDefault();
+        closePalette();
+      } else if (!drawer && !document.querySelector('dialog[open]')) {
+        e.preventDefault();
+        openPalette();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  });
+
+  // A task's field gets focus once its page is showing, then the request is cleared.
+  // No field (a plain "Go to"): the page's heading gets focus instead.
+  useEffect(() => {
+    if (!focusRequest) return undefined;
+    if (focusRequest.page !== page) {
+      // The page can switch a frame later (View Transitions); give up after 2 seconds.
+      const timer = setTimeout(() => setFocusRequest(null), 2000);
+      return () => clearTimeout(timer);
+    }
+    let frame = 0;
+    let tries = 0;
+    const attempt = () => {
+      const main = document.querySelector('main.content');
+      const field = focusRequest.focus
+        .map((name) => main?.querySelector(`[data-focus-target="${name}"]`))
+        .find(Boolean);
+      if (!field && focusRequest.focus.length > 0 && tries++ < 10) {
+        frame = requestAnimationFrame(attempt); // not rendered yet: try next frame
+        return;
+      }
+      const target = field ?? main?.querySelector('h1');
+      if (target && !field) target.setAttribute('tabindex', '-1');
+      target?.focus();
+      setFocusRequest(null);
+    };
+    frame = requestAnimationFrame(attempt);
+    return () => cancelAnimationFrame(frame);
+  }, [focusRequest, page]);
+
   const current = PAGES.find((p) => p.id === page) ?? PAGES[0];
   const { Component } = current; // Capitalized so JSX treats it as a component
  
@@ -214,6 +298,14 @@ function FinanceApp({ user }) {
         <div className="brand" style={{ padding: 0 }}>
           <BrandMark /> Finnelee
         </div>
+        <button
+          className="btn-icon palette-phone"
+          onClick={openPalette}
+          aria-label="Search pages and tasks"
+          aria-haspopup="dialog"
+        >
+          <Icon name="search" size={20} />
+        </button>
       </header>
       {drawer && (
         <div
@@ -239,6 +331,18 @@ function FinanceApp({ user }) {
             </button>
           )}
         </div>
+        {!isMobile && (
+          <button
+            className="palette-open"
+            onClick={openPalette}
+            aria-haspopup="dialog"
+            aria-keyshortcuts="Control+K Meta+K"
+          >
+            <Icon name="search" size={18} />
+            <span>Search</span>
+            <kbd>{shortcutLabel()}</kbd>
+          </button>
+        )}
         <nav className="nav" aria-label="Main" ref={navRef}>
           <span
             className="nav-indicator"
@@ -299,6 +403,12 @@ function FinanceApp({ user }) {
       ) : (
         showSummary && <WelcomeSummary store={store} goTo={goTo} onClose={closeSummary} />
       )}
+      {paletteOpen && (
+        <CommandPalette commands={commands} onRun={runCommand} onClose={closePalette} />
+      )}
+      <div role="status" className="sr-only">
+        {notice}
+      </div>
     </div>
   );
 }

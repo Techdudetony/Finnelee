@@ -139,7 +139,12 @@ export default function NetWorth({ store, goTo }) {
         <form className="form" onSubmit={addAccount}>
           <label className="field">
             Name
-            <input value={form.name} onChange={update('name')} placeholder="e.g. Ally savings" />
+            <input
+              data-focus-target="add-account"
+              value={form.name}
+              onChange={update('name')}
+              placeholder="e.g. Ally savings"
+            />
           </label>
           <label className="field">
             Type
@@ -427,6 +432,8 @@ function BalanceInput({ account, onSave }) {
         onChange={change}
         onBlur={() => setDraft(null)}
         aria-label={`${account.name} balance`}
+        // The palette's "Update your checking balance" focuses the first cash account.
+        data-focus-target={account.type === 'asset' && account.kind === 'cash' ? 'cash-balance' : undefined}
         aria-invalid={Boolean(problem)}
         style={{ width: '100%' }}
       />

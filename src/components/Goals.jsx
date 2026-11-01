@@ -54,7 +54,7 @@ export default function Goals({ store }) {
         <h2>New goal</h2>
         <p className="sub">Saving for everything at once? You need {formatCurrency(totalMonthly)}/month across all goals.</p>
         <form className="form" onSubmit={addGoal}>
-          <label className="field">Name<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. New laptop" /></label>
+          <label className="field">Name<input data-focus-target="add-goal" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. New laptop" /></label>
           <label className="field">Target<input type="number" min="1" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} /></label>
           <label className="field">Already saved<input type="number" min="0" value={form.saved} onChange={(e) => setForm({ ...form, saved: e.target.value })} /></label>
           <label className="field">Deadline<input type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} /></label>

@@ -91,6 +91,7 @@ export default function Transactions({ store }) {
             Description
             <input
               name="description"
+              data-focus-target="add-transaction"
               value={form.description}
               onChange={updateForm}
               placeholder="e.g. Coffee"

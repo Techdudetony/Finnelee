@@ -156,7 +156,12 @@ export default function TransactionImport({ store }) {
           </p>
           <label className="field">
             CSV (up to 5 MB) or PDF (up to 10 MB)
-            <input type="file" accept=".csv,.pdf,text/csv,application/pdf" onChange={chooseFile} />
+            <input
+              type="file"
+              accept=".csv,.pdf,text/csv,application/pdf"
+              onChange={chooseFile}
+              data-focus-target="import-statement"
+            />
           </label>
           {error && (
             <Status tone="critical" as="p" role="alert" style={{ marginBottom: 0 }}>

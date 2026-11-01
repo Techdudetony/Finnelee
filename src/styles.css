@@ -2029,3 +2029,107 @@ h2 > .icon {
 :root[data-motion='calm'] .celebrate-glow::after {
   animation-duration: 400ms;
 }
+
+/* ---------- Command palette (CommandPalette.jsx) ---------- */
+/* Opens near the top, like a search box; its own short entrance (150 ms). */
+.palette {
+  --dur: 150ms;
+  width: min(560px, calc(100vw - 32px));
+  margin: 12vh auto auto;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: min(520px, calc(100vh - 24vh));
+}
+.palette:not([open]) {
+  display: none;
+}
+.palette-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+}
+.palette-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 1.05rem;
+  padding: 16px 0;
+  box-shadow: none;
+}
+.palette-search input:focus {
+  outline: none;
+}
+.palette-search:focus-within {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+}
+.palette-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.palette-option.is-active {
+  background: var(--accent-soft);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.palette-group {
+  font-size: 0.8rem;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.palette-empty {
+  margin: 0;
+  padding: 16px;
+}
+.palette-hint {
+  margin: 0;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+}
+/* The sidebar's Search button (desktop) and the phone top bar's search icon. */
+.palette-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  cursor: pointer;
+}
+.palette-open:hover {
+  color: var(--text);
+}
+.palette-open kbd {
+  margin-left: auto;
+  font-family: inherit;
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.palette-phone {
+  margin-left: auto;
+}
