@@ -11,7 +11,7 @@ import { addToGoal, goalMessage, goalReached } from '../utils/celebrate';
 
 const emptyGoal = { name: '', target: '', saved: '', deadline: '' };
 
-export default function Goals({ store }) {
+export default function Goals({ store, openTask }) {
   const { goals, setGoals } = store;
   const isNew = useNewItems(goals); // a goal added after the page opened fades in
   const [form, setForm] = useState(emptyGoal);
@@ -64,7 +64,12 @@ export default function Goals({ store }) {
 
       <div className="grid grid-2">
         {goals.length === 0 && (
-          <EmptyState icon="goals" title="No goals yet" className="card">
+          <EmptyState
+            icon="goals"
+            title="No goals yet"
+            className="card"
+            action={<button type="button" className="btn" onClick={() => openTask('goals', ['add-goal'], 'Add a goal')}>Add a goal</button>}
+          >
             Add one above, like an emergency fund or a trip.
           </EmptyState>
         )}

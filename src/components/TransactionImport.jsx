@@ -47,6 +47,7 @@ export default function TransactionImport({ store }) {
   const [step, setStep] = useState('pick'); // 'pick' -> 'reading' -> 'review' -> 'done'
   const [file, setFile] = useState(null); // { name, size }
   const [error, setError] = useState('');
+  const [progress, setProgress] = useState(null); // PDF only: { done, total } pages read
   // { kind: 'csv', parsed } or { kind: 'pdf', statement } (statement from parseStatement)
   const [source, setSource] = useState(null);
   const [mapping, setMapping] = useState(null); // CSV only
@@ -77,6 +78,7 @@ export default function TransactionImport({ store }) {
       return;
     }
     setStep('reading');
+    setProgress(null);
     try {
       if (fileKind(picked.name) === 'csv') {
         const csv = parseCSV(await picked.text());
@@ -86,7 +88,9 @@ export default function TransactionImport({ store }) {
       } else {
         // Dynamic import: PDF.js only downloads when someone actually picks a PDF.
         const { readPdfFile } = await import('../utils/pdfText');
-        const statement = parseStatement(await readPdfFile(picked));
+        const statement = parseStatement(
+          await readPdfFile(picked, (done, total) => setProgress({ done, total })),
+        );
         if (statement.fatal) throw new Error(statement.fatal);
         setSource({ kind: 'pdf', statement });
       }
@@ -173,9 +177,25 @@ export default function TransactionImport({ store }) {
       )}
 
       {step === 'reading' && (
-        <p className="muted loading-row" role="status">
-          <span className="spinner" aria-hidden="true" /> Reading {file.name}…
-        </p>
+        // The status line is announced once; the page count updates visually (and in the
+        // progress bar's value), so a screen reader isn't interrupted for every page.
+        <div className="import-progress">
+          <p className="muted loading-row" role="status">
+            <span className="spinner" aria-hidden="true" /> Reading {file.name}…
+          </p>
+          {progress && (
+            <>
+              <progress
+                value={progress.done}
+                max={progress.total}
+                aria-label={`Pages read from ${file.name}`}
+              />
+              <span className="small muted" aria-hidden="true">
+                Page {progress.done} of {progress.total}
+              </span>
+            </>
+          )}
+        </div>
       )}
 
       {step === 'review' && (

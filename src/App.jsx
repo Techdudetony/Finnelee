@@ -15,6 +15,7 @@ import WelcomeSummary from './components/WelcomeSummary';
 import RecoveryKeyDialog from './components/RecoveryKeyDialog';
 import PayScheduleStep from './components/PayScheduleStep';
 import CommandPalette, { shortcutLabel } from './components/CommandPalette';
+import PageErrorBoundary from './components/PageErrorBoundary';
 import Dashboard from './components/Dashboard';
 import NetWorth from './components/NetWorth';
 import Transactions from './components/Transactions';
@@ -237,9 +238,14 @@ function FinanceApp({ user }) {
       restoreFocus();
       return;
     }
+    openTask(action.page, action.focus ?? [], label);
+  };
+  // Opens a page with focus in one of its fields (`focus`: data-focus-target names, first
+  // match wins). Used by palette tasks and by the buttons in empty states.
+  const openTask = (pageId, focus, label) => {
     focusPending.current = true;
-    setFocusRequest({ page: action.page, focus: action.focus ?? [], label });
-    goTo(action.page);
+    setFocusRequest({ page: pageId, focus, label });
+    goTo(pageId);
   };
 
   // The shortcut works only here, in the signed-in app, and not while another dialog or
@@ -266,10 +272,13 @@ function FinanceApp({ user }) {
   useEffect(() => {
     if (!focusRequest) return undefined;
     const { page: target, focus, label } = focusRequest;
-    const heading = () => document.querySelector('main.content h1');
+    // Where "Go to" lands: the page's h1 (on Dashboard, its greeting), or the error message
+    // when the page couldn't be drawn. The page area itself is the last resort.
+    const heading = () =>
+      document.querySelector('main.content h1') ?? document.querySelector('main.content .empty-error');
     const onPage = () => pageNow.current === target;
     const focusHeading = () => {
-      const h = heading();
+      const h = heading() ?? document.querySelector('main.content');
       h?.setAttribute('tabindex', '-1');
       h?.focus();
     };
@@ -407,7 +416,9 @@ function FinanceApp({ user }) {
         <div key={page} className="page-enter">
           {/* The dashboard renders its own greeting, so skip the generic title there */}
           {page !== 'dashboard' && <h1 className="page-title">{current.label}</h1>}
-          <Component store={store} goTo={goTo} openSummary={() => setShowSummary(true)} />
+          <PageErrorBoundary label={current.label} onHome={page !== 'dashboard' ? () => goTo('dashboard') : null}>
+            <Component store={store} goTo={goTo} openTask={openTask} openSummary={() => setShowSummary(true)} />
+          </PageErrorBoundary>
         </div>
       </main>
  

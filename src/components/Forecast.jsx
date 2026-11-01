@@ -9,8 +9,10 @@ import { formatCurrency } from '../utils/format';
 import { monthlySeries, predictNext, projectSavings } from '../utils/finance';
 import { liquidSavings, savingsBalance } from '../utils/netWorth';
 import Status from './Status';
+import EmptyState from './EmptyState';
+import { projectionState, spendingForecastState } from '../utils/emptyStates';
 
-export default function Forecast({ store }) {
+export default function Forecast({ store, openTask }) {
   const { transactions, settings, setSettings, accounts } = store;
   const palette = getPalette(useColorScheme());
   const animate = useMotion() === 'full'; // charts draw in at Full motion only
@@ -57,6 +59,8 @@ export default function Forecast({ store }) {
   // Repeat the last real value under "forecast" so the dashed line connects to the solid one.
   spendData[spendData.length - 2].forecast = spendData[spendData.length - 2].actual;
   const avgSpend = pastExpenses.reduce((s, v) => s + v, 0) / (pastExpenses.length || 1);
+  const spendState = spendingForecastState(history); // the trend needs 2 full months
+  const addTransaction = () => openTask('transactions', ['add-transaction'], 'Add a transaction');
 
   const updateSetting = (field) => (e) => setSettings((s) => ({ ...s, [field]: Number(e.target.value) }));
   const setSource = (source) => setSettings((s) => ({ ...s, savingsSource: source }));
@@ -70,10 +74,10 @@ export default function Forecast({ store }) {
           <label className="field">Current savings
             {savings.source === 'accounts'
               ? <input type="number" value={start} disabled title="From your cash and savings accounts" />
-              : <input type="number" min="0" value={settings.startingSavings} onChange={updateSetting('startingSavings')} />}
+              : <input type="number" min="0" value={settings.startingSavings} onChange={updateSetting('startingSavings')} data-focus-target="current-savings" />}
           </label>
           <label className="field">Monthly deposit
-            <input type="number" min="0" value={monthly} onChange={(e) => setMonthly(Number(e.target.value))} />
+            <input type="number" min="0" value={monthly} onChange={(e) => setMonthly(Number(e.target.value))} data-focus-target="monthly-deposit" />
           </label>
           <label className="field">Expected annual return %
             <input type="number" min="0" max="20" step="0.5" value={settings.annualReturn} onChange={updateSetting('annualReturn')} />
@@ -113,49 +117,85 @@ export default function Forecast({ store }) {
       <section className="card">
         <h2>Projected balance</h2>
         <p className="sub">Conservative = {Math.max(0, rate - 2)}%, expected = {rate}%, optimistic = {rate + 2}% per year</p>
-        <div className="chart" style={{ height: 320 }}>
-          <ResponsiveContainer>
-            <LineChart data={projection} margin={{ left: 0, right: 8 }}>
-              <CartesianGrid vertical={false} stroke={palette.grid} />
-              <XAxis dataKey="month" ticks={projection.filter((p) => p.month % 12 === 0).map((p) => p.month)} tickFormatter={(m) => `Yr ${m / 12}`} tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} />
-              <YAxis tickFormatter={(v) => formatCurrency(v, { compact: true })} tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} width={60} />
-              <Tooltip content={<ChartTooltip labelFormatter={(m) => `Year ${Math.floor(m / 12)}, month ${m % 12}`} />} />
-              <Line isAnimationActive={animate} dataKey="optimistic" name="Optimistic" stroke={palette.series[2]} strokeWidth={2} dot={false} />
-              <Line isAnimationActive={animate} dataKey="expected" name="Expected" stroke={palette.series[0]} strokeWidth={2.5} dot={false} />
-              <Line isAnimationActive={animate} dataKey="conservative" name="Conservative" stroke={palette.series[1]} strokeWidth={2} dot={false} />
-              {/* strokeDasharray="4 4" = 4px dash, 4px gap: a quiet reference line */}
-              <Line isAnimationActive={animate} dataKey="contributed" name="Deposited" stroke={palette.other} strokeWidth={2} strokeDasharray="4 4" dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="legend">
-          <span><span className="dot" style={{ background: palette.series[2] }} />Optimistic</span>
-          <span><span className="dot" style={{ background: palette.series[0] }} />Expected</span>
-          <span><span className="dot" style={{ background: palette.series[1] }} />Conservative</span>
-          <span><span className="dot" style={{ background: palette.other }} />Deposited (no growth)</span>
-        </div>
+        {projectionState({ start, monthly }) === 'empty' ? (
+          <EmptyState
+            icon="forecast"
+            title="Nothing to project yet"
+            action={
+              <button type="button" className="btn" onClick={() => openTask('forecast', ['current-savings', 'monthly-deposit'], 'Enter your savings')}>
+                Enter your savings
+              </button>
+            }
+          >
+            Enter your current savings or a monthly deposit above, and the growth over {years} years appears here.
+          </EmptyState>
+        ) : (
+          <>
+            <div className="chart" style={{ height: 320 }}>
+              <ResponsiveContainer>
+                <LineChart data={projection} margin={{ left: 0, right: 8 }}>
+                  <CartesianGrid vertical={false} stroke={palette.grid} />
+                  <XAxis dataKey="month" ticks={projection.filter((p) => p.month % 12 === 0).map((p) => p.month)} tickFormatter={(m) => `Yr ${m / 12}`} tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} />
+                  <YAxis tickFormatter={(v) => formatCurrency(v, { compact: true })} tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} width={60} />
+                  <Tooltip content={<ChartTooltip labelFormatter={(m) => `Year ${Math.floor(m / 12)}, month ${m % 12}`} />} />
+                  <Line isAnimationActive={animate} dataKey="optimistic" name="Optimistic" stroke={palette.series[2]} strokeWidth={2} dot={false} />
+                  <Line isAnimationActive={animate} dataKey="expected" name="Expected" stroke={palette.series[0]} strokeWidth={2.5} dot={false} />
+                  <Line isAnimationActive={animate} dataKey="conservative" name="Conservative" stroke={palette.series[1]} strokeWidth={2} dot={false} />
+                  {/* strokeDasharray="4 4" = 4px dash, 4px gap: a quiet reference line */}
+                  <Line isAnimationActive={animate} dataKey="contributed" name="Deposited" stroke={palette.other} strokeWidth={2} strokeDasharray="4 4" dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="legend">
+              <span><span className="dot" style={{ background: palette.series[2] }} />Optimistic</span>
+              <span><span className="dot" style={{ background: palette.series[0] }} />Expected</span>
+              <span><span className="dot" style={{ background: palette.series[1] }} />Conservative</span>
+              <span><span className="dot" style={{ background: palette.other }} />Deposited (no growth)</span>
+            </div>
+          </>
+        )}
       </section>
 
       <section className="card">
         <h2>Spending forecast</h2>
-        <p className="sub">
-          Based on your trend, you'll likely spend about <strong>{formatCurrency(predicted)}</strong> this month
-          ({predicted >= avgSpend ? 'above' : 'below'} your {formatCurrency(avgSpend)} average).
-        </p>
-        <div className="chart" style={{ height: 240 }}>
-          <ResponsiveContainer>
-            <LineChart data={spendData} margin={{ left: 0, right: 8 }}>
-              <CartesianGrid vertical={false} stroke={palette.grid} />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} />
-              {/* Zoomed-in axis ('auto' bounds), so use whole dollars: compact labels would repeat ($2.7K, $2.7K). */}
-              <YAxis tickFormatter={(v) => formatCurrency(v, { whole: true })} tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} width={64} domain={['auto', 'auto']} />
-              <Tooltip content={<ChartTooltip />} />
-              <Line isAnimationActive={animate} dataKey="actual" name="Actual" stroke={palette.series[1]} strokeWidth={2} dot={{ r: 4 }} />
-              <Line isAnimationActive={animate} dataKey="forecast" name="Forecast" stroke={palette.series[1]} strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <p className="small muted">The forecast is a straight-line trend (linear regression). It's a rough guide, not a guarantee.</p>
+        {spendState.state !== 'ready' ? (
+          <EmptyState
+            icon="transactions"
+            kind={spendState.state}
+            progress={spendState}
+            title={spendState.state === 'empty' ? 'No spending recorded yet' : 'Not enough spending history yet'}
+            action={
+              <button type="button" className="btn" onClick={addTransaction}>
+                Add a transaction
+              </button>
+            }
+          >
+            The forecast needs spending in at least {spendState.need} full months.
+            {spendState.state === 'insufficient' &&
+              ` You have ${spendState.have} so far; this month counts once it ends.`}
+          </EmptyState>
+        ) : (
+          <>
+            <p className="sub">
+              Based on your trend, you'll likely spend about <strong>{formatCurrency(predicted)}</strong> this month
+              ({predicted >= avgSpend ? 'above' : 'below'} your {formatCurrency(avgSpend)} average).
+            </p>
+            <div className="chart" style={{ height: 240 }}>
+              <ResponsiveContainer>
+                <LineChart data={spendData} margin={{ left: 0, right: 8 }}>
+                  <CartesianGrid vertical={false} stroke={palette.grid} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} />
+                  {/* Zoomed-in axis ('auto' bounds), so use whole dollars: compact labels would repeat ($2.7K, $2.7K). */}
+                  <YAxis tickFormatter={(v) => formatCurrency(v, { whole: true })} tickLine={false} axisLine={false} tick={{ fill: palette.axis, fontSize: 12 }} width={64} domain={['auto', 'auto']} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Line isAnimationActive={animate} dataKey="actual" name="Actual" stroke={palette.series[1]} strokeWidth={2} dot={{ r: 4 }} />
+                  <Line isAnimationActive={animate} dataKey="forecast" name="Forecast" stroke={palette.series[1]} strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="small muted">The forecast is a straight-line trend (linear regression). It's a rough guide, not a guarantee.</p>
+          </>
+        )}
       </section>
     </div>
   );

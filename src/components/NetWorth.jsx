@@ -3,6 +3,7 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tool
 import ChartTooltip from './ChartTooltip';
 import Icon from './Icon';
 import EmptyState from './EmptyState';
+import { netWorthHistoryState } from '../utils/emptyStates';
 import OptionalNumber from './OptionalNumber';
 import PaidControl from './PaidControl';
 import StatCard from './StatCard';
@@ -35,7 +36,7 @@ const emptyForm = { name: '', type: 'asset', kind: 'cash', balance: '', notInDeb
 const signed = (n) => (n > 0 ? '+' : '') + formatCurrency(n);
 
 /** Net worth page: manual accounts + Debt Planner debts, and a chart of monthly snapshots. */
-export default function NetWorth({ store, goTo }) {
+export default function NetWorth({ store, goTo, openTask }) {
   const { debts, settings, setAccounts } = store;
   const accounts = readAccounts(store.accounts);
   const palette = getPalette(useColorScheme());
@@ -45,6 +46,7 @@ export default function NetWorth({ store, goTo }) {
 
   const totals = netWorthTotals(accounts, debts);
   const series = useMemo(() => historySeries(settings), [settings]);
+  const history = netWorthHistoryState(series.length, accounts.length, debts); // the line needs 2 months
   const change = changeSinceLastSnapshot(settings, totals.netWorth);
   const liquid = liquidSavings(accounts);
 
@@ -103,7 +105,31 @@ export default function NetWorth({ store, goTo }) {
         />
       </div>
 
-      {series.length >= 2 && (
+      {history.state === 'insufficient' && (
+        <section className="card">
+          <h2>Net worth over time</h2>
+          <EmptyState
+            icon="networth"
+            kind="insufficient"
+            progress={history}
+            title="Your history starts here"
+            compact
+            action={
+              history.needsAccount && (
+                <button type="button" className="btn" onClick={() => openTask('networth', ['add-account'], 'Add an account')}>
+                  Add an account
+                </button>
+              )
+            }
+          >
+            {history.needsAccount
+              ? `Your Debt Planner debts already count toward net worth. Snapshots start once you add an account, such as checking or savings, and the chart appears after ${history.need} months (${history.have} so far).`
+              : `Finnelee saves one snapshot a month when your balances change. The chart appears once ${history.need} months are recorded (${history.have} so far), so update a balance next month.`}
+          </EmptyState>
+        </section>
+      )}
+
+      {history.state === 'ready' && (
         <section className="card">
           <h2>Net worth over time</h2>
           <p className="sub">
@@ -210,7 +236,15 @@ export default function NetWorth({ store, goTo }) {
         rows={assets}
         onBalance={setBalance}
         onDelete={remove}
-        empty={{ title: 'No assets yet', text: 'Add a checking, savings or investment account above.' }}
+        empty={{
+          title: 'No assets yet',
+          text: 'Add a checking, savings or investment account above.',
+          action: (
+            <button type="button" className="btn" onClick={() => openTask('networth', ['add-account'], 'Add an account')}>
+              Add an account
+            </button>
+          ),
+        }}
       />
       <AccountTable
         title="Other liabilities"
@@ -234,7 +268,9 @@ export default function NetWorth({ store, goTo }) {
         </div>
         <p className="sub">Counted automatically, and always using the current balances.</p>
         {debts.length === 0 ? (
-          <EmptyState icon="debt" title="No debts in the Debt Planner" compact />
+          <EmptyState icon="debt" title="No debts in the Debt Planner" compact>
+            Loans and cards you add there are counted here automatically.
+          </EmptyState>
         ) : (
           <ul className="list">
             {debts.map((d) => (
@@ -268,7 +304,7 @@ function AccountTable({ title, rows, onBalance, onDelete, empty, details }) {
     <section className="card">
       <h2>{title}</h2>
       {rows.length === 0 ? (
-        <EmptyState icon="networth" title={empty.title} compact>
+        <EmptyState icon="networth" title={empty.title} action={empty.action} compact>
           {empty.text}
         </EmptyState>
       ) : (

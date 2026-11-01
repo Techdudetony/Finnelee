@@ -42,8 +42,11 @@ export function groupIntoLines(items) {
   });
 }
 
-/** Extracts every page's lines. `pdfjs` is the PDF.js module (browser or Node build). */
-export async function readPdfPages(data, pdfjs) {
+/**
+ * Extracts every page's lines. `pdfjs` is the PDF.js module (browser or Node build).
+ * `onPage(done, total)` (optional) is called after each page, for a progress message.
+ */
+export async function readPdfPages(data, pdfjs, onPage) {
   const task = pdfjs.getDocument({ data, isEvalSupported: false });
   const doc = await task.promise;
   try {
@@ -54,6 +57,7 @@ export async function readPdfPages(data, pdfjs) {
       const page = await doc.getPage(number);
       const { items } = await page.getTextContent();
       pages.push({ number, lines: groupIntoLines(items) });
+      onPage?.(number, doc.numPages);
     }
     return pages;
   } finally {
@@ -62,11 +66,11 @@ export async function readPdfPages(data, pdfjs) {
 }
 
 /** Browser entry point. PDF.js is loaded on demand so it isn't part of the main bundle. */
-export async function readPdfFile(file) {
+export async function readPdfFile(file, onPage) {
   const [pdfjs, worker] = await Promise.all([
     import('pdfjs-dist'),
     import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
   ]);
   pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
-  return readPdfPages(new Uint8Array(await file.arrayBuffer()), pdfjs);
+  return readPdfPages(new Uint8Array(await file.arrayBuffer()), pdfjs, onPage);
 }

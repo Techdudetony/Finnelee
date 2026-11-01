@@ -790,6 +790,9 @@ h2 > .icon {
 .status-critical {
   color: var(--critical);
 }
+.status-info {
+  color: var(--text-2);
+}
 
 .pill {
   display: inline-block;
@@ -897,15 +900,88 @@ h2 > .icon {
   color: var(--text-2);
   list-style: none;
 }
-.empty-state-icon {
+/* The illustration (EmptyState.jsx): the area's icon on a soft tile, inside a halo and a
+   ring, with a few small shapes. Colors come from the theme, so light and dark both work.
+   Kind sets the color: empty = accent, insufficient = aqua with a progress ring,
+   error = critical. */
+.empty-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 72px;
+  margin-bottom: 4px;
+  color: var(--accent);
+}
+.empty-art > svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.empty-art-halo {
+  fill: var(--accent-soft);
+  opacity: 0.6;
+}
+.empty-art-ring,
+.empty-art-arc {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.22;
+}
+.empty-art-ring {
+  stroke-dasharray: 2 6;
+}
+.empty-art-arc.filled {
+  opacity: 1;
+}
+.empty-art-dot {
+  fill: currentColor;
+  opacity: 0.35;
+}
+.empty-art-spark {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.45;
+}
+.empty-art-tile {
+  position: relative;
   width: 44px;
   height: 44px;
-  margin-bottom: 6px;
   border-radius: 14px;
   display: grid;
   place-items: center;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent);
+}
+.empty-insufficient .empty-art {
+  color: var(--accent-2);
+}
+.empty-error .empty-art {
+  color: var(--critical);
+}
+.empty-error .empty-art-halo {
+  fill: color-mix(in srgb, var(--critical) 12%, transparent);
+}
+.compact .empty-art {
+  transform: scale(0.84);
+  margin: -4px 0 0;
+}
+/* At Full motion the illustration fades and rises in once when it first appears. At Calm
+   and Off it is simply there (Off already ends every animation at once). */
+:root[data-motion='full'] .empty-art {
+  animation: rise var(--dur-slow) var(--ease) both;
+}
+:root[data-motion='full'] .compact .empty-art {
+  animation-name: empty-art-in-compact;
+}
+@keyframes empty-art-in-compact {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.84);
+  }
 }
 .empty-state-title {
   font-family: var(--font-display);
@@ -918,7 +994,12 @@ h2 > .icon {
   font-size: 0.88rem;
   max-width: 42ch;
 }
-.empty-state .btn {
+.empty-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px 14px;
   margin-top: 8px;
 }
 .empty-state.compact {
@@ -2132,4 +2213,16 @@ h2 > .icon {
 }
 .palette-phone {
   margin-left: auto;
+}
+
+/* ---------- Statement import progress (TransactionImport.jsx) ---------- */
+.import-progress {
+  display: grid;
+  gap: 6px;
+  max-width: 420px;
+}
+.import-progress progress {
+  width: 100%;
+  height: 6px;
+  accent-color: var(--accent);
 }
