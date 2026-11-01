@@ -1795,3 +1795,56 @@ h2 > .icon {
 :root[data-motion='off'] .skeleton {
   background: var(--surface-2);
 }
+
+/* ---------- Payment details (PaidControl, Net Worth liabilities, Pay schedule) ---------- */
+.paid {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.paid-line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
+}
+.paid-line .status {
+  white-space: normal; /* wraps so Undo can sit beside it */
+}
+.paid-undo {
+  min-height: 44px; /* touch target, though it reads as a link */
+  padding: 0 4px;
+}
+.paid-mark {
+  white-space: nowrap;
+}
+.input-day {
+  width: 6.5em;
+}
+/* Second row under a liability: its payment details. */
+.row-details > td {
+  padding-top: 0;
+}
+.obligation-fields {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
+  align-items: start;
+}
+.field-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.pay-result > p {
+  margin: 10px 0 0;
+}
+.pay-upcoming {
+  margin-top: 12px;
+}
