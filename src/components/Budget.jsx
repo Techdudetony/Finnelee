@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ProgressBar from './ProgressBar';
 import StatCard from './StatCard';
 import Status, { Notice } from './Status';
+import { useCelebration } from './Celebrate';
 import { needsChecker } from '../data/categories';
 import { formatCurrency, formatPercent, monthKey, monthLabel } from '../utils/format';
 import { debtToIncome, fiftyThirtyTwenty, monthTotals, spendingByCategory } from '../utils/finance';
@@ -15,6 +16,7 @@ import {
   setRollover,
   suggestedIncome,
 } from '../utils/budgeting';
+import { budgetCompleted, budgetMessage, createSettleWatcher } from '../utils/celebrate';
 
 // +$40.00 / -$100.00: carryover shows its sign so the direction is never color-only.
 const signed = (n) => (n > 0 ? '+' : '') + formatCurrency(n);
@@ -37,13 +39,33 @@ export default function Budget({ store }) {
   const suggestion = useMemo(() => suggestedIncome(transactions), [transactions]);
   const plan = leftToAssign({ budgets, settings, categories, goals, suggestion }, month);
 
+  // "Every dollar assigned" moment: amounts are typed a key at a time, so the check waits
+  // until typing pauses, then compares the month before and after (in cents).
+  const party = useCelebration();
+  const leftCard = useRef(null);
+  const watcher = useRef(null);
+  watcher.current ??= createSettleWatcher((start, after) => {
+    if (budgetCompleted(start, after))
+      party.celebrate(budgetMessage(monthLabel(after.month, true)), leftCard.current, 'budget');
+  });
+  useEffect(() => () => watcher.current.cancel(), [month]); // new month or page closed: drop it
+  const planAfter = (next) => ({
+    ...leftToAssign({ categories, goals, suggestion, budgets, settings, ...next }, month),
+    month,
+  });
+
   // Both slices change together: budgets (this month's active limits) and the history in settings.
   const changeLimit = (category, value) => {
     const next = setLimit({ budgets, settings }, category, month, value);
     setBudgets(next.budgets);
     setSettings(next.settings);
+    watcher.current.change(plan, planAfter(next));
   };
-  const changeIncome = (value) => setSettings(setPlannedIncome(settings, month, value));
+  const changeIncome = (value) => {
+    const next = setPlannedIncome(settings, month, value);
+    setSettings(next);
+    watcher.current.change(plan, planAfter({ settings: next }));
+  };
   const toggleRollover = (category, on) => setSettings(setRollover(settings, category, on));
 
   // This month's spending per category, for the 50/30/20 card (unchanged from before).
@@ -78,6 +100,7 @@ export default function Budget({ store }) {
 
   return (
     <div className="stack">
+      {party.node}
       <div className="row">
         <button
           className="btn"
@@ -117,7 +140,7 @@ export default function Budget({ store }) {
             value={formatCurrency(plan.assigned)}
             hint={`${formatCurrency(plan.allocated)} categories + ${formatCurrency(plan.goalSavings)} goals`}
           />
-          <div className="card">
+          <div ref={leftCard} className={`card${party.glow === 'budget' ? ' celebrate-glow' : ''}`}>
             <div className="stat-label">Left to assign</div>
             <div className="stat-value">{formatCurrency(plan.left)}</div>
             <Status tone={leftStatus.tone} as="div">
