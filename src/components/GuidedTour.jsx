@@ -95,22 +95,53 @@ export default function GuidedTour({ replay, phone, pages, onEnd }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetKey, phone]);
 
-  // A new step: scroll its target into view if needed, then measure. The Dashboard may
-  // still be appearing (just switched to), so look again each frame for up to a second.
+  // A new step: scroll its target into view if needed, then measure. A target can
+  // appear, change size or go away later (the Dashboard still drawing, data loading),
+  // so while the step shows, page changes and target resizes re-measure on the next
+  // frame. Both observers only react to changes: nothing runs while the page is still.
   useLayoutEffect(() => {
-    let frames = 0;
+    if (!targets.length) {
+      measure();
+      return undefined;
+    }
     let id = 0;
-    const look = () => {
-      const el = targets.length ? document.querySelector(targets[0]) : null;
-      if (targets.length && !el && frames++ < 60) {
-        id = requestAnimationFrame(look);
-        return;
+    let watched = null; // the target element the ResizeObserver is on
+    let scrolled = false; // scroll to the target once, when it is first found
+    const sizes = new ResizeObserver(() => soon());
+    const update = () => {
+      id = 0;
+      const el = document.querySelector(targets[0]);
+      if (el !== watched) {
+        if (watched) sizes.unobserve(watched);
+        if (el) sizes.observe(el);
+        watched = el;
       }
-      if (el) scrollIntoSight(el, phone, cardRef.current, motion === "full");
+      if (el && !scrolled) {
+        scrolled = true;
+        scrollIntoSight(el, phone, cardRef.current, motion === "full");
+      }
       measure();
     };
-    look();
-    return () => cancelAnimationFrame(id);
+    const soon = () => {
+      if (!id) id = requestAnimationFrame(update);
+    };
+    // Changes inside the tour itself are ignored, so its own updates can't loop.
+    const dialog = dialogRef.current;
+    const changes = new MutationObserver((records) => {
+      if (records.some((r) => !dialog?.contains(r.target))) soon();
+    });
+    changes.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "hidden", "style"],
+    });
+    update();
+    return () => {
+      cancelAnimationFrame(id);
+      changes.disconnect();
+      sizes.disconnect();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetKey, index, features, measure]);
 
@@ -293,13 +324,21 @@ export default function GuidedTour({ replay, phone, pages, onEnd }) {
               <h2 id="tour-title">{step.title}</h2>
               <p id="tour-text">{textFor(step, phone)}</p>
               {step.showMe && !offer && (
-                <button
-                  type="button"
-                  className="btn tour-action"
-                  onClick={() => onEnd("showme", step.showMe)}
-                >
-                  Show me: {step.showMe.label}
-                </button>
+                <div className="tour-showme">
+                  <button
+                    type="button"
+                    className="btn tour-action"
+                    aria-describedby="tour-showme-note"
+                    onClick={() => onEnd("showme", step.showMe)}
+                  >
+                    Show me: {step.showMe.label}
+                  </button>
+                  <span id="tour-showme-note" className="tour-showme-note">
+                    Ends the tour and opens{" "}
+                    {pages.find((p) => p.id === step.showMe.page)?.label}, ready
+                    to fill in.
+                  </span>
+                </div>
               )}
               {step.explore && (
                 <button

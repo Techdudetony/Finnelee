@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import * as auth from './authService';
-import { migrateLegacyData, seedUserData } from './userStorage';
+import { keepNewAccountMark, migrateLegacyData, seedUserData } from './userStorage';
 import { emptyData, generateSampleData } from '../data/sampleData';
 import { markNewAccount } from '../utils/tour';
 
@@ -34,7 +34,8 @@ export function AuthProvider({ children }) {
     seedUserData(newUser.id, data);
     // The first account on this browser also adopts any data saved before accounts
     // existed. It's copied after seeding, so the old data wins wherever it exists.
-    if (isFirstUser) migrateLegacyData(newUser.id);
+    // Migrated settings would drop the new-account mark, so it's put back (the tour).
+    if (isFirstUser && migrateLegacyData(newUser.id)) keepNewAccountMark(newUser.id);
     setNewRecoveryKey({ key: recoveryKey, reason: 'signup' }); // set before the user, so it shows first
     setUser(newUser);
     setFreshLogin(true);

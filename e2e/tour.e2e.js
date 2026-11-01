@@ -303,3 +303,213 @@ test("Motion Off and Calm are followed", async ({ page }) => {
     await page.keyboard.press("Escape");
   }
 });
+
+// ---------- Review round 1 ----------
+
+const MOD = process.platform === "darwin" ? "Meta" : "Control";
+
+/** Opens the palette with its search button and runs "Replay tour". */
+async function replayFromPalette(page, button) {
+  await page.locator(button).click();
+  const palette = page.getByRole("dialog", { name: "Command palette" });
+  await palette.getByRole("combobox").fill("Replay tour");
+  await expect(palette.getByRole("option").first()).toContainText(
+    "Replay tour",
+  );
+  await page.keyboard.press("Enter");
+  await expect(palette).toHaveCount(0); // closed before the tour opens
+  await expect(tour(page)).toBeVisible();
+  await expect(page.locator("main h1")).toHaveText(/^Good/); // on the Dashboard
+  await expect(
+    tour(page).getByRole("button", { name: "Next", exact: true }),
+  ).toBeFocused();
+}
+
+test("the palette's Replay tour works for a new account, and focus comes back", async ({
+  page,
+}) => {
+  await signUp(page);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Not now" }).click();
+  await page.locator(".nav-item", { hasText: "Transactions" }).click();
+  await replayFromPalette(page, ".palette-open");
+  await page.keyboard.press("Escape");
+  await expect(tour(page)).toHaveCount(0);
+  await expect(page.locator(".palette-open")).toBeFocused();
+  // The first run's result is kept; the replay is recorded on its own.
+  expect(await onboarding(page)).toMatchObject({
+    newAccount: true,
+    outcome: "skipped",
+    lastReplay: { outcome: "skipped" },
+  });
+});
+
+test("the palette's Replay tour works for an existing account with no record", async ({
+  page,
+}) => {
+  await signUp(page, { sample: false });
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Not now" }).click();
+  await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((k) => k.endsWith(".settings"));
+    const s = JSON.parse(localStorage.getItem(key));
+    delete s.onboarding;
+    localStorage.setItem(key, JSON.stringify(s));
+  });
+  await page.reload();
+  await page.waitForTimeout(300);
+  await expect(tour(page)).toHaveCount(0);
+  await replayFromPalette(page, ".palette-open");
+  for (let i = 0; i < 7; i++)
+    await tour(page).getByRole("button", { name: "Next", exact: true }).click();
+  await tour(page).getByRole("button", { name: "Done", exact: true }).click();
+  await expect(tour(page)).toHaveCount(0);
+  await expect(page.locator(".palette-open")).toBeFocused();
+  const record = await onboarding(page);
+  expect(record).toEqual({
+    lastReplay: { outcome: "done", at: expect.any(String) },
+  });
+});
+
+test("replaying never overwrites how the first run ended", async ({ page }) => {
+  await signUp(page);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Take the tour" }).click();
+  for (let i = 0; i < 6; i++)
+    await tour(page).getByRole("button", { name: "Next", exact: true }).click();
+  await tour(page).getByRole("button", { name: "Done", exact: true }).click();
+  const first = await onboarding(page);
+  expect(first.outcome).toBe("done");
+  await page.locator(".nav-item", { hasText: "Settings" }).click();
+  await page.getByRole("button", { name: "Replay tour" }).click();
+  await page.keyboard.press("Escape");
+  const after = await onboarding(page);
+  expect(after).toMatchObject({
+    offeredAt: first.offeredAt,
+    outcome: "done",
+    outcomeAt: first.outcomeAt,
+    lastReplay: { outcome: "skipped" },
+  });
+});
+
+test("a target that appears late is found without a resize or scroll, and nothing polls", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.__raf = 0;
+    const raf = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (fn) => {
+      window.__raf++;
+      return raf(fn);
+    };
+  });
+  await signUp(page);
+  await page.keyboard.press("Escape");
+  // Motion Off, so nothing else on the Dashboard animates while we count frames.
+  await page.keyboard.press(`${MOD}+k`);
+  await page.keyboard.type("Motion: Off");
+  await page.keyboard.press("Enter");
+  // Take the Orb out of the page before step 2 needs it.
+  await page.evaluate(() => {
+    const el = document.querySelector(".orb-hero");
+    window.__orb = { el, parent: el.parentNode, next: el.nextSibling };
+    el.remove();
+  });
+  await page.getByRole("button", { name: "Take the tour" }).click();
+  await expect(tour(page)).toHaveAccessibleName("Your financial health");
+  await expect(page.locator(".tour-ring")).toHaveCount(0); // centered card
+  await page.waitForTimeout(2000); // well past the first second
+
+  // Idle: no frames requested while the tour waits.
+  const before = await page.evaluate(() => window.__raf);
+  await page.waitForTimeout(1000);
+  expect(await page.evaluate(() => window.__raf)).toBe(before);
+
+  await page.evaluate(() => {
+    const { el, parent, next } = window.__orb;
+    parent.insertBefore(el, next);
+  });
+  await expect(page.locator(".tour-ring")).toHaveCount(1);
+  const ring = await page.locator(".tour-ring").boundingBox();
+  const orb = await page.locator(".orb-hero").boundingBox();
+  expect(Math.abs(ring.y - (orb.y - 6))).toBeLessThan(2);
+  // And the card moved beside it.
+  const card = await page.locator(".tour-card").boundingBox();
+  expect(card.x).toBeGreaterThanOrEqual(orb.x + orb.width);
+
+  // Once settled, idle again.
+  await page.waitForTimeout(500);
+  const settled = await page.evaluate(() => window.__raf);
+  await page.waitForTimeout(1000);
+  expect(await page.evaluate(() => window.__raf)).toBe(settled);
+});
+
+test("Show me says it ends the tour, and lands on the real field", async ({
+  page,
+}) => {
+  await signUp(page);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Take the tour" }).click();
+  for (let i = 0; i < 3; i++)
+    await tour(page).getByRole("button", { name: "Next", exact: true }).click();
+  const showMe = tour(page).getByRole("button", {
+    name: "Show me: Enter planned income",
+  });
+  await expect(showMe).toHaveAccessibleDescription(
+    "Ends the tour and opens Budget, ready to fill in.",
+  );
+  await showMe.click();
+  await expect(tour(page)).toHaveCount(0);
+  await expect(page.locator("main h1")).toHaveText("Budget");
+  await expect(
+    page.locator('[data-focus-target="planned-income"]'),
+  ).toBeFocused();
+  await expect(page.locator(".layout > [role=status]")).toHaveText(
+    "Tour closed. Enter planned income: the field is ready.",
+  );
+});
+
+test("the first account adopting old data keeps it, and still gets the tour", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.setItem(
+      "fb.settings",
+      JSON.stringify({ startingSavings: 1234, annualReturn: 4 }),
+    );
+    localStorage.setItem("fb.goals", JSON.stringify([]));
+  });
+  await signUp(page, { sample: false });
+  await page.keyboard.press("Escape");
+  await expect(tour(page)).toBeVisible();
+  const settings = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((k) => k.endsWith(".settings"));
+    return JSON.parse(localStorage.getItem(key));
+  });
+  expect(settings).toMatchObject({
+    startingSavings: 1234,
+    annualReturn: 4,
+    onboarding: { newAccount: true },
+  });
+  expect(settings.onboarding.offeredAt).toBeTruthy();
+  expect(await page.evaluate(() => localStorage.getItem("fb.settings"))).toBe(
+    null,
+  );
+});
+
+test.describe("phones: palette", () => {
+  test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
+
+  test("Replay tour from the phone's search button, menu stays closed", async ({
+    page,
+  }) => {
+    await signUp(page);
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Not now" }).click();
+    await replayFromPalette(page, ".palette-phone");
+    await expect(page.locator(".layout.drawer-open")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".palette-phone")).toBeFocused();
+  });
+});

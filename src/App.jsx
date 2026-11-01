@@ -240,6 +240,8 @@ function FinanceApp({ user }) {
       restoreFocus();
       return;
     }
+    // The palette closes first (above); focus returns to what opened it after the tour.
+    if (action.type === 'tour') return startTour(true, paletteOpener.current);
     openTask(action.page, action.focus ?? [], label);
   };
   // Opens a page with focus in one of its fields (`focus`: data-focus-target names, first
@@ -316,8 +318,9 @@ function FinanceApp({ user }) {
   // Settings > Guided tour replays it for anyone. It always runs on the Dashboard.
   const [tour, setTour] = useState(null); // null, or { replay } while it's showing
   const tourOpener = useRef(null); // focus goes back here when it ends
-  const startTour = (replay) => {
-    tourOpener.current = document.activeElement;
+  // `opener`: where focus goes back afterwards (default: whatever has focus now).
+  const startTour = (replay, opener = document.activeElement) => {
+    tourOpener.current = opener;
     if (!replay) setSettings((s) => markTourOffered(s, new Date().toISOString()));
     setPage('dashboard'); // no page transition: the tour fades in over it
     setDrawerOpen(false); // the tour never opens over the phone menu
@@ -329,10 +332,15 @@ function FinanceApp({ user }) {
   });
   // `open` ({ page, focus, label }): Show me, or a page from Explore all features. It
   // moves focus itself; otherwise focus goes back to where it was, or the page heading.
+  // A replay is recorded apart from the first run, so it never overwrites that result.
   const endTour = (outcome, open) => {
-    setSettings((s) => markTourEnded(s, outcome, new Date().toISOString()));
+    const replay = tour.replay;
+    setSettings((s) => markTourEnded(s, outcome, new Date().toISOString(), { replay }));
     setTour(null);
-    if (open) return openTask(open.page, open.focus, open.label);
+    if (open) {
+      if (outcome === 'showme') setNotice(`Tour closed. ${open.label}: the field is ready.`);
+      return openTask(open.page, open.focus, open.label);
+    }
     const back = tourOpener.current;
     requestAnimationFrame(() => {
       if (back?.isConnected && back !== document.body) return back.focus();

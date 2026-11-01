@@ -1,7 +1,7 @@
 // The command palette's commands and how typed text finds them. Pure, so every rule is
 // unit tested. A command only describes what to do; App.jsx carries it out. No command
 // adds, changes or deletes a financial record: they open pages, put focus in a form
-// field, or change the Motion setting.
+// field, change the Motion setting, or replay the guided tour.
 
 /** Pages, in the sidebar's order, with extra words people might type for each. */
 const PAGE_ALIASES = {
@@ -80,10 +80,20 @@ const MOTION = [
   { level: "off", label: "Motion: Off", aliases: ["animations off", "none"] },
 ];
 
+/** Replays the guided tour (components/GuidedTour.jsx) on the Dashboard. */
+const TOUR = {
+  id: "tour:replay",
+  label: "Replay tour",
+  group: "Help",
+  aliases: ["guided tour", "onboarding", "walkthrough", "tutorial", "help"],
+  action: { type: "tour" },
+};
+
 /**
- * Every command, in the order shown when nothing is typed: pages, tasks, then settings.
- * pages: [{ id, label }] (App.jsx's PAGES). Each command: { id, label, group, aliases,
- * action } where action is { type: "page", page, focus? } or { type: "motion", level }.
+ * Every command, in the order shown when nothing is typed: pages, tasks, settings, then
+ * help. pages: [{ id, label }] (App.jsx's PAGES). Each command: { id, label, group,
+ * aliases, action } where action is { type: "page", page, focus? },
+ * { type: "motion", level } or { type: "tour" }.
  */
 export function buildCommands(pages) {
   return [
@@ -108,6 +118,7 @@ export function buildCommands(pages) {
       aliases,
       action: { type: "motion", level },
     })),
+    TOUR,
   ];
 }
 

@@ -3,10 +3,16 @@
 
 /*
  * Saved as settings.onboarding, so it travels with backups like the Motion setting:
- *   { newAccount: true, offeredAt: ISO | null, outcome: null | "done" | "skipped" |
- *     "showme", outcomeAt: ISO | null }
+ *   {
+ *     newAccount: true,              // written only at sign-up
+ *     offeredAt: ISO | null,         // when the automatic offer was shown
+ *     outcome: null | "done" | "skipped" | "showme",  // how that first run ended
+ *     outcomeAt: ISO | null,
+ *     lastReplay: { outcome, at },   // the latest replay, kept apart from the above
+ *   }
  * Only sign-up writes newAccount, so accounts made before the tour existed (and
- * backups from them) never get it automatically. Replay works for everyone.
+ * backups from them) never get it automatically. Replay works for everyone, and an
+ * account with no record at all simply gets { lastReplay } after one.
  */
 
 /** settings for a brand-new account: marks it so the tour is offered once. */
@@ -36,11 +42,21 @@ export function markTourOffered(settings, now) {
   };
 }
 
-/** Records how the tour ended (the latest run, replays included). */
-export function markTourEnded(settings, outcome, now) {
+/**
+ * Records how a run ended. The automatic first run fills outcome / outcomeAt once
+ * and is never overwritten; a replay only updates lastReplay.
+ */
+export function markTourEnded(settings, outcome, now, { replay = false } = {}) {
+  const o = settings.onboarding ?? {};
+  if (replay)
+    return {
+      ...settings,
+      onboarding: { ...o, lastReplay: { outcome, at: now } },
+    };
+  if (o.outcome) return settings; // the first run's result is already recorded
   return {
     ...settings,
-    onboarding: { ...settings.onboarding, outcome, outcomeAt: now },
+    onboarding: { ...o, outcome, outcomeAt: now },
   };
 }
 

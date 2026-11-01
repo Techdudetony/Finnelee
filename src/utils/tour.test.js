@@ -41,16 +41,42 @@ describe("who is offered the tour", () => {
       outcome: "skipped",
       outcomeAt: "t2",
     });
-    // A replay that's finished records the latest outcome; still never re-offered.
-    const done = markTourEnded(skipped, "done", "t3");
-    expect(done.onboarding.offeredAt).toBe("t1");
-    expect(done.onboarding.outcome).toBe("done");
-    expect(shouldOfferTour(done)).toBe(false);
+    expect(shouldOfferTour(skipped)).toBe(false);
   });
 
-  it("an existing account's replay doesn't make it look new", () => {
-    const ended = markTourEnded({ motion: "off" }, "done", "t");
-    expect(ended.motion).toBe("off");
+  it("replays never overwrite the first run's result", () => {
+    const first = markTourEnded(
+      markTourOffered(markNewAccount({}), "t1"),
+      "skipped",
+      "t2",
+    );
+    const replayed = markTourEnded(first, "done", "t3", { replay: true });
+    expect(replayed.onboarding).toEqual({
+      newAccount: true,
+      offeredAt: "t1",
+      outcome: "skipped",
+      outcomeAt: "t2",
+      lastReplay: { outcome: "done", at: "t3" },
+    });
+    const again = markTourEnded(replayed, "showme", "t4", { replay: true });
+    expect(again.onboarding.lastReplay).toEqual({
+      outcome: "showme",
+      at: "t4",
+    });
+    expect(again.onboarding.outcome).toBe("skipped");
+    // A second end of the first run (it can't happen twice) changes nothing.
+    expect(markTourEnded(first, "done", "t5")).toBe(first);
+    expect(shouldOfferTour(again)).toBe(false);
+  });
+
+  it("accounts with no record only get lastReplay, and are never offered it", () => {
+    const ended = markTourEnded({ motion: "off" }, "done", "t", {
+      replay: true,
+    });
+    expect(ended).toEqual({
+      motion: "off",
+      onboarding: { lastReplay: { outcome: "done", at: "t" } },
+    });
     expect(shouldOfferTour(ended)).toBe(false);
   });
 
