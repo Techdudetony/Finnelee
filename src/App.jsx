@@ -12,6 +12,7 @@ import { recordSnapshot } from './utils/netWorth';
 import AuthScreen from './components/AuthScreen';
 import WelcomeSummary from './components/WelcomeSummary';
 import RecoveryKeyDialog from './components/RecoveryKeyDialog';
+import PayScheduleStep from './components/PayScheduleStep';
 import Dashboard from './components/Dashboard';
 import NetWorth from './components/NetWorth';
 import Transactions from './components/Transactions';
@@ -124,6 +125,12 @@ function FinanceApp({ user }) {
   const inert = (on) => (on ? { inert: '' } : {});
   // The summary pops up automatically right after signing in (not on every page refresh).
   const [showSummary, setShowSummary] = useState(freshLogin);
+  // Optional pay schedule step: once, right after sign-up (after the recovery key).
+  const [askPaySchedule, setAskPaySchedule] = useState(false);
+  const recoveryKeyDone = () => {
+    if (newRecoveryKey?.reason === 'signup' && !settings.paySchedule) setAskPaySchedule(true);
+    clearNewRecoveryKey();
+  };
   const closeSummary = () => {
     setShowSummary(false);
     clearFreshLogin();
@@ -285,8 +292,10 @@ function FinanceApp({ user }) {
         <RecoveryKeyDialog
           recoveryKey={newRecoveryKey.key}
           reason={newRecoveryKey.reason}
-          onDone={clearNewRecoveryKey}
+          onDone={recoveryKeyDone}
         />
+      ) : askPaySchedule ? (
+        <PayScheduleStep store={store} onClose={() => setAskPaySchedule(false)} />
       ) : (
         showSummary && <WelcomeSummary store={store} goTo={goTo} onClose={closeSummary} />
       )}

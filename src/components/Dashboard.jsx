@@ -16,6 +16,8 @@ import CountUp from './CountUp';
 import Icon from './Icon';
 import EmptyState from './EmptyState';
 import HealthOrb from './HealthOrb';
+import Runway from './Runway';
+import SpendingCard from './SpendingCard';
 import { Notice } from './Status';
 import ChartTooltip from './ChartTooltip';
 import { useColorScheme } from '../hooks/useColorScheme';
@@ -122,6 +124,12 @@ export default function Dashboard({ store, goTo, openSummary }) {
       {/* Each tile opens the page behind its number; at Full motion it grows into that page. */}
       {/* Financial health: the Orb, its five pillars and how they're scored. */}
       <HealthOrb store={store} goTo={goTo} />
+
+      {/* Spending room and the next 14 days: estimates from records, every amount listed. */}
+      <div className="grid grid-2">
+        <SpendingCard store={store} goTo={goTo} />
+        <Runway store={store} goTo={goTo} />
+      </div>
 
       <div className="grid grid-stats">
         <StatCard
