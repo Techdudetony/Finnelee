@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useAuth } from './auth/AuthContext';
 import { userKey } from './auth/userStorage';
@@ -14,9 +14,11 @@ import AuthScreen from './components/AuthScreen';
 import WelcomeSummary from './components/WelcomeSummary';
 import RecoveryKeyDialog from './components/RecoveryKeyDialog';
 import PayScheduleStep from './components/PayScheduleStep';
-import GuidedTour from './components/GuidedTour';
-import { markTourEnded, markTourOffered, shouldOfferTour } from './utils/tour';
+import { markTourEnded, markTourOffered, shouldOfferTour } from './utils/onboarding';
 import CommandPalette, { shortcutLabel } from './components/CommandPalette';
+// The guided tour loads only when it's shown (offered once, or replayed), so it adds
+// almost nothing to the app's first download.
+const GuidedTour = lazy(() => import('./components/GuidedTour'));
 import PageErrorBoundary from './components/PageErrorBoundary';
 import Dashboard from './components/Dashboard';
 import NetWorth from './components/NetWorth';
@@ -478,12 +480,14 @@ function FinanceApp({ user }) {
         showSummary && <WelcomeSummary store={store} goTo={goTo} onClose={closeSummary} />
       )}
       {tour && (
-        <GuidedTour
-          replay={tour.replay}
-          phone={isMobile}
-          pages={PAGES.map(({ id, label }) => ({ id, label }))}
-          onEnd={endTour}
-        />
+        <Suspense fallback={null}>
+          <GuidedTour
+            replay={tour.replay}
+            phone={isMobile}
+            pages={PAGES.map(({ id, label }) => ({ id, label }))}
+            onEnd={endTour}
+          />
+        </Suspense>
       )}
       {paletteOpen && (
         <CommandPalette commands={commands} onRun={runCommand} onClose={closePalette} />

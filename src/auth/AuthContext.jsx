@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import * as auth from './authService';
 import { keepNewAccountMark, migrateLegacyData, seedUserData } from './userStorage';
 import { emptyData, generateSampleData } from '../data/sampleData';
-import { markNewAccount } from '../utils/tour';
+import { markNewAccount } from '../utils/onboarding';
 
 // React Context lets any component read the current user without passing it
 // down through every level as a prop ("prop drilling").

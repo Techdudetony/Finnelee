@@ -5,7 +5,7 @@ import {
   seedUserData,
   userKey,
 } from "./userStorage";
-import { markNewAccount, shouldOfferTour } from "../utils/tour";
+import { markNewAccount, shouldOfferTour } from "../utils/onboarding";
 import { emptyData } from "../data/sampleData";
 
 // Tests run in Node, which has no localStorage: a tiny in-memory stand-in.

@@ -2,7 +2,7 @@
 //   finnelee.<userId>.transactions, finnelee.<userId>.budgets, ...
 // so two people sharing a browser never see each other's numbers.
 
-import { markNewAccount } from "../utils/tour";
+import { markNewAccount } from "../utils/onboarding";
 
 export const DATA_SLICES = [
   "transactions",

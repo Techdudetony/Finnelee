@@ -403,12 +403,12 @@ test("a target that appears late is found without a resize or scroll, and nothin
       return raf(fn);
     };
   });
+  // Reduced motion (plays as Calm), so nothing else on the Dashboard animates while
+  // we count frames. Set up front: the palette can't open over the tour's offer.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await signUp(page);
   await page.keyboard.press("Escape");
-  // Motion Off, so nothing else on the Dashboard animates while we count frames.
-  await page.keyboard.press(`${MOD}+k`);
-  await page.keyboard.type("Motion: Off");
-  await page.keyboard.press("Enter");
+  await expect(tour(page)).toBeVisible();
   // Take the Orb out of the page before step 2 needs it.
   await page.evaluate(() => {
     const el = document.querySelector(".orb-hero");
