@@ -5,7 +5,6 @@ import { todayISO } from '../utils/format';
 import { useAuth } from '../auth/AuthContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { resolveMotion } from '../utils/motion';
-import { orb3dFailure } from '../utils/orb3d';
 
 // The Motion setting. Saved as settings.motion, so it travels with backups.
 const MOTION_OPTIONS = [
@@ -33,9 +32,6 @@ export default function Settings({ store }) {
     ? savedMotion
     : resolveMotion(undefined, deviceReduces);
   const setMotion = (motion) => store.setSettings((s) => ({ ...s, motion }));
-  // The 3D Orb switch: settings.orb3d, off unless turned on; it travels with backups too.
-  const full = resolveMotion(savedMotion, deviceReduces) === 'full';
-  const orb3dFailed = orb3dFailure(); // why it fell back this session, if it did
 
   const saveProfile = async (e) => {
     e.preventDefault();
@@ -159,28 +155,6 @@ export default function Settings({ store }) {
               'Your device asks for reduced motion, so Full plays as Calm here.'}
           </p>
         )}
-        <label className="choice" style={{ marginTop: 12 }}>
-          <input
-            type="checkbox"
-            checked={store.settings.orb3d === true}
-            disabled={!full}
-            onChange={(e) => store.setSettings((s) => ({ ...s, orb3d: e.target.checked }))}
-          />
-          <span>
-            <span className="choice-title">3D Orb (experimental)</span>
-            <span className="choice-text">
-              {full
-                ? "Draws the Health Orb's liquid with your graphics chip, if it keeps up."
-                : 'Available at Full motion.'}
-            </span>
-            {orb3dFailed && (
-              <span className="choice-text">
-                This device {orb3dFailed === 'slow' ? 'ran it slowly' : "couldn't run it"}, so the
-                standard Orb is shown.
-              </span>
-            )}
-          </span>
-        </label>
       </section>
 
       <section className="card" id="recovery-key">

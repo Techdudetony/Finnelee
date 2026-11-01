@@ -1,7 +1,6 @@
 // The Health Orb's drawing and its render loop, kept apart from React so both are tested.
-// Canvas 2D, no library (the opt-in WebGL liquid is orbGl.js). The orb is decorative:
-// every number it shows is also plain text in the pillar list, so nothing here is needed
-// to read the score.
+// Canvas 2D only (no WebGL, no library). The orb is decorative: every number it shows is
+// also plain text in the pillar list, so nothing here is needed to read the score.
 
 export const FILL_MS = 1200; // fill animation on page open (spec: at most 1.6 s)
 export const FRAME_MS = 1000 / 30; // idle animation runs at about 30 fps to save battery
@@ -13,8 +12,8 @@ const PHASE_MS = 900; // wave speed: higher is slower
 const LEAN_MS = 220; // how quickly the liquid follows the pointer
 
 // Rising bubbles: horizontal spot (-1..1), size, speed and start offset. They stay to
-// the sides so they never pass behind the score text. Shared with orbGl.js.
-export const BUBBLES = [
+// the sides so they never pass behind the score text.
+const BUBBLES = [
   { x: -0.62, r: 1.6, speed: 0.11, offset: 0.1 },
   { x: -0.48, r: 2.2, speed: 0.08, offset: 0.55 },
   { x: 0.5, r: 1.4, speed: 0.13, offset: 0.3 },
@@ -46,8 +45,8 @@ export function orbSegments(pillars) {
 /** Eases 0..1 the way the rest of the app does (fast start, gentle end). */
 export const easeOut = (t) => 1 - (1 - Math.min(1, Math.max(0, t))) ** 3;
 
-// The liquid's surface height at x: two sine waves, tipped by `lean`. Shared with orbGl.js.
-export const surface = (u, level, phase, amp, lean) =>
+// The liquid's surface height at x: two sine waves, tipped by `lean`.
+const surface = (u, level, phase, amp, lean) =>
   level +
   Math.sin(u * 2.6 + phase) * amp +
   Math.sin(u * 5.3 - phase * 1.4) * amp * 0.35 +
