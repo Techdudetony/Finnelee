@@ -7,6 +7,7 @@ import {
   moveActive,
   rankCommands,
   resultCount,
+  waitForElement,
 } from "./commands";
 
 const PAGES = [
@@ -145,5 +146,85 @@ describe("helpers", () => {
     expect(moveActive("End", 0, 3)).toBe(2);
     expect(moveActive("Enter", 0, 3)).toBeNull();
     expect(moveActive("ArrowDown", 0, 0)).toBeNull();
+  });
+});
+
+describe("waitForElement", () => {
+  /** A fake clock and frame queue: step() runs the next frame `ms` later. */
+  function fakeFrames() {
+    let time = 0;
+    let queued = null;
+    return {
+      now: () => time,
+      next: (fn) => ((queued = fn), 1),
+      cancel: () => (queued = null),
+      step(ms = 16) {
+        time += ms;
+        const fn = queued;
+        queued = null;
+        fn?.();
+      },
+      pending: () => queued !== null,
+    };
+  }
+
+  it("finds an element that is already there at once", () => {
+    const frames = fakeFrames();
+    const found = [];
+    waitForElement(() => "field", {
+      ...frames,
+      onFound: (el) => found.push(el),
+      onTimeout: () => found.push("timeout"),
+    });
+    expect(found).toEqual(["field"]);
+    expect(frames.pending()).toBe(false);
+  });
+
+  it("keeps checking until a late element appears (past 10 frames)", () => {
+    const frames = fakeFrames();
+    let element = null;
+    const found = [];
+    waitForElement(() => element, {
+      ...frames,
+      timeout: 3000,
+      onFound: (el) => found.push(el),
+      onTimeout: () => found.push("timeout"),
+    });
+    for (let i = 0; i < 30; i++) frames.step(16); // ~480 ms, nothing yet
+    expect(found).toEqual([]);
+    element = "field";
+    frames.step(16);
+    expect(found).toEqual(["field"]);
+    expect(frames.pending()).toBe(false);
+  });
+
+  it("gives up once at the timeout and never checks again", () => {
+    const frames = fakeFrames();
+    const found = [];
+    waitForElement(() => null, {
+      ...frames,
+      timeout: 100,
+      onFound: (el) => found.push(el),
+      onTimeout: () => found.push("timeout"),
+    });
+    for (let i = 0; i < 10; i++) frames.step(16);
+    expect(found).toEqual(["timeout"]);
+    expect(frames.pending()).toBe(false);
+  });
+
+  it("stops when cancelled, so a later element is never focused", () => {
+    const frames = fakeFrames();
+    let element = null;
+    const found = [];
+    const stop = waitForElement(() => element, {
+      ...frames,
+      onFound: (el) => found.push(el),
+      onTimeout: () => found.push("timeout"),
+    });
+    frames.step();
+    stop();
+    element = "field";
+    frames.step();
+    expect(found).toEqual([]);
   });
 });

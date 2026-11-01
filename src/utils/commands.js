@@ -184,3 +184,43 @@ export function moveActive(key, index, count) {
   if (key === "End") return count - 1;
   return null;
 }
+
+/** How long a task waits for its field to appear before giving up (ms). */
+export const FOCUS_TIMEOUT = 3000;
+
+/**
+ * Checks find() now and then every frame until it returns an element (onFound) or
+ * `timeout` ms pass (onTimeout). Returns a function that stops checking. Timing is
+ * injected for tests.
+ */
+export function waitForElement(
+  find,
+  {
+    timeout = FOCUS_TIMEOUT,
+    onFound,
+    onTimeout,
+    now = () => performance.now(),
+    next = (fn) => requestAnimationFrame(fn),
+    cancel = (id) => cancelAnimationFrame(id),
+  },
+) {
+  const start = now();
+  let id = null;
+  let stopped = false;
+  const check = () => {
+    if (stopped) return;
+    const element = find();
+    if (element) {
+      stopped = true;
+      onFound(element);
+    } else if (now() - start >= timeout) {
+      stopped = true;
+      onTimeout();
+    } else id = next(check);
+  };
+  check();
+  return () => {
+    stopped = true;
+    if (id !== null) cancel(id);
+  };
+}

@@ -6,7 +6,7 @@ import { useLocalStorage } from './hooks/useLocalStorage';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useSwipeToClose } from './hooks/useSwipeToClose';
 import { resolveMotion, setSavedMotion, transitionTo } from './utils/motion';
-import { buildCommands, isPaletteShortcut } from './utils/commands';
+import { buildCommands, isPaletteShortcut, waitForElement } from './utils/commands';
 import { emptyData } from './data/sampleData';
 import { syncBudgets } from './utils/budgeting';
 import { recordSnapshot } from './utils/netWorth';
@@ -202,21 +202,29 @@ function FinanceApp({ user }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const paletteOpener = useRef(null); // focus goes back here when it closes
   const commands = useMemo(() => buildCommands(PAGES), []);
-  const [focusRequest, setFocusRequest] = useState(null); // { page, focus } from a task
+  const [focusRequest, setFocusRequest] = useState(null); // { page, focus, label } from a command
+  const focusPending = useRef(false); // a command is moving focus: don't restore it
+  focusPending.current = focusRequest !== null;
+  const pageNow = useRef(page); // read by the focus wait below, which outlives a render
+  pageNow.current = page;
   const [notice, setNotice] = useState(''); // read out after a Motion change
   const openPalette = () => {
     paletteOpener.current = document.activeElement;
     setPaletteOpen(true);
   };
+  // Closing without running anything: back to the opener. Skipped when a command is
+  // already moving focus to its page, so the two can never race.
   const restoreFocus = () => {
     const back = paletteOpener.current;
-    requestAnimationFrame(() => back?.isConnected && back.focus());
+    requestAnimationFrame(() => {
+      if (!focusPending.current && back?.isConnected) back.focus();
+    });
   };
   const closePalette = () => {
     setPaletteOpen(false);
     restoreFocus();
   };
-  const runCommand = ({ action }) => {
+  const runCommand = ({ action, label }) => {
     setPaletteOpen(false);
     if (action.type === 'motion') {
       setSettings((s) => ({ ...s, motion: action.level }));
@@ -229,7 +237,8 @@ function FinanceApp({ user }) {
       restoreFocus();
       return;
     }
-    setFocusRequest({ page: action.page, focus: action.focus ?? [] });
+    focusPending.current = true;
+    setFocusRequest({ page: action.page, focus: action.focus ?? [], label });
     goTo(action.page);
   };
 
@@ -250,34 +259,46 @@ function FinanceApp({ user }) {
     return () => document.removeEventListener('keydown', onKey);
   });
 
-  // A task's field gets focus once its page is showing, then the request is cleared.
-  // No field (a plain "Go to"): the page's heading gets focus instead.
+  // Focus goes to a task's field (or, for "Go to", the page heading) once its page is
+  // showing. It keeps checking each frame until the field appears, for up to 3 seconds.
+  // Then the heading gets focus and the miss is announced. Either way the request is
+  // cleared and the checking stops, so it can never steal focus later.
   useEffect(() => {
     if (!focusRequest) return undefined;
-    if (focusRequest.page !== page) {
-      // The page can switch a frame later (View Transitions); give up after 2 seconds.
-      const timer = setTimeout(() => setFocusRequest(null), 2000);
-      return () => clearTimeout(timer);
-    }
-    let frame = 0;
-    let tries = 0;
-    const attempt = () => {
-      const main = document.querySelector('main.content');
-      const field = focusRequest.focus
-        .map((name) => main?.querySelector(`[data-focus-target="${name}"]`))
-        .find(Boolean);
-      if (!field && focusRequest.focus.length > 0 && tries++ < 10) {
-        frame = requestAnimationFrame(attempt); // not rendered yet: try next frame
-        return;
-      }
-      const target = field ?? main?.querySelector('h1');
-      if (target && !field) target.setAttribute('tabindex', '-1');
-      target?.focus();
-      setFocusRequest(null);
+    const { page: target, focus, label } = focusRequest;
+    const heading = () => document.querySelector('main.content h1');
+    const onPage = () => pageNow.current === target;
+    const focusHeading = () => {
+      const h = heading();
+      h?.setAttribute('tabindex', '-1');
+      h?.focus();
     };
-    frame = requestAnimationFrame(attempt);
-    return () => cancelAnimationFrame(frame);
-  }, [focusRequest, page]);
+    return waitForElement(
+      () => {
+        if (!onPage()) return null;
+        if (focus.length === 0) return heading();
+        const main = document.querySelector('main.content');
+        return focus
+          .map((name) => main?.querySelector(`[data-focus-target="${name}"]`))
+          .find(Boolean);
+      },
+      {
+        onFound: (element) => {
+          if (focus.length === 0) focusHeading();
+          else element.focus();
+          setFocusRequest(null);
+        },
+        onTimeout: () => {
+          if (onPage()) {
+            focusHeading();
+            if (focus.length > 0)
+              setNotice(`${label}: that field isn't available right now, so focus is on the page heading.`);
+          }
+          setFocusRequest(null);
+        },
+      },
+    );
+  }, [focusRequest]);
 
   const current = PAGES.find((p) => p.id === page) ?? PAGES[0];
   const { Component } = current; // Capitalized so JSX treats it as a component

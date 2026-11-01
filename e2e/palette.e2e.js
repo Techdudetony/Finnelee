@@ -281,3 +281,129 @@ test("on a phone, the search button opens it and Esc returns focus to it", async
   await page.waitForTimeout(200);
   await expect(palette(page)).toHaveCount(0);
 });
+
+/** Run a command by typing its exact label in the palette. */
+async function run(page, label) {
+  await page.keyboard.press(`${MOD}+k`);
+  await search(page).fill(label);
+  await expect(palette(page).getByRole("option").first()).toContainText(label);
+  await page.keyboard.press("Enter");
+}
+
+test("all seven tasks focus their field", async ({ page }) => {
+  await signUp(page);
+  const tasks = [
+    ["Add a transaction", "Transactions", "add-transaction"],
+    ["Import a statement", "Transactions", "import-statement"],
+    ["Add a bill", "Bills", "add-bill"],
+    ["Add a goal", "Goals", "add-goal"],
+    ["Add a debt", "Debt Planner", "add-debt"],
+    ["Update your checking balance", "Net Worth", "add-account"], // no accounts yet
+    ["Set your pay schedule", "Bills", "pay-schedule"],
+  ];
+  for (const [label, pageTitle, target] of tasks) {
+    await run(page, label);
+    await expect(page.locator(".page-title")).toHaveText(pageTitle);
+    await expect(page.locator(`[data-focus-target="${target}"]`)).toBeFocused();
+  }
+});
+
+test("Cmd K works too", async ({ page }) => {
+  await signUp(page);
+  await page.keyboard.press("Meta+k");
+  await expect(palette(page)).toBeVisible();
+  await page.keyboard.press("Meta+k");
+  await expect(palette(page)).toHaveCount(0);
+});
+
+test("opened from a focused sidebar button, a command moves focus to its page", async ({
+  page,
+}) => {
+  await signUp(page);
+  const goals = page.locator(".nav-item", { hasText: "Goals" });
+
+  // Go to: the destination heading keeps focus (the opener doesn't take it back).
+  await goals.focus();
+  await run(page, "Budget");
+  await expect(page.locator(".page-title")).toHaveText("Budget");
+  await expect(title(page)).toBeFocused();
+  await page.waitForTimeout(500);
+  await expect(title(page)).toBeFocused();
+
+  // A task: its field keeps focus.
+  await goals.focus();
+  await run(page, "Add a bill");
+  await expect(page.locator('[data-focus-target="add-bill"]')).toBeFocused();
+  await page.waitForTimeout(500);
+  await expect(page.locator('[data-focus-target="add-bill"]')).toBeFocused();
+
+  // From the Search button, same result.
+  await page.locator(".palette-open").click();
+  await search(page).fill("Forecast");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".page-title")).toHaveText("Forecast");
+  await page.waitForTimeout(500);
+  await expect(title(page)).toBeFocused();
+
+  // Closing without a command still goes back to the opener.
+  await goals.focus();
+  await page.keyboard.press(`${MOD}+k`);
+  await page.keyboard.press("Escape");
+  await expect(goals).toBeFocused();
+});
+
+/** Hides the Goals name field's focus target until `restore()` runs in the page. */
+async function holdBackGoalField(page, ms) {
+  await page.evaluate((ms) => {
+    const strip = (el) => {
+      el.removeAttribute("data-focus-target");
+      el.dataset.heldBack = "add-goal";
+      if (ms !== null)
+        setTimeout(() => el.setAttribute("data-focus-target", "add-goal"), ms);
+    };
+    window.__holdBack = new MutationObserver(() => {
+      const el = document.querySelector('[data-focus-target="add-goal"]');
+      if (el && !el.dataset.heldBack) strip(el);
+    });
+    window.__holdBack.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+  }, ms);
+}
+
+test("a field that appears late still gets focus", async ({ page }) => {
+  await signUp(page);
+  await holdBackGoalField(page, 800); // appears 0.8 s after the page renders
+  await run(page, "Add a goal");
+  await expect(page.locator(".page-title")).toHaveText("Goals");
+  await expect(page.locator('[data-focus-target="add-goal"]')).toBeFocused({
+    timeout: 2500,
+  });
+});
+
+test("a field that never appears: heading, an announcement, and no focus stolen later", async ({
+  page,
+}) => {
+  await signUp(page);
+  await holdBackGoalField(page, null);
+  await run(page, "Add a goal");
+  await expect(page.locator(".page-title")).toHaveText("Goals");
+  await expect(title(page)).toBeFocused({ timeout: 4000 });
+  await expect(page.locator(".layout > [role=status]")).toHaveText(
+    "Add a goal: that field isn't available right now, so focus is on the page heading.",
+  );
+
+  // The request is gone: the field turning up later doesn't take focus.
+  await page.evaluate(() => {
+    window.__holdBack.disconnect();
+    document
+      .querySelector("[data-held-back]")
+      ?.setAttribute("data-focus-target", "add-goal");
+  });
+  const nav = page.locator(".nav-item", { hasText: "Dashboard" });
+  await nav.click();
+  await page.locator(".nav-item", { hasText: "Goals" }).click();
+  await page.waitForTimeout(500);
+  await expect(page.locator(".nav-item", { hasText: "Goals" })).toBeFocused();
+});
