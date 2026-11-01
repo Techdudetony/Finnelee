@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import EmptyState from "./EmptyState";
+import { Notice } from "./Status";
 import {
   formatCurrency,
   formatDate,
@@ -7,12 +8,16 @@ import {
   toISODate,
 } from "../utils/format";
 import { runwayEvents } from "../utils/health";
-import { addDays } from "../utils/obligations";
+import { addDays, buildObligations, paymentsOwed } from "../utils/obligations";
+import { PAGE_NAMES, undatedPayments } from "../utils/owedLinks";
 
 const DAYS = 14;
 const weekday = (iso) =>
   parseDate(iso).toLocaleDateString("en-US", { weekday: "short" });
 const dayNumber = (iso) => Number(iso.slice(8));
+// "$35.00", or "$70.00 over 2 months" when the 14 days touch two months.
+const amountText = (u) =>
+  formatCurrency(u.amount) + (u.months > 1 ? ` over ${u.months} months` : "");
 
 /**
  * The next 14 days: bills (and dated debt payments) on their due dates, paydays only from
@@ -27,6 +32,19 @@ export default function Runway({ store, goTo }) {
   const run = useMemo(
     () => runwayEvents({ bills, debts, accounts, settings }, parseDate(start)),
     [bills, debts, accounts, settings, start],
+  );
+  // Known debt minimums with no due day: counted in the spendable estimate, but with no
+  // day to sit on, so the strip and projection leave them out. Said here, not hidden.
+  const undated = useMemo(
+    () =>
+      undatedPayments(
+        paymentsOwed(
+          buildObligations({ debts, accounts, bills }),
+          start,
+          addDays(start, DAYS - 1),
+        ).items,
+      ),
+    [bills, debts, accounts, start],
   );
   const dates = Array.from({ length: DAYS }, (_, i) => addDays(start, i));
   const byDate = new Map(run.days.map((d) => [d.date, d]));
@@ -151,6 +169,29 @@ export default function Runway({ store, goTo }) {
           updated cash, lowest {formatCurrency(lowest.balance)} on{" "}
           {formatDate(lowest.date)}.
         </p>
+      )}
+      {undated.length > 0 && (
+        <Notice tone="warning" className="insight runway-undated">
+          {undated.length === 1
+            ? `${undated[0].name} minimum payment of ${amountText(undated[0])} has no due day, so it isn't`
+            : `${undated.map((u) => `${u.name} (${amountText(u)})`).join(", ")}: these minimum payments have no due day, so they aren't`}{" "}
+          on these 14 days{proj ? " or the projection" : ""}.{" "}
+          {proj
+            ? "The projected balance may be higher than what's actually available."
+            : "You may owe more in these days than shown."}{" "}
+          {[...new Set(undated.map((u) => u.page))].map((page) => (
+            <button
+              key={page}
+              type="button"
+              className="link-btn"
+              onClick={() => goTo(page)}
+            >
+              {undated.length === 1
+                ? `Add a due day for ${undated[0].name} on ${PAGE_NAMES[page]}`
+                : `Add due days on ${PAGE_NAMES[page]}`}
+            </button>
+          ))}
+        </Notice>
       )}
       {run.projectionNote && (
         <p className="small muted">{run.projectionNote}.</p>

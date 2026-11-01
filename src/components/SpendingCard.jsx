@@ -9,6 +9,7 @@ import {
 } from "../utils/format";
 import { spendingEstimate } from "../utils/health";
 import { buildObligations, paymentsOwed } from "../utils/obligations";
+import { PAGE_NAMES, unknownPayments } from "../utils/owedLinks";
 
 /**
  * "This month's spending room": the budget estimate and the estimated spendable amount,
@@ -46,7 +47,8 @@ export default function SpendingCard({ store, goTo }) {
         : null;
 
   // "Mortgage payment unknown": each unknown payment links to the page where its amount
-  // is entered, found from the record itself (ids), never by matching names.
+  // is entered, found from the record's key (ids), never by matching names. The page is
+  // named too, so a debt and a liability with the same name read differently.
   const unknown = useMemo(() => {
     if (spendable.status !== "incomplete") return [];
     const owed = paymentsOwed(
@@ -54,18 +56,7 @@ export default function SpendingCard({ store, goTo }) {
       win.start,
       win.end,
     );
-    const found = new Map();
-    for (const i of owed.items.filter((x) => x.amount === null)) {
-      const page =
-        i.bill || i.key.startsWith("bill:")
-          ? "bills"
-          : i.key.startsWith("debt:")
-            ? "debt"
-            : "networth";
-      const name = i.bill ?? i.name;
-      found.set(`${page}:${name}`, { name, page });
-    }
-    return [...found.values()];
+    return unknownPayments(owed.items);
   }, [spendable.status, debts, accounts, bills, win.start, win.end]);
 
   return (
@@ -97,14 +88,15 @@ export default function SpendingCard({ store, goTo }) {
       )}
       {spendable.status === "incomplete" && (
         <div className="stack spend-incomplete">
-          {unknown.map(({ name, page }) => (
+          {unknown.map(({ id, name, page }) => (
             <button
-              key={`${page}:${name}`}
+              key={id}
               type="button"
               className="link-btn"
               onClick={() => goTo(page)}
             >
-              {name} payment unknown. Add it to finish this estimate.
+              {name} payment unknown ({PAGE_NAMES[page]}). Add it to finish this
+              estimate.
             </button>
           ))}
           <span className="small">{spendable.limitText}</span>

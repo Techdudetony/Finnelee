@@ -249,10 +249,86 @@ test("an unknown payment links to the page where it's entered", async ({
   await expect(spending(page)).toContainText("Estimate incomplete");
   await spending(page)
     .getByRole("button", {
-      name: "Gym payment unknown. Add it to finish this estimate.",
+      name: "Gym payment unknown (Bills). Add it to finish this estimate.",
     })
     .click();
   await expect(page.locator(".page-title")).toHaveText("Bills");
+});
+
+test("a debt and a liability with the same name each link to their own page", async ({
+  page,
+}) => {
+  // Both "Truck loan", both with no payment saved, not linked to each other.
+  await editSlice(
+    page,
+    "debts",
+    "return [...v, { id: 'truck', name: 'Truck loan', balance: 5000, minPayment: '' }]",
+  );
+  await editSlice(
+    page,
+    "accounts",
+    "return [...v, { id: 'truck-nw', type: 'liability', kind: 'loan', name: 'Truck loan', balance: 3000, updated: '2026-11-02' }]",
+  );
+  await expect(spending(page)).toContainText("Estimate incomplete");
+  const unknown = spending(page).getByRole("button", {
+    name: /^Truck loan payment unknown/,
+  });
+  await expect(unknown).toHaveCount(2);
+  await spending(page)
+    .getByRole("button", {
+      name: "Truck loan payment unknown (Debt Planner). Add it to finish this estimate.",
+    })
+    .click();
+  await expect(page.locator(".page-title")).toHaveText("Debt Planner");
+  await nav(page, "Dashboard");
+  await spending(page)
+    .getByRole("button", {
+      name: "Truck loan payment unknown (Net Worth). Add it to finish this estimate.",
+    })
+    .click();
+  await expect(page.locator(".page-title")).toHaveText("Net Worth");
+});
+
+test("a debt minimum with no due day is flagged on the runway", async ({
+  page,
+}) => {
+  await editSlice(
+    page,
+    "debts",
+    "return [...v, { id: 'card', name: 'Store card', balance: 800, minPayment: 35 }]",
+  );
+  // Still counted in the spendable amount (window Nov 2-5): 3,000 - 200 - 35.
+  await expect(spending(page)).toContainText("$2,765.00");
+  // Not on the strip or the projection (its formula is unchanged), and the card says so.
+  await expect(runway(page).locator(".runway-list")).not.toContainText(
+    "Store card",
+  );
+  await expect(runway(page)).toContainText(
+    "from $3,000.00 recently updated cash, lowest $2,800.00 on Nov 5, 2026",
+  );
+  await expect(runway(page).locator(".runway-undated")).toHaveText(
+    "Store card minimum payment of $35.00 has no due day, so it isn't on these 14 days or the projection. The projected balance may be higher than what's actually available. Add a due day for Store card on Debt Planner",
+  );
+  await runway(page)
+    .getByRole("button", {
+      name: "Add a due day for Store card on Debt Planner",
+    })
+    .click();
+  await expect(page.locator(".page-title")).toHaveText("Debt Planner");
+
+  // Two of them: one warning naming both, one link to the page.
+  await editSlice(
+    page,
+    "debts",
+    "return [...v, { id: 'doc', name: 'Dentist plan', balance: 300, minPayment: 50 }]",
+  );
+  await nav(page, "Dashboard");
+  await expect(runway(page).locator(".runway-undated")).toContainText(
+    "Store card ($35.00), Dentist plan ($50.00): these minimum payments have no due day, so they aren't on these 14 days or the projection.",
+  );
+  await expect(
+    runway(page).getByRole("button", { name: "Add due days on Debt Planner" }),
+  ).toHaveCount(1);
 });
 
 test("after midnight the runway shows the new day's dates and events together", async ({

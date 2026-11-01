@@ -1986,3 +1986,10 @@ h2 > .icon {
 .runway-list li {
   gap: 8px;
 }
+.runway-undated {
+  margin: 8px 0;
+}
+.runway-undated .link-btn {
+  margin-right: 12px;
+  text-align: left;
+}
