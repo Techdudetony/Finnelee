@@ -146,7 +146,7 @@ export default function TransactionImport({ store }) {
 
   return (
     <section className="card">
-      <h2>Import transactions</h2>
+      <h2 data-focus-target="import-section" tabIndex={-1}>Import transactions</h2>
 
       {step === 'pick' && (
         <>
@@ -156,7 +156,12 @@ export default function TransactionImport({ store }) {
           </p>
           <label className="field">
             CSV (up to 5 MB) or PDF (up to 10 MB)
-            <input type="file" accept=".csv,.pdf,text/csv,application/pdf" onChange={chooseFile} />
+            <input
+              type="file"
+              accept=".csv,.pdf,text/csv,application/pdf"
+              onChange={chooseFile}
+              data-focus-target="import-statement"
+            />
           </label>
           {error && (
             <Status tone="critical" as="p" role="alert" style={{ marginBottom: 0 }}>
@@ -280,7 +285,7 @@ export default function TransactionImport({ store }) {
             </p>
           )}
           <div>
-            <button className="btn" onClick={reset}>
+            <button className="btn" onClick={reset} data-focus-target="import-another">
               Import another file
             </button>
           </div>

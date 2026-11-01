@@ -101,7 +101,12 @@ export function PayScheduleForm({ settings, setSettings, onSaved, children }) {
         </label>
         <label className="field">
           Next payday
-          <input type="date" value={form.next} onChange={field("next")} />
+          <input
+            type="date"
+            value={form.next}
+            onChange={field("next")}
+            data-focus-target="pay-schedule"
+          />
         </label>
         {form.cadence === "twice-monthly" && (
           <>

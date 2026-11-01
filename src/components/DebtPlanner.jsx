@@ -116,7 +116,7 @@ export default function DebtPlanner({ store }) {
         </div>
         {debts.length === 0 && <NoDebts confirmed={settings.noDebtsConfirmed === true} onConfirm={confirmNoDebts} />}
         <form className="form" onSubmit={addDebt} style={{ marginTop: 14 }}>
-          <input placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Debt name" />
+          <input data-focus-target="add-debt" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Debt name" />
           <input type="number" min="0" step="any" placeholder="Balance" value={form.balance} onChange={(e) => setForm({ ...form, balance: e.target.value })} aria-label="Balance" />
           <input type="number" min="0" step="any" placeholder="APR %" value={form.apr} onChange={(e) => setForm({ ...form, apr: e.target.value })} aria-label="APR" />
           <input type="number" min="0" step="any" placeholder="Min. payment" value={form.minPayment} onChange={(e) => setForm({ ...form, minPayment: e.target.value })} aria-label="Minimum payment" />

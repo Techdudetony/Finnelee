@@ -115,6 +115,7 @@ export default function Bills({ store }) {
           <label className="field">
             Name
             <input
+              data-focus-target="add-bill"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="e.g. Phone"

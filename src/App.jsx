@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useAuth } from './auth/AuthContext';
 import { userKey } from './auth/userStorage';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useSwipeToClose } from './hooks/useSwipeToClose';
-import { setSavedMotion, transitionTo } from './utils/motion';
+import { resolveMotion, setSavedMotion, transitionTo } from './utils/motion';
+import { buildCommands, isPaletteShortcut, waitForElement } from './utils/commands';
 import { emptyData } from './data/sampleData';
 import { syncBudgets } from './utils/budgeting';
 import { recordSnapshot } from './utils/netWorth';
@@ -13,6 +14,7 @@ import AuthScreen from './components/AuthScreen';
 import WelcomeSummary from './components/WelcomeSummary';
 import RecoveryKeyDialog from './components/RecoveryKeyDialog';
 import PayScheduleStep from './components/PayScheduleStep';
+import CommandPalette, { shortcutLabel } from './components/CommandPalette';
 import Dashboard from './components/Dashboard';
 import NetWorth from './components/NetWorth';
 import Transactions from './components/Transactions';
@@ -195,6 +197,109 @@ function FinanceApp({ user }) {
     setCategories,
   };
  
+  // ---------- Command palette (Ctrl K, or ⌘K on a Mac) ----------
+  // Opens pages, puts focus in a form field, or changes Motion. It never edits records.
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const paletteOpener = useRef(null); // focus goes back here when it closes
+  const commands = useMemo(() => buildCommands(PAGES), []);
+  const [focusRequest, setFocusRequest] = useState(null); // { page, focus, label } from a command
+  const focusPending = useRef(false); // a command is moving focus: don't restore it
+  focusPending.current = focusRequest !== null;
+  const pageNow = useRef(page); // read by the focus wait below, which outlives a render
+  pageNow.current = page;
+  const [notice, setNotice] = useState(''); // read out after a Motion change
+  const openPalette = () => {
+    paletteOpener.current = document.activeElement;
+    setPaletteOpen(true);
+  };
+  // Closing without running anything: back to the opener. Skipped when a command is
+  // already moving focus to its page, so the two can never race.
+  const restoreFocus = () => {
+    const back = paletteOpener.current;
+    requestAnimationFrame(() => {
+      if (!focusPending.current && back?.isConnected) back.focus();
+    });
+  };
+  const closePalette = () => {
+    setPaletteOpen(false);
+    restoreFocus();
+  };
+  const runCommand = ({ action, label }) => {
+    setPaletteOpen(false);
+    if (action.type === 'motion') {
+      setSettings((s) => ({ ...s, motion: action.level }));
+      const name = { full: 'Full', calm: 'Calm', off: 'Off' }[action.level];
+      setNotice(
+        resolveMotion(action.level) === action.level
+          ? `Motion set to ${name}.`
+          : `Motion set to ${name}. Your device asks for reduced motion, so it plays as Calm.`,
+      );
+      restoreFocus();
+      return;
+    }
+    focusPending.current = true;
+    setFocusRequest({ page: action.page, focus: action.focus ?? [], label });
+    goTo(action.page);
+  };
+
+  // The shortcut works only here, in the signed-in app, and not while another dialog or
+  // the phone menu is open. Pressed again, it closes the palette.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!isPaletteShortcut(e)) return;
+      if (paletteOpen) {
+        e.preventDefault();
+        closePalette();
+      } else if (!drawer && !document.querySelector('dialog[open]')) {
+        e.preventDefault();
+        openPalette();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  });
+
+  // Focus goes to a task's field (or, for "Go to", the page heading) once its page is
+  // showing. It keeps checking each frame until the field appears, for up to 3 seconds.
+  // Then the heading gets focus and the miss is announced. Either way the request is
+  // cleared and the checking stops, so it can never steal focus later.
+  useEffect(() => {
+    if (!focusRequest) return undefined;
+    const { page: target, focus, label } = focusRequest;
+    const heading = () => document.querySelector('main.content h1');
+    const onPage = () => pageNow.current === target;
+    const focusHeading = () => {
+      const h = heading();
+      h?.setAttribute('tabindex', '-1');
+      h?.focus();
+    };
+    return waitForElement(
+      () => {
+        if (!onPage()) return null;
+        if (focus.length === 0) return heading();
+        const main = document.querySelector('main.content');
+        return focus
+          .map((name) => main?.querySelector(`[data-focus-target="${name}"]`))
+          .find(Boolean);
+      },
+      {
+        onFound: (element) => {
+          if (focus.length === 0) focusHeading();
+          else element.focus();
+          setFocusRequest(null);
+        },
+        onTimeout: () => {
+          if (onPage()) {
+            focusHeading();
+            if (focus.length > 0)
+              setNotice(`${label}: that field isn't available right now, so focus is on the page heading.`);
+          }
+          setFocusRequest(null);
+        },
+      },
+    );
+  }, [focusRequest]);
+
   const current = PAGES.find((p) => p.id === page) ?? PAGES[0];
   const { Component } = current; // Capitalized so JSX treats it as a component
  
@@ -214,6 +319,14 @@ function FinanceApp({ user }) {
         <div className="brand" style={{ padding: 0 }}>
           <BrandMark /> Finnelee
         </div>
+        <button
+          className="btn-icon palette-phone"
+          onClick={openPalette}
+          aria-label="Search pages and tasks"
+          aria-haspopup="dialog"
+        >
+          <Icon name="search" size={20} />
+        </button>
       </header>
       {drawer && (
         <div
@@ -239,6 +352,18 @@ function FinanceApp({ user }) {
             </button>
           )}
         </div>
+        {!isMobile && (
+          <button
+            className="palette-open"
+            onClick={openPalette}
+            aria-haspopup="dialog"
+            aria-keyshortcuts="Control+K Meta+K"
+          >
+            <Icon name="search" size={18} />
+            <span>Search</span>
+            <kbd>{shortcutLabel()}</kbd>
+          </button>
+        )}
         <nav className="nav" aria-label="Main" ref={navRef}>
           <span
             className="nav-indicator"
@@ -299,6 +424,12 @@ function FinanceApp({ user }) {
       ) : (
         showSummary && <WelcomeSummary store={store} goTo={goTo} onClose={closeSummary} />
       )}
+      {paletteOpen && (
+        <CommandPalette commands={commands} onRun={runCommand} onClose={closePalette} />
+      )}
+      <div role="status" className="sr-only">
+        {notice}
+      </div>
     </div>
   );
 }
