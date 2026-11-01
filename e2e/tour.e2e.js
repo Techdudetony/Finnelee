@@ -513,3 +513,35 @@ test.describe("phones: palette", () => {
     await expect(page.locator(".palette-phone")).toBeFocused();
   });
 });
+
+test("if the tour can't download, the app keeps working and it is offered again next visit", async ({
+  page,
+}) => {
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.route(/GuidedTour/, (route) => route.abort());
+  await signUp(page);
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".layout > [role=status]")).toHaveText(
+    "The guided tour couldn't load. Check your connection, reload the page, then replay it from Settings.",
+  );
+  await expect(tour(page)).toHaveCount(0);
+  await expect(page.locator("main h1")).toHaveText(/^Good/); // still the app
+  expect(errors).toEqual([]); // caught, not a page crash
+  // Not recorded as done or skipped, and the offer isn't spent.
+  expect(await onboarding(page)).toMatchObject({
+    offeredAt: null,
+    outcome: null,
+  });
+
+  await page.unroute(/GuidedTour/);
+  // Offered again on the next visit, and it loads this time.
+  await page.reload();
+  await expect(tour(page)).toBeVisible();
+  await expect(tour(page)).toHaveAccessibleName("Finnelee in three ideas");
+  await page.getByRole("button", { name: "Not now" }).click();
+  // Replay works too.
+  await page.locator(".nav-item", { hasText: "Settings" }).click();
+  await page.getByRole("button", { name: "Replay tour" }).click();
+  await expect(tour(page)).toBeVisible();
+});

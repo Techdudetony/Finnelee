@@ -16,9 +16,12 @@ import RecoveryKeyDialog from './components/RecoveryKeyDialog';
 import PayScheduleStep from './components/PayScheduleStep';
 import { markTourEnded, markTourOffered, shouldOfferTour } from './utils/onboarding';
 import CommandPalette, { shortcutLabel } from './components/CommandPalette';
+import TourBoundary from './components/TourBoundary';
 // The guided tour loads only when it's shown (offered once, or replayed), so it adds
-// almost nothing to the app's first download.
-const GuidedTour = lazy(() => import('./components/GuidedTour'));
+// almost nothing to the app's first download. `let`: after a failed download it is
+// made again, because lazy() remembers a failure and would never retry.
+const loadTour = () => import('./components/GuidedTour');
+let GuidedTour = lazy(loadTour);
 import PageErrorBoundary from './components/PageErrorBoundary';
 import Dashboard from './components/Dashboard';
 import NetWorth from './components/NetWorth';
@@ -328,13 +331,31 @@ function FinanceApp({ user }) {
     setDrawerOpen(false); // the tour never opens over the phone menu
     setTour({ replay });
   };
+  // A first-run offer whose tour couldn't download isn't spent: it's offered again
+  // next visit (not this one, which would just fail again). See tourFailed below.
+  const tourLoadFailed = useRef(false);
   const otherDialog = newRecoveryKey || askPaySchedule || showSummary || paletteOpen;
   useEffect(() => {
-    if (!otherDialog && !tour && shouldOfferTour(settings)) startTour(false);
+    if (!otherDialog && !tour && !tourLoadFailed.current && shouldOfferTour(settings))
+      startTour(false);
   });
   // `open` ({ page, focus, label }): Show me, or a page from Explore all features. It
   // moves focus itself; otherwise focus goes back to where it was, or the page heading.
   // A replay is recorded apart from the first run, so it never overwrites that result.
+  // The tour couldn't download (or draw): say so and keep the app working. Nothing is
+  // recorded as done or skipped. Browsers remember a failed download until the page
+  // reloads, hence the advice; some do retry, which the fresh lazy() allows.
+  const tourFailed = () => {
+    GuidedTour = lazy(loadTour);
+    if (!tour.replay) {
+      tourLoadFailed.current = true;
+      setSettings((s) => ({ ...s, onboarding: { ...s.onboarding, offeredAt: null } }));
+    }
+    setTour(null);
+    setNotice("The guided tour couldn't load. Check your connection, reload the page, then replay it from Settings.");
+    const back = tourOpener.current;
+    requestAnimationFrame(() => back?.isConnected && back !== document.body && back.focus());
+  };
   const endTour = (outcome, open) => {
     const replay = tour.replay;
     setSettings((s) => markTourEnded(s, outcome, new Date().toISOString(), { replay }));
@@ -480,14 +501,16 @@ function FinanceApp({ user }) {
         showSummary && <WelcomeSummary store={store} goTo={goTo} onClose={closeSummary} />
       )}
       {tour && (
-        <Suspense fallback={null}>
-          <GuidedTour
-            replay={tour.replay}
-            phone={isMobile}
-            pages={PAGES.map(({ id, label }) => ({ id, label }))}
-            onEnd={endTour}
-          />
-        </Suspense>
+        <TourBoundary onFail={tourFailed}>
+          <Suspense fallback={null}>
+            <GuidedTour
+              replay={tour.replay}
+              phone={isMobile}
+              pages={PAGES.map(({ id, label }) => ({ id, label }))}
+              onEnd={endTour}
+            />
+          </Suspense>
+        </TourBoundary>
       )}
       {paletteOpen && (
         <CommandPalette commands={commands} onRun={runCommand} onClose={closePalette} />
