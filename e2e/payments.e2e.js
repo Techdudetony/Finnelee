@@ -375,5 +375,46 @@ test("a liability linked to a debt counts once in net worth", async ({
     "The balance here is $9,200.00",
   );
   await nav(page, "Dashboard");
-  await expect(page.getByText("-$6,000.00").first()).toBeVisible();
+  await expect(netWorth).toContainText("-$6,000.00"); // the Dashboard tile
+});
+
+test("paying off a linked loan never brings back the old liability balance", async ({
+  page,
+}) => {
+  // Linked from the start; the Net Worth balance (9,200) is never updated.
+  await editSlice(
+    page,
+    "accounts",
+    "return [...v, { id: 'auto', type: 'liability', kind: 'other', name: 'Auto loan', balance: 9200, debtId: 'car', updated: '2026-11-02' }]",
+  );
+  await nav(page, "Net Worth");
+  const netWorth = page.locator(".card", {
+    has: page.locator(".stat-label", { hasText: /^Net worth$/ }),
+  });
+  await expect(netWorth).toContainText("-$6,000.00"); // 3,000 − 9,000
+
+  // Pay the loan off on the Debt Planner: its balance goes to 0.
+  await nav(page, "Debt Planner");
+  const balance = page.getByLabel("Car loan balance");
+  await balance.fill("0");
+  await balance.blur();
+  await nav(page, "Net Worth");
+  await expect(netWorth).toContainText("$3,000.00"); // not 3,000 − 9,200
+  await expect(netWorth).not.toContainText("-$6,200.00");
+  const details = page.locator(".row-details");
+  await expect(details).toContainText(
+    "Car loan is paid off in the Debt Planner, so this counts as $0.00 in your net worth.",
+  );
+  await expect(details).toContainText("The balance here is $9,200.00");
+  await expect(page.getByLabel("Same as Debt Planner debt")).toHaveValue("car");
+  await nav(page, "Dashboard");
+  await expect(netWorth).toContainText("$3,000.00"); // the Dashboard tile
+
+  // Deleting the debt breaks the link: the liability counts on its own, with a warning.
+  await editSlice(page, "debts", "return []");
+  await nav(page, "Net Worth");
+  await expect(netWorth).toContainText("-$6,200.00"); // 3,000 − 9,200
+  await expect(details).toContainText(
+    "The linked debt was deleted, so this balance counts on its own in your net worth.",
+  );
 });

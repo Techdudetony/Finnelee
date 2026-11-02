@@ -3,9 +3,10 @@
 // accounts (own storage slice): [{ id, name, type: 'asset' | 'liability', kind, balance, updated, source }]
 //   - Debt Planner debts ALWAYS count as liabilities (read live), so loans and cards are
 //     never entered twice. Liability accounts are only for debts not in the planner.
-//   - A liability linked to an open debt (account.debtId, "Same as Debt Planner debt") is
-//     that debt, so only the debt's balance counts. A link to a deleted or paid-off debt
-//     is ignored and the liability counts on its own, as in obligations.js.
+//   - A liability linked to a debt (account.debtId, "Same as Debt Planner debt") is that
+//     debt, so only the debt's balance counts, even once it's paid off ($0). Fallback: a
+//     link to a deleted debt is broken, and the liability counts on its own until the
+//     user relinks or unlinks it (the Net Worth page says so).
 //   - A financed asset is two rows: its market value here, its loan in the Debt Planner.
 //   - source: 'manual' for now; kept so a future bank integration can tell its rows apart.
 // settings.netWorthHistory: { '2026-10': { assets, liabilities } }
@@ -126,20 +127,25 @@ export function isStale(account, today = new Date()) {
 
 // ---------- Totals ----------
 
+const hasDebtLink = (account) =>
+  account?.type === "liability" &&
+  account.debtId != null &&
+  account.debtId !== "";
+
 /**
- * The open Debt Planner debt a liability is linked to, or null. Same rule as
- * obligations.js: ids only, and a debt with no balance left doesn't count as a link.
+ * The Debt Planner debt a liability is linked to, or null. Ids only. A paid-off debt
+ * (balance 0) still counts as the link, so paying a loan off can't bring back the old
+ * liability balance. (Payments follow their own rule in obligations.js.)
  */
 export function linkedDebt(account, debts = []) {
-  if (account?.type !== "liability" || account.debtId == null) return null;
+  if (!hasDebtLink(account)) return null;
   const list = Array.isArray(debts) ? debts : [];
-  return (
-    list.find(
-      (d) =>
-        d && String(d.id) === String(account.debtId) && Number(d.balance) > 0,
-    ) ?? null
-  );
+  return list.find((d) => d && String(d.id) === String(account.debtId)) ?? null;
 }
+
+/** True when a liability points at a debt that no longer exists (deleted). */
+export const brokenDebtLink = (account, debts = []) =>
+  hasDebtLink(account) && !linkedDebt(account, debts);
 
 /**
  * { assets, accountLiabilities, debtLiabilities, liabilities, netWorth }. Net worth can be

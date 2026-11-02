@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  brokenDebtLink,
   changeSinceLastSnapshot,
   historySeries,
   isStale,
@@ -74,9 +75,19 @@ describe("accounts", () => {
   });
 
   it("requires confirming a liability isn't in the Debt Planner when it has debts", () => {
-    const mortgage = { name: "Home loan", type: "liability", kind: "mortgage", balance: "180000" };
-    expect(newAccount(mortgage, "2026-10-29", DEBTS).error).toMatch(/Debt Planner/);
-    expect(newAccount({ ...mortgage, notInDebtPlanner: true }, "2026-10-29", DEBTS).account.balance).toBe(180000);
+    const mortgage = {
+      name: "Home loan",
+      type: "liability",
+      kind: "mortgage",
+      balance: "180000",
+    };
+    expect(newAccount(mortgage, "2026-10-29", DEBTS).error).toMatch(
+      /Debt Planner/,
+    );
+    expect(
+      newAccount({ ...mortgage, notInDebtPlanner: true }, "2026-10-29", DEBTS)
+        .account.balance,
+    ).toBe(180000);
     // Nothing to duplicate when the Debt Planner is empty, and assets never need it.
     expect(newAccount(mortgage, "2026-10-29", []).account).toBeTruthy();
     expect(needsDebtConfirmation("asset", DEBTS)).toBe(false);
@@ -190,18 +201,38 @@ describe("netWorthTotals", () => {
     expect(netWorthTotals(linked, debts).liabilities).toBe(11000);
   });
 
-  it("counts the liability itself when its debt is gone or paid off", () => {
+  it("counts the liability itself when its debt was deleted (broken link)", () => {
     const linked = [{ ...carTwice, debtId: "d1" }];
     expect(netWorthTotals(linked, []).liabilities).toBe(11200);
-    expect(
-      netWorthTotals(linked, [{ id: "d1", balance: 0 }]).liabilities,
-    ).toBe(11200);
+    expect(netWorthTotals(linked, [DEBTS[1]]).liabilities).toBe(13100.25);
+  });
+
+  it("keeps the debt authoritative as it is paid down to zero", () => {
+    // The manual liability still says 11,200: it was never updated.
+    const linked = [...ACCOUNTS, { ...carTwice, debtId: "d1" }];
+    const at = (balance) =>
+      netWorthTotals(
+        linked,
+        DEBTS.map((d) => (d.id === "d1" ? { ...d, balance } : d)),
+      );
+    expect(at(11000).liabilities).toBe(21900.25);
+    expect(at(500).liabilities).toBe(11400.25);
+    expect(at(0)).toMatchObject({
+      accountLiabilities: 9000, // the home loan only
+      debtLiabilities: 1900.25,
+      liabilities: 10900.25,
+      netWorth: 30200.25,
+    });
+    // Paying the loan off raises net worth; it never drops back by 11,200.
+    expect(at(0).netWorth).toBeGreaterThan(at(500).netWorth);
   });
 
   it("records the corrected total in this month's snapshot", () => {
     const linked = [...ACCOUNTS, { ...carTwice, debtId: "d1" }];
     const doubled = {
-      netWorthHistory: { "2026-10": { assets: 41100.5, liabilities: 33100.25 } },
+      netWorthHistory: {
+        "2026-10": { assets: 41100.5, liabilities: 33100.25 },
+      },
     };
     const fixed = recordSnapshot(doubled, linked, DEBTS, OCT);
     expect(fixed.netWorthHistory["2026-10"].liabilities).toBe(21900.25);
@@ -216,12 +247,29 @@ describe("linkedDebt", () => {
     expect(linkedDebt(liability, DEBTS)).toBe(debt);
   });
 
-  it("is null for unlinked rows, assets, and broken or closed links", () => {
+  it("still finds a paid-off debt (balance 0)", () => {
+    const paid = { ...debt, balance: 0 };
+    expect(linkedDebt(liability, [paid])).toBe(paid);
+  });
+
+  it("is null for unlinked rows, assets, and deleted debts", () => {
     expect(linkedDebt(ACCOUNTS[4], DEBTS)).toBeNull();
+    expect(linkedDebt({ ...liability, debtId: "" }, DEBTS)).toBeNull();
     expect(linkedDebt({ ...ACCOUNTS[0], debtId: "d1" }, DEBTS)).toBeNull();
     expect(linkedDebt({ ...liability, debtId: "nope" }, DEBTS)).toBeNull();
-    expect(linkedDebt(liability, [{ ...debt, balance: 0 }])).toBeNull();
     expect(linkedDebt(liability, undefined)).toBeNull();
+  });
+});
+
+describe("brokenDebtLink", () => {
+  const liability = { ...ACCOUNTS[4], debtId: "d1" };
+
+  it("is true only when the linked debt no longer exists", () => {
+    expect(brokenDebtLink(liability, [])).toBe(true);
+    expect(brokenDebtLink(liability, DEBTS)).toBe(false);
+    expect(brokenDebtLink(liability, [{ id: "d1", balance: 0 }])).toBe(false);
+    expect(brokenDebtLink(ACCOUNTS[4], [])).toBe(false); // never linked
+    expect(brokenDebtLink({ ...liability, debtId: "" }, [])).toBe(false);
   });
 });
 

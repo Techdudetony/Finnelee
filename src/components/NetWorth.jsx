@@ -17,6 +17,7 @@ import { formatCurrency, formatDate } from '../utils/format';
 import {
   ASSET_KINDS,
   LIABILITY_KINDS,
+  brokenDebtLink,
   changeSinceLastSnapshot,
   historySeries,
   isStale,
@@ -367,11 +368,14 @@ function AccountTable({ title, rows, onBalance, onDelete, empty, details }) {
  */
 function LiabilityDetails({ account: a, debts, onChange }) {
   const id = useId();
-  const options = debtOptions(debts);
-  const linked = options.find((o) => o.value === String(a.debtId));
-  const broken = a.debtId != null && a.debtId !== '' && !linked;
+  const options = debtOptions(debts); // open debts only
+  const linked = options.find((o) => o.value === String(a.debtId)); // for payments
   const debt = linkedDebt(a, debts); // the debt whose balance counts instead of this one
+  const paidOff = debt && !linked; // still linked for net worth, at $0
+  const broken = brokenDebtLink(a, debts); // deleted: this balance counts on its own
   const differs = debt && Number(a.balance) !== Number(debt.balance);
+  // Keep a paid-off link visible in the select instead of showing "Not linked".
+  const choices = paidOff ? [...options, { value: String(debt.id), label: `${debt.name} (paid off)` }] : options;
   return (
     <div className="obligation-fields">
       <div className="field-box">
@@ -403,17 +407,17 @@ function LiabilityDetails({ account: a, debts, onChange }) {
           placeholder="Optional"
         />
       </div>
-      {(options.length > 0 || broken) && (
+      {(choices.length > 0 || broken) && (
         <div className="field-box">
           <label className="field">
             Same as Debt Planner debt
             <select
-              value={linked ? linked.value : ''}
+              value={debt ? String(debt.id) : ''}
               onChange={(e) => onChange((x) => setDebtLink(x, e.target.value))}
               aria-describedby={broken ? `${id}-link` : undefined}
             >
               <option value="">Not linked</option>
-              {options.map((o) => (
+              {choices.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
@@ -422,7 +426,8 @@ function LiabilityDetails({ account: a, debts, onChange }) {
           </label>
           {broken && (
             <span id={`${id}-link`} className="small status-warning">
-              The linked debt was deleted or paid off. Choose again or{' '}
+              The linked debt was deleted, so this balance counts on its own in your net worth.
+              Choose again or{' '}
               <button type="button" className="link-btn" onClick={() => onChange((x) => setDebtLink(x, ''))}>
                 leave unlinked
               </button>
@@ -446,8 +451,9 @@ function LiabilityDetails({ account: a, debts, onChange }) {
       </div>
       {debt && (
         <p className="small muted" style={{ gridColumn: '1 / -1', margin: 0 }}>
-          Counted once in your net worth, using the Debt Planner balance for {debt.name} (
-          {formatCurrency(debt.balance)}).{' '}
+          {paidOff
+            ? `${debt.name} is paid off in the Debt Planner, so this counts as ${formatCurrency(0)} in your net worth.`
+            : `Counted once in your net worth, using the Debt Planner balance for ${debt.name} (${formatCurrency(debt.balance)}).`}{' '}
           {differs && (
             <Status tone="warning">
               The balance here is {formatCurrency(a.balance)}, so one of them is out of date.
