@@ -15,6 +15,7 @@ import StatCard from './StatCard';
 import CountUp from './CountUp';
 import Icon from './Icon';
 import EmptyState from './EmptyState';
+import GettingStarted from './GettingStarted';
 import { incomeSpendingState } from '../utils/emptyStates';
 import HealthOrb from './HealthOrb';
 import Runway from './Runway';
@@ -38,7 +39,7 @@ import { monthlySeries, spendingByCategory, nextDueDate } from '../utils/finance
 import { buildInsights } from '../utils/insights';
 import { netWorthTotals, readAccounts } from '../utils/netWorth';
 
-export default function Dashboard({ store, goTo, openTask, openSummary }) {
+export default function Dashboard({ store, goTo, openTask, openSummary, startTour, checklist }) {
   const { user, transactions, budgets, bills, categories, accounts, debts, settings, setSettings } =
     store;
   // Accounts made before recovery keys existed get a one-time, dismissible nudge.
@@ -122,6 +123,9 @@ export default function Dashboard({ store, goTo, openTask, openSummary }) {
           </span>
         </Notice>
       )}
+
+      {/* First steps for new and empty accounts; ticks itself off from the data. */}
+      <GettingStarted store={store} openTask={openTask} startTour={startTour} checklist={checklist} />
 
       {/* Each tile opens the page behind its number; at Full motion it grows into that page. */}
       {/* Financial health: the Orb, its five pillars and how they're scored. */}

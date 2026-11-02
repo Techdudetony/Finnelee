@@ -2486,3 +2486,155 @@ h2 > .icon {
   height: 6px;
   accent-color: var(--accent);
 }
+
+/* ---------- Getting Started checklist (GettingStarted.jsx) ---------- */
+/* A normal card (Aurora Glass surface) above the Health Orb. Container queries size it
+   from its own width: stacked rows on phones, five equal tiles on wide screens. */
+.getting-started {
+  container-type: inline-size;
+}
+.gs-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.gs-head > div {
+  flex: 1;
+  min-width: 0;
+}
+.gs-head .sub {
+  margin-bottom: 12px;
+}
+.gs-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.gs-count {
+  font-weight: 700;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.gs-progress .progress {
+  flex: 1;
+}
+.gs-progress .progress > span {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+/* Full motion only: the bar eases to a new value (Calm and Off just show it). */
+:root[data-motion='full'] .gs-progress .progress > span {
+  transition: width var(--dur-slow) var(--ease);
+}
+.gs-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+/* Narrow (phones): one row per step, the button on the right. */
+.gs-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.gs-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--text-3);
+  color: var(--accent-text);
+}
+.gs-item.is-done .gs-mark,
+.gs-mark.is-big {
+  border-color: transparent;
+  background: var(--good);
+}
+.gs-mark.is-big {
+  width: 40px;
+  height: 40px;
+}
+:root[data-motion='full'] .gs-item.is-done .gs-mark {
+  animation: gs-pop 320ms var(--ease) both;
+}
+@keyframes gs-pop {
+  from {
+    transform: scale(0.6);
+  }
+}
+.gs-text {
+  min-width: 0;
+}
+.gs-text h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0;
+}
+.gs-text p {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+  color: var(--text-3);
+}
+.gs-foot {
+  margin: 12px 0 0;
+  font-size: 0.84rem;
+  color: var(--text-3);
+}
+/* Very narrow (320px phones): the button gets its own full-width line. */
+@container (max-width: 340px) {
+  .gs-item {
+    grid-template-columns: auto 1fr;
+  }
+  .gs-action {
+    grid-column: 1 / -1;
+  }
+  .gs-action .btn {
+    width: 100%;
+  }
+}
+/* Wide: five equal tiles in one row, buttons lined up along the bottom. */
+@container (min-width: 820px) {
+  .gs-items {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .gs-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 14px;
+  }
+  .gs-action {
+    margin-top: auto;
+    width: 100%;
+  }
+  .gs-action .btn {
+    width: 100%;
+    white-space: normal;
+  }
+  .gs-action .status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 38px;
+  }
+}
+/* The one-time "You're all set up" card. */
+.gs-complete {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.gs-complete .gs-text {
+  flex: 1 1 240px;
+}
+.gs-complete .sub {
+  margin: 0;
+}

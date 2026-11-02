@@ -4,6 +4,7 @@ import { useAuth } from './auth/AuthContext';
 import { userKey } from './auth/userStorage';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useMediaQuery } from './hooks/useMediaQuery';
+import { useCurrentMonth } from './hooks/useCurrentMonth';
 import { useSwipeToClose } from './hooks/useSwipeToClose';
 import { resolveMotion, setSavedMotion, transitionTo } from './utils/motion';
 import { buildCommands, isPaletteShortcut, waitForElement } from './utils/commands';
@@ -15,6 +16,18 @@ import WelcomeSummary from './components/WelcomeSummary';
 import RecoveryKeyDialog from './components/RecoveryKeyDialog';
 import PayScheduleStep from './components/PayScheduleStep';
 import { markTourEnded, markTourOffered, shouldOfferTour } from './utils/onboarding';
+import {
+  canRestore,
+  checklistDone,
+  checklistView,
+  doneCount,
+  GETTING_STARTED_ITEMS,
+  markAcknowledged,
+  markHidden,
+  markShown,
+  newlyDone,
+  trackChecklist,
+} from './utils/gettingStarted';
 import CommandPalette, { shortcutLabel } from './components/CommandPalette';
 import TourBoundary from './components/TourBoundary';
 // The guided tour loads only when it's shown (offered once, or replayed), so it adds
@@ -203,13 +216,82 @@ function FinanceApp({ user }) {
     setSettings,
     categories,
     setCategories,
+    // Settings calls this after replacing all data (sample data, a backup, Clear), so
+    // the checklist treats what arrived as already there, never as steps just finished.
+    checklistReset: () => {
+      checklistBefore.current = null;
+    },
+  };
+
+  // ---------- Getting Started checklist (GettingStarted.jsx, utils/gettingStarted.js) ----------
+  // Every step is derived from the data. Tracked here rather than on the Dashboard, so a
+  // step finished on any page, or while the checklist is hidden, still counts.
+  // The budget step is about this month, so it's checked again when the month changes.
+  const month = useCurrentMonth();
+  const checklistDoneNow = useMemo(
+    () => checklistDone({ transactions, budgets, accounts, bills, goals, settings }),
+    [transactions, budgets, accounts, bills, goals, settings, month],
+  );
+  const checklistBefore = useRef(null); // the last check this session; null = just loaded
+  const [checklistCelebrate, setChecklistCelebrate] = useState(false); // this session only
+  useEffect(() => {
+    const previous = checklistBefore.current;
+    checklistBefore.current = checklistDoneNow;
+    const now = new Date().toISOString();
+    const { settings: next, celebrate } = trackChecklist(settings, checklistDoneNow, previous, now);
+    if (next !== settings)
+      setSettings((s) => trackChecklist(s, checklistDoneNow, previous, now).settings);
+    if (celebrate) {
+      setChecklistCelebrate(true);
+      setNotice('Getting started: all five steps are done.');
+      return;
+    }
+    // A step finished while the checklist is showing is announced, on any page.
+    const fresh = newlyDone(previous, checklistDoneNow);
+    if (fresh.length && checklistView(next, checklistDoneNow) === 'checklist')
+      setNotice(
+        `Getting started: ${fresh.map((i) => i.title).join(', ')} done. ` +
+          `${doneCount(checklistDoneNow)} of ${GETTING_STARTED_ITEMS.length} steps done.`,
+      );
+  }, [checklistDoneNow]);
+  // Focus goes to the Dashboard greeting after the card goes away (Hide or Done).
+  const focusDashboardHeading = () =>
+    requestAnimationFrame(() => {
+      const h = document.querySelector('main.content h1');
+      h?.setAttribute('tabindex', '-1');
+      h?.focus();
+    });
+  const checklistRestorable = canRestore(settings, checklistDoneNow);
+  const checklist = {
+    done: checklistDoneNow,
+    celebrate: checklistCelebrate,
+    onCelebrated: () => setChecklistCelebrate(false),
+    restorable: checklistRestorable,
+    hide: () => {
+      setSettings((s) => markHidden(s, new Date().toISOString()));
+      setNotice('Getting Started hidden. Bring it back from Settings or search.');
+      focusDashboardHeading();
+    },
+    // Settings and the palette: show it again and put focus on its heading.
+    show: () => {
+      setSettings(markShown);
+      openTask('dashboard', ['getting-started'], 'Getting Started');
+    },
+    acknowledge: () => {
+      setSettings((s) => markAcknowledged(s, new Date().toISOString()));
+      setChecklistCelebrate(false);
+      focusDashboardHeading();
+    },
   };
  
   // ---------- Command palette (Ctrl K, or ⌘K on a Mac) ----------
   // Opens pages, puts focus in a form field, or changes Motion. It never edits records.
   const [paletteOpen, setPaletteOpen] = useState(false);
   const paletteOpener = useRef(null); // focus goes back here when it closes
-  const commands = useMemo(() => buildCommands(PAGES), []);
+  const commands = useMemo(
+    () => buildCommands(PAGES, { gettingStarted: checklistRestorable }),
+    [checklistRestorable],
+  );
   const [focusRequest, setFocusRequest] = useState(null); // { page, focus, label } from a command
   const focusPending = useRef(false); // a command is moving focus: don't restore it
   focusPending.current = focusRequest !== null;
@@ -247,6 +329,7 @@ function FinanceApp({ user }) {
     }
     // The palette closes first (above); focus returns to what opened it after the tour.
     if (action.type === 'tour') return startTour(true, paletteOpener.current);
+    if (action.type === 'gettingStarted') return checklist.show();
     openTask(action.page, action.focus ?? [], label);
   };
   // Opens a page with focus in one of its fields (`focus`: data-focus-target names, first
@@ -482,7 +565,7 @@ function FinanceApp({ user }) {
           {/* The dashboard renders its own greeting, so skip the generic title there */}
           {page !== 'dashboard' && <h1 className="page-title">{current.label}</h1>}
           <PageErrorBoundary label={current.label} onHome={page !== 'dashboard' ? () => goTo('dashboard') : null}>
-            <Component store={store} goTo={goTo} openTask={openTask} openSummary={() => setShowSummary(true)} startTour={() => startTour(true)} />
+            <Component store={store} goTo={goTo} openTask={openTask} openSummary={() => setShowSummary(true)} startTour={() => startTour(true)} checklist={checklist} />
           </PageErrorBoundary>
         </div>
       </main>

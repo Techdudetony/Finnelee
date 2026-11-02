@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Notice } from './Status';
 import { generateSampleData, emptyData, fromBackup } from '../data/sampleData';
+import { keepFinished } from '../utils/gettingStarted';
 import { todayISO } from '../utils/format';
 import { useAuth } from '../auth/AuthContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
@@ -17,7 +18,7 @@ const MOTION_OPTIONS = [
   { id: 'off', label: 'Off', text: 'No animation. Everything appears at once.' },
 ];
 
-export default function Settings({ store, startTour }) {
+export default function Settings({ store, startTour, checklist }) {
   const fileInput = useRef(null); // useRef = a handle to a real DOM element (the hidden file input)
   const [message, setMessage] = useState('');
   const { user, updateProfile, signOut, createRecoveryKey } = useAuth();
@@ -65,6 +66,7 @@ export default function Settings({ store, startTour }) {
     store.setAccounts(data.accounts);
     store.setSettings(data.settings); // also replaces the net worth snapshots
     store.setCategories(data.categories);
+    store.checklistReset(); // what arrived is "already there", never "just finished"
   };
 
   const exportBackup = () => {
@@ -104,7 +106,9 @@ export default function Settings({ store, startTour }) {
         : 'Delete ALL data? This cannot be undone.',
     );
     if (!ok) return;
-    loadAll(kind === 'sample' ? generateSampleData() : emptyData());
+    const empty = emptyData();
+    empty.settings = keepFinished(store.settings, empty.settings); // a finished checklist stays retired
+    loadAll(kind === 'sample' ? generateSampleData() : empty);
     setMessage({ tone: 'good', text: kind === 'sample' ? 'Sample data loaded.' : 'All data cleared.' });
   };
 
@@ -164,6 +168,17 @@ export default function Settings({ store, startTour }) {
           Replay tour
         </button>
       </section>
+
+      {/* Only while the Getting Started checklist is hidden and unfinished. */}
+      {checklist?.restorable && (
+        <section className="card">
+          <h2>Getting started</h2>
+          <p className="sub">Five first steps on your Dashboard. Each one ticks itself off as you add your data.</p>
+          <button className="btn" onClick={checklist.show}>
+            Show Getting Started
+          </button>
+        </section>
+      )}
 
       <section className="card" id="recovery-key">
         <h2>Recovery key</h2>
