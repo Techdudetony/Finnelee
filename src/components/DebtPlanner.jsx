@@ -16,11 +16,14 @@ import { dueDayProblem, setOptional } from '../utils/payments';
 
 const emptyDebt = { name: '', balance: '', apr: '', minPayment: '' };
 
-export default function DebtPlanner({ store }) {
+export default function DebtPlanner({ store, openTask }) {
   const { debts, setDebts, settings, setSettings } = store;
   const palette = getPalette(useColorScheme());
   const animate = useMotion() === 'full'; // charts draw in at Full motion only
-  const [extra, setExtra] = useState(200);
+  // Saved in settings.debtPlanner so the What-If page's "today's path" can honor it.
+  // Until it's changed once, the slider shows the old $200 starting point.
+  const extra = settings.debtPlanner?.extra ?? 200;
+  const setExtra = (value) => setSettings((s) => ({ ...s, debtPlanner: { ...s.debtPlanner, extra: value } }));
   const [form, setForm] = useState(emptyDebt);
 
   // Run both strategies whenever debts or the extra payment change.
@@ -136,6 +139,7 @@ export default function DebtPlanner({ store }) {
               {/* A range slider and number box bound to the same state stay in sync automatically. */}
               <input type="range" min="0" max="2000" step="25" value={extra} onChange={(e) => setExtra(+e.target.value)} aria-label="Extra payment slider" />
               <input type="number" min="0" value={extra} onChange={(e) => setExtra(+e.target.value || 0)} style={{ width: 100 }} aria-label="Extra payment" />
+              <button type="button" className="btn" onClick={() => openTask('whatif', ['whatif-debt'], 'Pay extra on debt')}>See it next to your goals</button>
             </div>
             {stuck && <Status tone="critical" as="p">A minimum payment doesn't cover its monthly interest. Without extra payments that debt never shrinks.</Status>}
           </section>
