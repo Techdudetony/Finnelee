@@ -549,6 +549,12 @@ function CashFlow({ result }) {
           <dd>{money(first.shortfall)}</dd>
         </div>
       </dl>
+      {first.deficit > 0 && (
+        <p className="small">
+          The income change leaves a gap of about {money(first.deficit)} a month
+          before anything is assigned. It counts as not funded.
+        </p>
+      )}
       <p style={{ margin: 0 }}>{state}</p>
       <p className="small muted whatif-foot">
         Figures for {monthName(1)}. {base.hasDebts ? `${debtNote} ` : ""}Extra

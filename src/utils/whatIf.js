@@ -200,6 +200,20 @@ export function runLedger(data, levers, base, { fullFunding = false } = {}) {
     levers.strategy,
   );
   const debtFree = hasDebts && debt.finished ? debt.months : null; // last month with a payment
+  // In the payoff month the engine pays only what is still owed. What it didn't need is
+  // taken off the plan's extra first (never below $0), so that money stays available.
+  // Total paid = starting balances + interest; every earlier month used the full budget.
+  const unusedLast =
+    debtFree === null
+      ? 0
+      : Math.max(
+          0,
+          debt.budget * debtFree -
+            (debts.reduce((t, d) => t + num(d.balance), 0) +
+              debt.totalInterest),
+        );
+  const extraIn = (m, extra) =>
+    m === debtFree ? Math.max(0, extra - unusedLast) : extra;
 
   const chosen = openGoals(data.goals).filter(
     (g) =>
@@ -221,6 +235,7 @@ export function runLedger(data, levers, base, { fullFunding = false } = {}) {
       toDebt: 0,
       toGoals: 0,
       toGeneral: 0,
+      deficit: 0,
       shortfall: 0,
     },
   ];
@@ -236,8 +251,8 @@ export function runLedger(data, levers, base, { fullFunding = false } = {}) {
 
     // 1) Recorded goal contributions: none exist in Finnelee v1, so nothing here.
     // 2) The plan's extra debt payment, only while debts are open.
-    const askDebt = open ? levers.extraDebt : 0;
-    const toDebt = open ? debtExtra : 0; // already capped at the lowest month's cash
+    const askDebt = open ? extraIn(month, levers.extraDebt) : 0;
+    const toDebt = open ? extraIn(month, debtExtra) : 0; // capped at the lowest month's cash
     cash -= toDebt;
     // 3) Extra goal savings, nearest deadline first; each dollar goes to one goal.
     const stillNeeded = chosen.reduce(
@@ -258,10 +273,16 @@ export function runLedger(data, levers, base, { fullFunding = false } = {}) {
       if (need - pay <= 0.005) reached.set(g.id, month);
     }
     // 4) The rest is general savings. The shortfall is what was requested but not
-    //    funded; a negative recorded surplus alone isn't one (Forecast floors it at $0).
+    //    funded, plus any monthly gap this plan's income change or cuts create. A
+    //    negative recorded surplus alone isn't one (Forecast floors it at $0 too).
     const requested = askDebt + askGoals;
     const toGeneral = Math.max(0, available - toDebt - toGoals);
-    const shortfall = Math.max(0, requested - toDebt - toGoals);
+    const withoutLevers = available - incomeAt(month) - cuts;
+    const deficit = Math.max(
+      0,
+      Math.max(0, -available) - Math.max(0, -withoutLevers),
+    );
+    const shortfall = Math.max(0, requested - toDebt - toGoals) + deficit;
     balance = balance * (1 + r) + toGeneral; // same formula as projectSavings
     goalMoney += toGoals;
     rows.push({
@@ -273,6 +294,7 @@ export function runLedger(data, levers, base, { fullFunding = false } = {}) {
       toDebt,
       toGoals,
       toGeneral,
+      deficit,
       shortfall,
     });
   }

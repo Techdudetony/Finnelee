@@ -626,3 +626,55 @@ describe("Debt Planner suggestion vs saved plan", () => {
     expect(zero.debtExtra).toBe(0);
   });
 });
+
+describe("review round 1: edge cases", () => {
+  it("flags a pay cut that leaves a monthly gap, even with no other lever", () => {
+    // $2,000 income, $1,000 spending; a $1,500 pay cut leaves -$500 a month.
+    const small = (key) => [
+      {
+        id: `${key}-i`,
+        date: `${key}-01`,
+        type: "income",
+        category: "Salary",
+        amount: 2000,
+      },
+      {
+        id: `${key}-h`,
+        date: `${key}-03`,
+        type: "expense",
+        category: "Housing",
+        amount: 1000,
+      },
+    ];
+    const d = data({
+      debts: [],
+      goals: [],
+      transactions: [
+        ...small("2026-08"),
+        ...small("2026-09"),
+        ...small("2026-10"),
+      ],
+    });
+    const r = simulate(d, { incomeChange: -1500 }, TODAY);
+    const row = r.scenario.ledger.rows[1];
+    expect(row.available).toBe(-500);
+    expect(row.deficit).toBe(500);
+    expect(r.shortfall).toBe(500);
+    expect(r.affordability).toBe("exceeds");
+    // Today's path never has a gap of its own making.
+    expect(r.baseline.ledger.rows.every((x) => x.deficit === 0)).toBe(true);
+  });
+
+  it("charges only what the last debt needs in its payoff month", () => {
+    const d = data({
+      goals: [],
+      debts: [{ id: "d1", name: "Card", balance: 100, apr: 0, minPayment: 50 }],
+    });
+    const plan = simulate(d, { extraDebt: 1000 }, TODAY).scenario.ledger;
+    expect(plan.debtFree).toBe(1);
+    expect(plan.rows[1].toDebt).toBe(50); // $100 owed - $50 minimum
+    expect(plan.rows[1].requested).toBe(50);
+    expect(plan.rows[1].toGeneral).toBe(2800 - 50);
+    expect(plan.rows[1].shortfall).toBe(0);
+  });
+});
