@@ -3,6 +3,7 @@ import {
   GETTING_STARTED_ITEMS,
   budgetPlanned,
   canRestore,
+  keepFinished,
   checklistDone,
   checklistView,
   doneCount,
@@ -308,5 +309,49 @@ describe("announcements", () => {
     expect(newlyDone(null, ALL)).toEqual([]);
     expect(newlyDone(FOUR, ALL).map((i) => i.id)).toEqual(["goal"]);
     expect(newlyDone(ALL, FOUR)).toEqual([]);
+  });
+});
+
+describe("Clear all data", () => {
+  const fresh = markNewAccount({});
+  const cleared = () => emptyData();
+
+  it("keeps a finished checklist retired", () => {
+    const finished = markAcknowledged(
+      trackChecklist(fresh, ALL, FOUR, NOW).settings,
+      LATER,
+    );
+    const after = keepFinished(finished, cleared().settings);
+    expect(after.gettingStarted).toEqual({
+      hiddenAt: null,
+      completedAt: NOW,
+      acknowledgedAt: LATER,
+    });
+    // The cleared account is empty, but the checklist stays away for good.
+    expect(checklistView(after, NONE)).toBe(null);
+    expect(canRestore(after, NONE)).toBe(false);
+    expect(trackChecklist(after, NONE, null, "2027-01-01").settings).toBe(after);
+  });
+
+  it("keeps a finished but unacknowledged one waiting for Done", () => {
+    const finished = trackChecklist(fresh, ALL, FOUR, NOW).settings;
+    const after = keepFinished(finished, cleared().settings);
+    expect(checklistView(after, NONE)).toBe("complete");
+  });
+
+  it("an unfinished checklist starts fresh, like the rest of the data", () => {
+    const hidden = markHidden(trackChecklist(fresh, FOUR, null, NOW).settings, NOW);
+    const blank = cleared().settings;
+    expect(keepFinished(hidden, blank)).toBe(blank);
+    expect(checklistView(blank, NONE)).toBe("checklist"); // empty account
+  });
+});
+
+describe("month boundaries", () => {
+  it("this month's budget step follows the calendar month", () => {
+    const settings = setPlannedIncome(emptyData().settings, "2026-11", "5200", TODAY);
+    const data = store({ settings });
+    expect(checklistDone(data, new Date(2026, 10, 30, 23, 59)).budget).toBe(true);
+    expect(checklistDone(data, new Date(2026, 11, 1, 0, 0)).budget).toBe(false);
   });
 });

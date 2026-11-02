@@ -197,6 +197,17 @@ export function trackChecklist(settings, done, previous, now) {
   };
 }
 
+/**
+ * Clear all data starts the money over, not the checklist: a finished checklist stays
+ * finished (completedAt and acknowledgedAt carried over). An unfinished one starts
+ * fresh, like everything else that's cleared.
+ */
+export function keepFinished(before, after) {
+  const { completedAt, acknowledgedAt } = readGettingStarted(before);
+  if (!completedAt) return after;
+  return withRecord(after, { hiddenAt: null, completedAt, acknowledgedAt });
+}
+
 /** Steps that went from not done to done between two checks (for announcements). */
 export function newlyDone(previous, done) {
   if (!previous) return [];

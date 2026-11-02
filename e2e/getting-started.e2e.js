@@ -7,8 +7,11 @@ const card = (page) => page.locator(".getting-started");
 const PASSWORD = "correct-horse-9";
 
 /** Sign up and get past the recovery key, pay schedule, summary and tour offer. */
-async function signUp(page, { sample = false } = {}) {
-  await page.clock.setFixedTime(new Date("2026-11-02T10:00:00"));
+async function signUp(page, { sample = false, runningClockAt = null } = {}) {
+  // Usually a frozen date; runningClockAt starts a fake clock that keeps moving, so a
+  // test can jump it forward (timers included).
+  if (runningClockAt) await page.clock.install({ time: new Date(runningClockAt) });
+  else await page.clock.setFixedTime(new Date("2026-11-02T10:00:00"));
   await page.goto("/");
   await page
     .locator(".segmented button", { hasText: "Create account" })
@@ -25,7 +28,7 @@ async function signUp(page, { sample = false } = {}) {
   await page.getByRole("button", { name: "Skip for now" }).click();
   await expect(page.locator("dialog.summary-dialog[open]")).toBeVisible();
   await page.keyboard.press("Escape");
-  return email;
+  return { email, toString: () => email };
 }
 const skipTour = (page) =>
   page.getByRole("button", { name: "Not now" }).click();
@@ -47,6 +50,11 @@ const writeSlices = (page, slices) =>
       localStorage.setItem(`${prefix}.${slice}`, JSON.stringify(value));
   }, slices);
 const record = async (page) => (await readSlice(page, "settings")).gettingStarted;
+// The record is saved by an effect just after the step's data: wait for it.
+const completed = (page) =>
+  expect
+    .poll(async () => (await record(page))?.completedAt ?? null)
+    .not.toBeNull();
 
 // Four of five steps, written straight to storage (as if added on earlier visits).
 const FOUR_DONE = {
@@ -214,7 +222,7 @@ test("the fifth step on another page gives exactly one acknowledgement", async (
   );
 
   await addGoal(page);
-  expect((await record(page)).completedAt).toBeTruthy();
+  await completed(page);
   expect((await record(page)).acknowledgedAt).toBe(null);
   const completedAt = (await record(page)).completedAt;
 
@@ -260,6 +268,7 @@ test("a hidden checklist still retires for good, quietly", async ({ page }) => {
   });
   await page.reload();
   await addGoal(page);
+  await completed(page);
   const saved = await record(page);
   expect(saved.completedAt).toBeTruthy();
   expect(saved.acknowledgedAt).toBe(saved.completedAt);
@@ -349,3 +358,105 @@ for (const width of [320, 390]) {
     await expect(page.locator('[data-focus-target="add-transaction"]')).toBeFocused();
   });
 }
+
+async function signOutAndIn(page, email) {
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.fill("input[name=email]", email);
+  await page.fill("input[name=password]", PASSWORD);
+  await page.locator("form button.btn-primary").click();
+  await expect(page.locator("dialog.summary-dialog[open]")).toBeVisible();
+  await page.keyboard.press("Escape");
+}
+
+test("the acknowledgement survives signing out, without replaying the celebration", async ({
+  page,
+}) => {
+  const { email } = await signUp(page);
+  await skipTour(page);
+  await writeSlices(page, FOUR_DONE);
+  await page.reload();
+  await expect(card(page).getByRole("progressbar")).toHaveAttribute(
+    "aria-valuenow",
+    "4",
+  );
+  // The fifth step, on another page; the Dashboard isn't visited before signing out.
+  await addGoal(page);
+  await completed(page);
+  await signOutAndIn(page, email);
+
+  const done = page.getByRole("region", { name: "You're all set up" });
+  await expect(done).toBeVisible();
+  // No celebration in a new session: no confetti, no glow, nothing announced.
+  await page.waitForTimeout(300);
+  await expect(page.locator("canvas.confetti")).toHaveCount(0);
+  await expect(page.locator(".gs-complete.celebrate-glow")).toHaveCount(0);
+  await expect(page.locator(".gs-complete")).not.toContainText("all five steps");
+
+  await done.getByRole("button", { name: "Done" }).click();
+  await expect(card(page)).toHaveCount(0);
+  await signOutAndIn(page, email);
+  await expect(page.locator(".orb-hero")).toBeVisible();
+  await expect(card(page)).toHaveCount(0);
+});
+
+test("Clear all data keeps a finished checklist retired", async ({ page }) => {
+  await signUp(page);
+  await skipTour(page);
+  await writeSlices(page, FOUR_DONE);
+  await page.reload();
+  await addGoal(page);
+  await page.locator(".nav-item", { hasText: "Dashboard" }).click();
+  await page
+    .getByRole("region", { name: "You're all set up" })
+    .getByRole("button", { name: "Done" })
+    .click();
+  const finished = await record(page);
+
+  await page.locator(".nav-item", { hasText: "Settings" }).click();
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Clear all data" }).click();
+  expect(await readSlice(page, "goals")).toEqual([]); // the data really is gone
+  expect(await record(page)).toMatchObject({
+    completedAt: finished.completedAt,
+    acknowledgedAt: finished.acknowledgedAt,
+  });
+  await expect(page.getByRole("button", { name: "Show Getting Started" })).toHaveCount(0);
+  await page.locator(".nav-item", { hasText: "Dashboard" }).click();
+  await expect(page.locator(".orb-hero")).toBeVisible();
+  await expect(card(page)).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator(".orb-hero")).toBeVisible();
+  await expect(card(page)).toHaveCount(0);
+});
+
+test("an unfinished checklist starts fresh after Clear all data", async ({ page }) => {
+  await signUp(page);
+  await skipTour(page);
+  await card(page).getByRole("button", { name: "Hide" }).click();
+  await page.locator(".nav-item", { hasText: "Settings" }).click();
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Clear all data" }).click();
+  await page.locator(".nav-item", { hasText: "Dashboard" }).click();
+  await expect(card(page)).toBeVisible();
+});
+
+test("the budget step is checked again when the month changes, with the app left open", async ({
+  page,
+}) => {
+  await signUp(page, { runningClockAt: "2026-11-30T23:55:00" });
+  await skipTour(page);
+  await card(page).getByRole("button", { name: "Plan your budget" }).click();
+  await page.locator('[data-focus-target="planned-income"]').fill("3000");
+  await page.locator(".nav-item", { hasText: "Dashboard" }).click();
+  const budgetRow = card(page).locator(".gs-item").nth(1);
+  await expect(budgetRow).toHaveClass(/is-done/);
+
+  // Past midnight into December, without touching any data: November's income
+  // doesn't plan December, so the step is open again.
+  await page.clock.fastForward("10:00");
+  await expect(budgetRow).not.toHaveClass(/is-done/);
+  await expect(card(page).getByRole("progressbar")).toHaveAttribute(
+    "aria-valuenow",
+    "0",
+  );
+});

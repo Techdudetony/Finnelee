@@ -4,6 +4,7 @@ import { useAuth } from './auth/AuthContext';
 import { userKey } from './auth/userStorage';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useMediaQuery } from './hooks/useMediaQuery';
+import { useCurrentMonth } from './hooks/useCurrentMonth';
 import { useSwipeToClose } from './hooks/useSwipeToClose';
 import { resolveMotion, setSavedMotion, transitionTo } from './utils/motion';
 import { buildCommands, isPaletteShortcut, waitForElement } from './utils/commands';
@@ -225,9 +226,11 @@ function FinanceApp({ user }) {
   // ---------- Getting Started checklist (GettingStarted.jsx, utils/gettingStarted.js) ----------
   // Every step is derived from the data. Tracked here rather than on the Dashboard, so a
   // step finished on any page, or while the checklist is hidden, still counts.
+  // The budget step is about this month, so it's checked again when the month changes.
+  const month = useCurrentMonth();
   const checklistDoneNow = useMemo(
     () => checklistDone({ transactions, budgets, accounts, bills, goals, settings }),
-    [transactions, budgets, accounts, bills, goals, settings],
+    [transactions, budgets, accounts, bills, goals, settings, month],
   );
   const checklistBefore = useRef(null); // the last check this session; null = just loaded
   const [checklistCelebrate, setChecklistCelebrate] = useState(false); // this session only

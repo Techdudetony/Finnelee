@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Notice } from './Status';
 import { generateSampleData, emptyData, fromBackup } from '../data/sampleData';
+import { keepFinished } from '../utils/gettingStarted';
 import { todayISO } from '../utils/format';
 import { useAuth } from '../auth/AuthContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
@@ -105,7 +106,9 @@ export default function Settings({ store, startTour, checklist }) {
         : 'Delete ALL data? This cannot be undone.',
     );
     if (!ok) return;
-    loadAll(kind === 'sample' ? generateSampleData() : emptyData());
+    const empty = emptyData();
+    empty.settings = keepFinished(store.settings, empty.settings); // a finished checklist stays retired
+    loadAll(kind === 'sample' ? generateSampleData() : empty);
     setMessage({ tone: 'good', text: kind === 'sample' ? 'Sample data loaded.' : 'All data cleared.' });
   };
 
