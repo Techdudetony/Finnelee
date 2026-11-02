@@ -37,6 +37,7 @@ test("sign-up offers the pay schedule, explains bad input, and saves it", async 
   await expect(page.getByText("When do you get paid?")).toHaveCount(0);
 
   await page.keyboard.press("Escape"); // welcome summary
+  await page.getByRole("button", { name: "Not now" }).click(); // tour offer
   await page.locator(".nav-item", { hasText: "Bills" }).click();
   await expect(page.locator(".pay-upcoming")).toContainText(
     "Next paydays: Nov 15, 2026, Nov 30, 2026, Dec 15, 2026",

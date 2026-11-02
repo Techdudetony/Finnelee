@@ -2,6 +2,8 @@
 //   finnelee.<userId>.transactions, finnelee.<userId>.budgets, ...
 // so two people sharing a browser never see each other's numbers.
 
+import { markNewAccount } from "../utils/onboarding";
+
 export const DATA_SLICES = [
   "transactions",
   "budgets",
@@ -39,4 +41,24 @@ export function migrateLegacyData(userId) {
     }
   }
   return copied;
+}
+
+/**
+ * After migrateLegacyData: old settings (if any) replaced the seeded ones, which held
+ * the new-account mark for the guided tour (utils/tour.js). The account is still new,
+ * so put the mark back on the migrated settings. Everything else is kept as migrated,
+ * and settings that already have an onboarding record are left alone.
+ */
+export function keepNewAccountMark(userId) {
+  const key = userKey(userId, "settings");
+  let settings;
+  try {
+    settings = JSON.parse(localStorage.getItem(key));
+  } catch {
+    return; // unreadable: leave it exactly as migrated
+  }
+  if (!settings || typeof settings !== "object" || Array.isArray(settings))
+    return;
+  if (settings.onboarding) return;
+  localStorage.setItem(key, JSON.stringify(markNewAccount(settings)));
 }

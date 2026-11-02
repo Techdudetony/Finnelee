@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useAuth } from './auth/AuthContext';
 import { userKey } from './auth/userStorage';
@@ -14,7 +14,14 @@ import AuthScreen from './components/AuthScreen';
 import WelcomeSummary from './components/WelcomeSummary';
 import RecoveryKeyDialog from './components/RecoveryKeyDialog';
 import PayScheduleStep from './components/PayScheduleStep';
+import { markTourEnded, markTourOffered, shouldOfferTour } from './utils/onboarding';
 import CommandPalette, { shortcutLabel } from './components/CommandPalette';
+import TourBoundary from './components/TourBoundary';
+// The guided tour loads only when it's shown (offered once, or replayed), so it adds
+// almost nothing to the app's first download. `let`: after a failed download it is
+// made again, because lazy() remembers a failure and would never retry.
+const loadTour = () => import('./components/GuidedTour');
+let GuidedTour = lazy(loadTour);
 import PageErrorBoundary from './components/PageErrorBoundary';
 import Dashboard from './components/Dashboard';
 import NetWorth from './components/NetWorth';
@@ -238,6 +245,8 @@ function FinanceApp({ user }) {
       restoreFocus();
       return;
     }
+    // The palette closes first (above); focus returns to what opened it after the tour.
+    if (action.type === 'tour') return startTour(true, paletteOpener.current);
     openTask(action.page, action.focus ?? [], label);
   };
   // Opens a page with focus in one of its fields (`focus`: data-focus-target names, first
@@ -308,6 +317,61 @@ function FinanceApp({ user }) {
       },
     );
   }, [focusRequest]);
+
+  // ---------- Guided tour (GuidedTour.jsx, utils/tour.js) ----------
+  // Offered once to a new account, after the sign-up steps and the welcome summary.
+  // Settings > Guided tour replays it for anyone. It always runs on the Dashboard.
+  const [tour, setTour] = useState(null); // null, or { replay } while it's showing
+  const tourOpener = useRef(null); // focus goes back here when it ends
+  // `opener`: where focus goes back afterwards (default: whatever has focus now).
+  const startTour = (replay, opener = document.activeElement) => {
+    tourOpener.current = opener;
+    if (!replay) setSettings((s) => markTourOffered(s, new Date().toISOString()));
+    setPage('dashboard'); // no page transition: the tour fades in over it
+    setDrawerOpen(false); // the tour never opens over the phone menu
+    setTour({ replay });
+  };
+  // A first-run offer whose tour couldn't download isn't spent: it's offered again
+  // next visit (not this one, which would just fail again). See tourFailed below.
+  const tourLoadFailed = useRef(false);
+  const otherDialog = newRecoveryKey || askPaySchedule || showSummary || paletteOpen;
+  useEffect(() => {
+    if (!otherDialog && !tour && !tourLoadFailed.current && shouldOfferTour(settings))
+      startTour(false);
+  });
+  // `open` ({ page, focus, label }): Show me, or a page from Explore all features. It
+  // moves focus itself; otherwise focus goes back to where it was, or the page heading.
+  // A replay is recorded apart from the first run, so it never overwrites that result.
+  // The tour couldn't download (or draw): say so and keep the app working. Nothing is
+  // recorded as done or skipped. Browsers remember a failed download until the page
+  // reloads, hence the advice; some do retry, which the fresh lazy() allows.
+  const tourFailed = () => {
+    GuidedTour = lazy(loadTour);
+    if (!tour.replay) {
+      tourLoadFailed.current = true;
+      setSettings((s) => ({ ...s, onboarding: { ...s.onboarding, offeredAt: null } }));
+    }
+    setTour(null);
+    setNotice("The guided tour couldn't load. Check your connection, reload the page, then replay it from Settings.");
+    const back = tourOpener.current;
+    requestAnimationFrame(() => back?.isConnected && back !== document.body && back.focus());
+  };
+  const endTour = (outcome, open) => {
+    const replay = tour.replay;
+    setSettings((s) => markTourEnded(s, outcome, new Date().toISOString(), { replay }));
+    setTour(null);
+    if (open) {
+      if (outcome === 'showme') setNotice(`Tour closed. ${open.label}: the field is ready.`);
+      return openTask(open.page, open.focus, open.label);
+    }
+    const back = tourOpener.current;
+    requestAnimationFrame(() => {
+      if (back?.isConnected && back !== document.body) return back.focus();
+      const h = document.querySelector('main.content h1');
+      h?.setAttribute('tabindex', '-1');
+      h?.focus();
+    });
+  };
 
   const current = PAGES.find((p) => p.id === page) ?? PAGES[0];
   const { Component } = current; // Capitalized so JSX treats it as a component
@@ -386,6 +450,7 @@ function FinanceApp({ user }) {
           {PAGES.map((p) => (
             <button
               key={p.id} // React needs a stable key for each item in a list
+              data-tour={p.id} // what the guided tour highlights
               className={`nav-item ${p.id === page ? 'active' : ''}`}
               aria-current={p.id === page ? 'page' : undefined}
               onClick={() => goTo(p.id)}
@@ -417,7 +482,7 @@ function FinanceApp({ user }) {
           {/* The dashboard renders its own greeting, so skip the generic title there */}
           {page !== 'dashboard' && <h1 className="page-title">{current.label}</h1>}
           <PageErrorBoundary label={current.label} onHome={page !== 'dashboard' ? () => goTo('dashboard') : null}>
-            <Component store={store} goTo={goTo} openTask={openTask} openSummary={() => setShowSummary(true)} />
+            <Component store={store} goTo={goTo} openTask={openTask} openSummary={() => setShowSummary(true)} startTour={() => startTour(true)} />
           </PageErrorBoundary>
         </div>
       </main>
@@ -434,6 +499,18 @@ function FinanceApp({ user }) {
         <PayScheduleStep store={store} onClose={() => setAskPaySchedule(false)} />
       ) : (
         showSummary && <WelcomeSummary store={store} goTo={goTo} onClose={closeSummary} />
+      )}
+      {tour && (
+        <TourBoundary onFail={tourFailed}>
+          <Suspense fallback={null}>
+            <GuidedTour
+              replay={tour.replay}
+              phone={isMobile}
+              pages={PAGES.map(({ id, label }) => ({ id, label }))}
+              onEnd={endTour}
+            />
+          </Suspense>
+        </TourBoundary>
       )}
       {paletteOpen && (
         <CommandPalette commands={commands} onRun={runCommand} onClose={closePalette} />

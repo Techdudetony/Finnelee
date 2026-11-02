@@ -26,7 +26,7 @@ const commands = buildCommands(PAGES);
 const labels = (query) => rankCommands(commands, query).map((c) => c.label);
 
 describe("buildCommands", () => {
-  it("lists every page, then tasks, then Motion settings", () => {
+  it("lists every page, then tasks, then Motion settings, then the tour", () => {
     expect(commands.slice(0, 10).map((c) => c.action)).toEqual(
       PAGES.map((p) => ({ type: "page", page: p.id })),
     );
@@ -38,17 +38,24 @@ describe("buildCommands", () => {
       { type: "motion", level: "calm" },
       { type: "motion", level: "off" },
     ]);
+    expect(commands.at(-1)).toMatchObject({
+      label: "Replay tour",
+      group: "Help",
+      action: { type: "tour" },
+    });
   });
 
-  it("only opens pages, focuses fields or sets Motion: nothing edits records", () => {
+  it("only opens pages, focuses fields, sets Motion or replays the tour: nothing edits records", () => {
     for (const c of commands) {
-      expect(["page", "motion"]).toContain(c.action.type);
+      expect(["page", "motion", "tour"]).toContain(c.action.type);
       expect(Object.keys(c.action).sort()).toEqual(
         c.action.type === "page"
           ? c.action.focus
             ? ["focus", "page", "type"]
             : ["page", "type"]
-          : ["level", "type"],
+          : c.action.type === "motion"
+            ? ["level", "type"]
+            : ["type"],
       );
     }
   });
