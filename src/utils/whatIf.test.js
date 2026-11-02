@@ -97,6 +97,20 @@ describe("baseline", () => {
     expect(r.scenario.ledger).toEqual(r.baseline.ledger);
     expect(r.scenario.orb).toEqual(r.baseline.orb);
     expect(r.affordability).toBe("within");
+    expect(r.fullFunding).toBeNull();
+  });
+
+  it("stays identical at zero under every debt-payment assumption and strategy", () => {
+    for (const debtRecorded of ["yes", "no", "unknown"])
+      for (const strategy of ["avalanche", "snowball"]) {
+        const r = simulate(
+          data(),
+          { ...ZERO_LEVERS, debtRecorded, strategy },
+          TODAY,
+        );
+        expect(r.scenario.ledger).toEqual(r.baseline.ledger);
+        expect(r.scenario.orb).toEqual(r.baseline.orb);
+      }
   });
 
   it("matches Forecast's Expected line with no debts or goals", () => {
@@ -136,11 +150,13 @@ describe("one ledger, no double counting", () => {
       incomeChange: 200,
       cuts: [{ category: "Dining", amount: 100 }],
     };
-    for (const r of ledgerFor(data(), levers).rows.slice(1))
-      expect(r.toDebt + r.toGoals + r.toGeneral - r.shortfall).toBeCloseTo(
-        r.available,
+    for (const r of ledgerFor(data(), levers).rows.slice(1)) {
+      expect(r.toDebt + r.toGoals + r.toGeneral).toBeCloseTo(
+        Math.max(0, r.available),
         6,
       );
+      expect(r.shortfall).toBe(0);
+    }
   });
 
   it("combines several levers in the documented order", () => {
@@ -231,17 +247,54 @@ describe("debts", () => {
     );
   });
 
-  it("rolls freed payments into savings after payoff, in both paths", () => {
-    const r = simulate(data({ goals: [] }), { extraDebt: 500 }, TODAY);
+  it("rolls freed payments into savings only when they are in recorded spending", () => {
+    const d = data({ goals: [] });
+    const r = simulate(d, { extraDebt: 500, debtRecorded: "yes" }, TODAY);
     const base = r.baseline.ledger;
     const plan = r.scenario.ledger;
-    expect(plan.debtFree).toBeLessThan(base.debtFree);
-    // Before payoff the plan pays $500 more; after, the minimums ($250) come back as savings.
+    expect(plan.debtFree).toBeLessThan(base.debtFree); // early payoff
+    // Before payoff the plan pays $500 more; after, the minimums ($250) come back.
     expect(plan.rows[1].toGeneral).toBe(2800 - 500);
     expect(plan.rows[plan.debtFree + 1].toDebt).toBe(0);
     expect(plan.rows[plan.debtFree + 1].toGeneral).toBe(2800 + 250);
     expect(base.rows[base.debtFree].toGeneral).toBe(2800);
     expect(base.rows[base.debtFree + 1].toGeneral).toBe(2800 + 250);
+  });
+
+  it("never adds freed payments when it can't tell they were recorded (default)", () => {
+    const plan = simulate(data({ goals: [] }), { extraDebt: 500 }, TODAY)
+      .scenario.ledger;
+    expect(plan.rows[1].toGeneral).toBe(2800 - 500);
+    expect(plan.rows[plan.debtFree + 1].toGeneral).toBe(2800); // nothing counted twice
+    expect(plan.rows.at(-1).toGeneral).toBe(2800);
+  });
+
+  it("takes unrecorded debt payments out of the surplus until payoff", () => {
+    // Recorded history has no debt payments: the real surplus is $2,800 - $250.
+    const r = simulate(
+      data({ goals: [] }),
+      { extraDebt: 300, debtRecorded: "no" },
+      TODAY,
+    );
+    const base = r.baseline.ledger;
+    const plan = r.scenario.ledger;
+    expect(base.rows[1].available).toBe(2800 - 250);
+    expect(base.rows[1].toGeneral).toBe(2550);
+    expect(plan.rows[1].toGeneral).toBe(2550 - 300);
+    // After payoff the payments stop, and the surplus is the recorded one again.
+    expect(plan.rows[plan.debtFree + 1].available).toBe(2800);
+    expect(plan.rows[plan.debtFree + 1].toGeneral).toBe(2800);
+  });
+
+  it("funds extra debt before extra savings when both compete", () => {
+    const rows = ledgerFor(data(), {
+      extraDebt: 2000,
+      extraSavings: 1500,
+    }).rows;
+    expect(rows[1].toDebt).toBe(2000);
+    expect(rows[1].toGoals).toBe(800);
+    expect(rows[1].toGeneral).toBe(0);
+    expect(rows[1].shortfall).toBe(700);
   });
 
   it("uses names cautiously when matching paid-off debts", () => {
@@ -271,12 +324,16 @@ describe("income timing", () => {
 });
 
 describe("affordability", () => {
-  it("labels an overcommitted plan and still projects it", () => {
+  it("funds only what the cash covers and reports the rest", () => {
     const r = simulate(data(), { extraSavings: 5000 }, TODAY);
     expect(r.affordability).toBe("exceeds");
     expect(r.shortfall).toBe(2200);
-    expect(r.scenario.ledger.rows[1].toGeneral).toBe(0);
-    expect(r.scenario.ledger.rows[1].toGoals).toBe(5000);
+    const row = r.scenario.ledger.rows[1];
+    expect(row.requested).toBe(5000);
+    expect(row.toGoals).toBe(2800); // funded
+    expect(row.toGeneral).toBe(0);
+    // The full-funding view exists only as a labeled hypothetical.
+    expect(r.fullFunding.rows[1].toGoals).toBe(5000);
   });
 
   it("says history is insufficient with fewer than 2 counted months", () => {
@@ -427,5 +484,145 @@ describe("never changes real data", () => {
       ),
     ).not.toThrow();
     expect(JSON.stringify(d)).toBe(before);
+  });
+});
+
+// $5,000 income and $4,900 spending: a $100 monthly surplus.
+const lean = (key) => [
+  {
+    id: `${key}-i`,
+    date: `${key}-01`,
+    type: "income",
+    category: "Salary",
+    amount: 5000,
+  },
+  {
+    id: `${key}-h`,
+    date: `${key}-03`,
+    type: "expense",
+    category: "Housing",
+    amount: 4500,
+  },
+  {
+    id: `${key}-g`,
+    date: `${key}-10`,
+    type: "expense",
+    category: "Groceries",
+    amount: 400,
+  },
+];
+const leanData = (over = {}) =>
+  data({
+    transactions: [...lean("2026-08"), ...lean("2026-09"), ...lean("2026-10")],
+    goals: [
+      {
+        id: "g1",
+        name: "Trip",
+        target: 6000,
+        saved: 0,
+        deadline: "2027-06-01",
+      },
+    ],
+    ...over,
+  });
+
+describe("unfunded plans ($100 surplus)", () => {
+  it("funds $100 of a $500 goal contribution and dates the goal from funded money", () => {
+    const r = simulate(leanData({ debts: [] }), { extraSavings: 500 }, TODAY);
+    const row = r.scenario.ledger.rows[1];
+    expect(r.base.surplus).toBe(100);
+    expect(row.requested).toBe(500);
+    expect(row.toGoals).toBe(100);
+    expect(row.shortfall).toBe(400);
+    expect(r.shortfall).toBe(400);
+    expect(r.affordability).toBe("exceeds");
+    expect(r.scenario.ledger.goals[0].reachedMonth).toBe(60); // $6,000 at $100
+    expect(r.fullFunding.goals[0].reachedMonth).toBe(12); // only if $400 more is found
+    // The funded balance never grows from money that doesn't exist.
+    expect(r.scenario.ledger.rows[12].goalMoney).toBe(1200);
+    // Total funded savings can't beat today's path: no money is created.
+    const total = (l) => l.rows[12].balance + l.rows[12].goalMoney;
+    expect(total(r.scenario.ledger)).toBeLessThanOrEqual(
+      total(r.baseline.ledger),
+    );
+    expect(r.scenario.ledger.rows[12].toGeneral).toBe(0);
+  });
+
+  it("splits $100 between a competing debt payment and a goal, debt first", () => {
+    const r = simulate(leanData(), { extraSavings: 500, extraDebt: 80 }, TODAY);
+    const row = r.scenario.ledger.rows[1];
+    expect(row.requested).toBe(580);
+    expect(row.toDebt).toBe(80);
+    expect(row.toGoals).toBe(20);
+    expect(row.toGeneral).toBe(0);
+    expect(row.shortfall).toBe(480);
+    expect(r.scenario.ledger.debtExtra).toBe(80);
+  });
+
+  it("caps an extra debt payment at the cash available", () => {
+    const r = simulate(leanData({ goals: [] }), { extraDebt: 300 }, TODAY);
+    expect(r.scenario.ledger.debtExtra).toBe(100);
+    expect(r.scenario.ledger.debt).toEqual(
+      simulateDebtPayoff(DEBTS, 100, "avalanche"),
+    );
+    expect(r.scenario.ledger.rows[1].shortfall).toBe(200);
+    expect(r.fullFunding.debt).toEqual(
+      simulateDebtPayoff(DEBTS, 300, "avalanche"),
+    );
+  });
+
+  it("keeps a plan that fits identical to its full-funding view (none is made)", () => {
+    const r = simulate(leanData(), { extraSavings: 60, extraDebt: 40 }, TODAY);
+    expect(r.affordability).toBe("within");
+    expect(r.fullFunding).toBeNull();
+  });
+});
+
+describe("income changes in the Orb estimate", () => {
+  const rate = (h) => h.pillars.find((p) => p.id === "savings").value;
+  const income = (h) =>
+    h.pillars.find((p) => p.id === "savings").monthly.income;
+
+  it("raises income without adding any record", () => {
+    const r = simulate(data(), { incomeChange: 1000 }, TODAY);
+    expect(income(r.scenario.orb)).toBeCloseTo(6000, 6);
+    expect(rate(r.scenario.orb)).toBeCloseTo(3800 / 6000, 6);
+  });
+
+  it("lowers income by scaling records, never below $0", () => {
+    const r = simulate(data(), { incomeChange: -1000 }, TODAY);
+    expect(income(r.scenario.orb)).toBeCloseTo(4000, 6);
+    expect(rate(r.scenario.orb)).toBeCloseTo(1800 / 4000, 6);
+    const zero = simulate(data(), { incomeChange: -5000 }, TODAY);
+    // $0 income: the savings rate needs data, exactly as healthScore rules it.
+    expect(
+      zero.scenario.orb.pillars.find((p) => p.id === "savings").state,
+    ).toBe("needs-data");
+  });
+
+  it("applies a change starting in month 11 to the last 2 of the 3 months only", () => {
+    const r = simulate(data(), { incomeChange: 300, incomeStart: 11 }, TODAY);
+    expect(income(r.scenario.orb)).toBeCloseTo(5000 + (300 * 2) / 3, 6);
+    const late = simulate(
+      data(),
+      { incomeChange: 300, incomeStart: 12 },
+      TODAY,
+    );
+    expect(income(late.scenario.orb)).toBeCloseTo(5000 + 300 / 3, 6);
+    const now = simulate(data(), { incomeChange: 300, incomeStart: 1 }, TODAY);
+    expect(income(now.scenario.orb)).toBeCloseTo(5300, 6);
+  });
+});
+
+describe("Debt Planner suggestion vs saved plan", () => {
+  it("treats an unsaved $200 suggestion as no plan, and a saved $0 as a plan", () => {
+    expect(readBaseline(data(), TODAY).debtExtraSaved).toBe(false);
+    expect(readBaseline(data(), TODAY).debtExtra).toBe(0);
+    const zero = readBaseline(
+      data({ settings: { annualReturn: 5, debtPlanner: { extra: 0 } } }),
+      TODAY,
+    );
+    expect(zero.debtExtraSaved).toBe(true);
+    expect(zero.debtExtra).toBe(0);
   });
 });

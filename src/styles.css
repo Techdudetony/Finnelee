@@ -2810,3 +2810,31 @@ h2 > .icon {
     border: 2px solid CanvasText;
   }
 }
+.whatif-recorded {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.whatif-recorded p {
+  margin: 0;
+}
+.whatif-funded-note {
+  margin: 4px 0 8px;
+  color: var(--warning-text);
+}
+/* Requested / funded / not funded, side by side when there's room. */
+.whatif-flow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+  gap: 8px 16px;
+  margin: 0 0 12px;
+}
+.whatif-flow dt {
+  font-size: 0.8rem;
+  color: var(--text-2);
+}
+.whatif-flow dd {
+  margin: 2px 0 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}

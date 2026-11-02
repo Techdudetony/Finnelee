@@ -6,12 +6,22 @@
 // lever at zero, so the two paths are identical at zero by construction.
 //
 // Each month, in this order:
-//   available = recorded surplus + income change + category cuts + freed debt payments
-//   then allocated once: extra debt payment (while debts are open), then extra goal
-//   savings (while the chosen goals are unfinished). The rest is general savings.
-//   If the allocations need more than is available, the gap is a shortfall (an
-//   "unfunded" plan): general savings gets $0 and the gap is reported, never borrowed.
+//   cash = recorded surplus + income change + category cuts, adjusted for debt payments
+//          (see debtRecorded below)
+//   then FUNDED once, never past the cash: the extra debt payment (while debts are open),
+//   then extra goal savings (while the chosen goals are unfinished). The rest is general
+//   savings. What the plan REQUESTS beyond the cash is a shortfall: it is reported, and it
+//   never moves a goal, a debt or a balance. Every date, balance and chart is funded money.
 // A dollar sits in exactly one place: a debt, one goal, or general savings.
+//
+// Debt payments and the recorded surplus (levers.debtRecorded, asked on the page because
+// Finnelee never matches transactions to debts by name):
+//   "yes":     recorded spending already includes the minimums + saved Debt Planner extra,
+//              so after the last payoff that money comes back as savings.
+//   "no":      it doesn't, so those payments come out of the surplus while debts are open,
+//              and nothing extra comes back after payoff (it was never in the surplus).
+//   "unknown": the surplus is used as recorded and nothing comes back after payoff, so
+//              freed payments can never be counted twice. This is the default.
 
 import {
   lastMonthKeys,
@@ -35,8 +45,9 @@ export const ZERO_LEVERS = Object.freeze({
   extraDebt: 0, // $/month on top of the Debt Planner plan
   strategy: "avalanche", // used by BOTH paths
   incomeChange: 0, // take-home $/month (negative = a pay cut)
-  incomeStart: 1, // ledger month it starts: 1 = this month ... 12
+  incomeStart: 1, // ledger month it starts: 1 = next month ... 12
   growth: true, // Forecast's expected return on general savings (false = 0%)
+  debtRecorded: "unknown", // "yes" | "no" | "unknown": see the top of this file
 });
 
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -69,10 +80,14 @@ export function openGoals(goals) {
     .map((x) => x.goal);
 }
 
-/** The Debt Planner extra the user saved (settings.debtPlanner.extra), else 0. */
+/**
+ * The Debt Planner extra saved as the user's plan (settings.debtPlanner.extra), or null
+ * when nothing is saved. Debt Planner's $200 starting value is only a suggestion and never
+ * counts here. A saved $0 is a real plan of $0.
+ */
 export function savedDebtExtra(settings) {
   const v = settings?.debtPlanner?.extra;
-  return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null;
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
 }
 
 /**
@@ -147,26 +162,45 @@ export function clampLevers(levers, base, goals = []) {
     ),
     incomeStart: clamp(Math.round(num(l.incomeStart)) || 1, 1, ORB_MONTH),
     growth: l.growth !== false,
+    debtRecorded: ["yes", "no"].includes(l.debtRecorded)
+      ? l.debtRecorded
+      : "unknown",
   };
 }
 
 /**
- * The monthly ledger for one path. Returns one row per month (month 0 = today) plus the
- * debt engine's result and each goal's outcome.
+ * The monthly ledger for one path. Returns one row per month (month 0 = today), the debt
+ * engine's result and each goal's outcome. `fullFunding: true` ignores the cash limit; it
+ * is used only to show what an overcommitted plan would need, labeled as unfunded.
  */
-export function runLedger(data, levers, base) {
+export function runLedger(data, levers, base, { fullFunding = false } = {}) {
   const debts = openDebts(data.debts);
   const hasDebts = debts.length > 0;
-  // Both paths: minimums + the saved Debt Planner extra; the plan adds its lever on top.
+  const plannedDebt = hasDebts
+    ? debts.reduce((t, d) => t + num(d.minPayment), 0) + base.debtExtra
+    : 0; // minimums + saved Debt Planner extra: today's debt plan
+  const cuts = levers.cuts.reduce((t, c) => t + c.amount, 0);
+  const incomeAt = (m) => (m >= levers.incomeStart ? levers.incomeChange : 0);
+  // Cash in a month while debts are still open (see debtRecorded at the top).
+  const openCash = (m) =>
+    base.surplus +
+    incomeAt(m) +
+    cuts -
+    (levers.debtRecorded === "no" ? plannedDebt : 0);
+
+  // The engine takes one fixed extra, so the funded extra is what the LOWEST open-debt
+  // month can pay (income changes once, at its start month). Never more than requested.
+  const lowest = Math.min(openCash(1), openCash(levers.incomeStart));
+  const debtExtra = fullFunding
+    ? levers.extraDebt
+    : Math.min(levers.extraDebt, Math.max(0, lowest));
   const debt = simulateDebtPayoff(
     debts,
-    base.debtExtra + levers.extraDebt,
+    base.debtExtra + debtExtra,
     levers.strategy,
   );
   const debtFree = hasDebts && debt.finished ? debt.months : null; // last month with a payment
-  const freed = hasDebts ? debt.budget - levers.extraDebt : 0; // minimums + saved extra
 
-  const cuts = levers.cuts.reduce((t, c) => t + c.amount, 0);
   const chosen = openGoals(data.goals).filter(
     (g) =>
       levers.goalTarget === "all" || String(g.id) === String(levers.goalTarget),
@@ -176,13 +210,14 @@ export function runLedger(data, levers, base) {
 
   const r = levers.growth ? base.annualReturn / 100 / 12 : 0;
   let balance = base.start; // general savings (Forecast's starting savings)
-  let goalMoney = 0; // new money set aside for goals by this plan (0% growth)
+  let goalMoney = 0; // funded money set aside for goals by this plan (0% growth)
   const rows = [
     {
       month: 0,
       balance,
       goalMoney,
       available: 0,
+      requested: 0,
       toDebt: 0,
       toGoals: 0,
       toGeneral: 0,
@@ -191,21 +226,29 @@ export function runLedger(data, levers, base) {
   ];
 
   for (let month = 1; month <= HORIZON; month++) {
-    const income = month >= levers.incomeStart ? levers.incomeChange : 0;
-    const afterPayoff = debtFree !== null && month > debtFree;
-    const available = base.surplus + income + cuts + (afterPayoff ? freed : 0);
+    const open = hasDebts && (debtFree === null || month <= debtFree);
+    const freed =
+      hasDebts && !open && levers.debtRecorded === "yes" ? plannedDebt : 0;
+    const available = open
+      ? openCash(month)
+      : base.surplus + incomeAt(month) + cuts + freed;
+    let cash = fullFunding ? Infinity : Math.max(0, available);
 
     // 1) Recorded goal contributions: none exist in Finnelee v1, so nothing here.
     // 2) The plan's extra debt payment, only while debts are open.
-    const toDebt =
-      hasDebts && (debtFree === null || month <= debtFree)
-        ? levers.extraDebt
-        : 0;
+    const askDebt = open ? levers.extraDebt : 0;
+    const toDebt = open ? debtExtra : 0; // already capped at the lowest month's cash
+    cash -= toDebt;
     // 3) Extra goal savings, nearest deadline first; each dollar goes to one goal.
-    let budget = levers.extraSavings;
+    const stillNeeded = chosen.reduce(
+      (t, g) => t + Math.max(0, left.get(g.id)),
+      0,
+    );
+    const askGoals = Math.min(levers.extraSavings, stillNeeded);
+    let budget = Math.min(askGoals, Math.max(0, cash));
     let toGoals = 0;
     for (const g of chosen) {
-      if (budget <= 0) break;
+      if (budget <= 0.005) break;
       const need = left.get(g.id);
       if (need <= 0) continue;
       const pay = Math.min(need, budget);
@@ -214,11 +257,11 @@ export function runLedger(data, levers, base) {
       toGoals += pay;
       if (need - pay <= 0.005) reached.set(g.id, month);
     }
-    // 4) The rest is general savings. A shortfall is what the plan's allocations need
-    //    beyond the cash available; a negative recorded surplus alone isn't one (Forecast
-    //    floors it at $0 too).
+    // 4) The rest is general savings. The shortfall is what was requested but not
+    //    funded; a negative recorded surplus alone isn't one (Forecast floors it at $0).
+    const requested = askDebt + askGoals;
     const toGeneral = Math.max(0, available - toDebt - toGoals);
-    const shortfall = Math.max(0, toDebt + toGoals - Math.max(0, available));
+    const shortfall = Math.max(0, requested - toDebt - toGoals);
     balance = balance * (1 + r) + toGeneral; // same formula as projectSavings
     goalMoney += toGoals;
     rows.push({
@@ -226,6 +269,7 @@ export function runLedger(data, levers, base) {
       balance,
       goalMoney,
       available,
+      requested,
       toDebt,
       toGoals,
       toGeneral,
@@ -242,7 +286,7 @@ export function runLedger(data, levers, base) {
     funded: left.has(g.id) && levers.extraSavings > 0,
     reachedMonth: reached.get(g.id) ?? null,
   }));
-  return { rows, debt, debtFree, hasDebts, goals };
+  return { rows, debt, debtFree, hasDebts, goals, debtExtra, plannedDebt };
 }
 
 /** "within" | "exceeds" | "insufficient", judged on months 1 to 12. */
@@ -263,8 +307,9 @@ export const shortfall12 = (ledger) =>
 /**
  * A hypothetical copy of the data as it could look at month 12 of a path, for healthScore.
  * Only these inputs change; a pillar that needs data today keeps needing it.
- *   - transactions in the last 3 full months: cut categories scaled down, and an income
- *     entry added to each month that already counts (never making a new month count)
+ *   - transactions in the last 3 full months (standing in for months 10 to 12): cut
+ *     categories scaled down, and income records scaled by the income change from its
+ *     start month (never below $0, never making a new month count)
  *   - savings: month-12 general savings + goal money, added to the largest cash/savings
  *     account (or the typed-in amount), keeping dates so "older" states stay
  *   - debts paid off by month 12: balance 0 on the debt and its linked liability, and
@@ -293,16 +338,23 @@ export function orbInputs(
       ? { ...t, amount: round2(num(t.amount) * factor[t.category]) }
       : { ...t },
   );
-  if (levers.incomeChange !== 0 && levers.incomeStart <= ORB_MONTH)
-    for (const m of counted)
-      transactions.push({
-        id: `whatif-income-${m.key}`,
-        date: `${m.key}-15`,
-        type: "income",
-        category: "What-if income change",
-        description: "What-if income change",
-        amount: round2(Math.max(levers.incomeChange, -m.income)), // never below $0 take-home
-      });
+  // Income: the 3 recorded months stand in for months 10, 11 and 12 of the projection, so
+  // a change starting in month 11 applies to the last 2 of them only. Each counted month's
+  // income records are scaled to (income + change), never below $0. No record is added.
+  const incomeFactor = {};
+  counted.forEach((m) => {
+    const projected = ORB_MONTH - (keys.length - 1) + keys.indexOf(m.key);
+    if (levers.incomeChange !== 0 && projected >= levers.incomeStart)
+      incomeFactor[m.key] =
+        Math.max(0, m.income + levers.incomeChange) / m.income;
+  });
+  for (let i = 0; i < transactions.length; i++) {
+    const t = transactions[i];
+    const f =
+      t.type === "income" ? incomeFactor[t.date?.slice(0, 7)] : undefined;
+    if (f !== undefined)
+      transactions[i] = { ...t, amount: round2(num(t.amount) * f) };
+  }
 
   const pillar = (id) => todayHealth.pillars.find((p) => p.id === id);
   let settings = { ...(data.settings ?? {}) };
@@ -385,11 +437,13 @@ export function paidByMonth(debts, payoffOrder, month) {
 export function simulate(data, levers, today = new Date()) {
   const base = readBaseline(data, today);
   const plan = clampLevers(levers, base, data.goals);
-  // Today's path keeps the shared choices (strategy, growth) and zeroes every lever.
+  // Today's path keeps the shared choices (strategy, growth, debtRecorded) and zeroes
+  // every lever.
   const zero = {
     ...clampLevers(ZERO_LEVERS, base, data.goals),
     strategy: plan.strategy,
     growth: plan.growth,
+    debtRecorded: plan.debtRecorded, // an assumption about the records, not a lever
   };
   const todayHealth = healthScore(data, today);
   const run = (l) => {
@@ -405,13 +459,19 @@ export function simulate(data, levers, today = new Date()) {
   };
   const baseline = run(zero);
   const scenario = run(plan);
+  const fits = affordability(base, scenario.ledger);
   return {
     base,
     levers: plan,
     today: todayHealth,
     baseline,
     scenario,
-    affordability: affordability(base, scenario.ledger),
+    affordability: fits,
     shortfall: shortfall12(scenario.ledger),
+    // Only for an overcommitted plan: what it would take if the missing money were found.
+    // Shown as an unfunded hypothetical, never as the plan's result.
+    fullFunding: scenario.ledger.rows.some((row) => row.shortfall > 0.005)
+      ? runLedger(data, plan, base, { fullFunding: true })
+      : null,
   };
 }

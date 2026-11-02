@@ -83,7 +83,9 @@ export default function WhatIf({ store, openTask }) {
   const { base, levers: plan } = result;
   const set = (field) => (value) =>
     setLevers((l) => ({ ...l, [field]: value }));
-  const unfunded = result.affordability === "exceeds";
+  // Any month where the plan asks for more than the cash covers: every card says
+  // it shows only the funded part.
+  const unfunded = result.fullFunding !== null;
   const highlights = summarize(result);
 
   // Screen readers hear the result once the levers stop moving, not on every step.
@@ -362,8 +364,8 @@ function Levers({ levers, base, goals, set, reset }) {
               label="Extra debt payment per month"
               hint={
                 base.debtExtraSaved
-                  ? `Added on top of your Debt Planner extra of ${money(base.debtExtra)}.`
-                  : "Debt Planner has no saved extra payment, so today's path uses minimums only."
+                  ? `Added on top of the ${money(base.debtExtra)} extra saved as your plan on Debt Planner.`
+                  : "Debt Planner's $200 is only a suggestion until you save it there, so today's path uses minimums only."
               }
               value={levers.extraDebt}
               onChange={set("extraDebt")}
@@ -386,6 +388,44 @@ function Levers({ levers, base, goals, set, reset }) {
                     : "Snowball (smallest balance first)"}
                 </label>
               ))}
+            </div>
+            {/* Finnelee never matches transactions to debts by name, so it asks. */}
+            <div
+              className="whatif-recorded"
+              role="radiogroup"
+              aria-labelledby="whatif-recorded-q"
+              aria-describedby="whatif-recorded-hint"
+            >
+              <span id="whatif-recorded-q" className="small">
+                Are your debt payments in your recorded transactions?
+              </span>
+              <div className="row small">
+                {[
+                  ["yes", "Yes"],
+                  ["no", "No"],
+                  ["unknown", "Not sure"],
+                ].map(([value, label]) => (
+                  <label key={value} className="row" style={{ gap: 6 }}>
+                    <input
+                      type="radio"
+                      name="whatif-recorded"
+                      checked={levers.debtRecorded === value}
+                      onChange={() => set("debtRecorded")(value)}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <p className="small muted" id="whatif-recorded-hint">
+                {
+                  {
+                    yes: "Payments are already in your surplus, so after the last payoff they come back as savings.",
+                    no: "Payments come out of your surplus until each debt is paid off. Nothing extra comes back after.",
+                    unknown:
+                      "Your surplus is used as recorded, and freed payments are never added, so nothing is counted twice.",
+                  }[levers.debtRecorded]
+                }
+              </p>
             </div>
           </>
         )}
@@ -439,21 +479,32 @@ function Card({ title, unfunded, children }) {
     <section className="card">
       <div className="row">
         <h2>{title}</h2>
-        {unfunded && <span className="whatif-tag">Unfunded</span>}
+        {unfunded && <span className="whatif-tag">Unfunded plan</span>}
       </div>
+      {unfunded && (
+        <p className="small whatif-funded-note">
+          Shows only what your estimated cash flow can fund.
+        </p>
+      )}
       {children}
       <p className="small muted whatif-foot">{FOOTER}</p>
     </section>
   );
 }
 
-/** Where the money comes from, and whether the plan fits. */
+/** Where the money comes from, what the plan asks for, and what the cash can fund. */
 function CashFlow({ result }) {
-  const { base, levers, affordability, shortfall } = result;
+  const { base, levers, affordability, shortfall, scenario } = result;
+  const first = scenario.ledger.rows[1];
   const frees =
     levers.cuts.reduce((t, c) => t + c.amount, 0) +
     Math.max(0, levers.incomeChange);
-  const uses = levers.extraSavings + levers.extraDebt;
+  const debtNote = {
+    yes: "You said your recorded spending includes your debt payments.",
+    no: `You said your debt payments aren't recorded, so ${money(scenario.ledger.plannedDebt)} a month comes out of the surplus while debts are open.`,
+    unknown:
+      "Freed debt payments aren't added after payoff, since Finnelee can't tell whether your records include them.",
+  }[levers.debtRecorded];
   const state = {
     within: (
       <Status tone="good">
@@ -462,8 +513,8 @@ function CashFlow({ result }) {
     ),
     exceeds: (
       <Status tone="warning">
-        This plan needs about {money(shortfall)} a month more than your
-        estimated cash flow. Results below are an unfunded hypothetical.
+        This plan asks for about {money(shortfall)} a month more than your
+        estimated cash flow can fund. Only the funded part is projected below.
       </Status>
     ),
     insufficient: (
@@ -480,15 +531,29 @@ function CashFlow({ result }) {
         Your recorded surplus is about {money(base.surplus)} a month (the last 3
         full months, as on Forecast). This plan frees {money(frees)}
         {levers.incomeChange < 0
-          ? `, takes ${money(-levers.incomeChange)} less income`
-          : ""}{" "}
-        and assigns {money(uses)} to goals and debt.
+          ? ` and takes ${money(-levers.incomeChange)} less income`
+          : ""}
+        .
       </p>
+      <dl className="whatif-flow">
+        <div>
+          <dt>Requested for goals and debt</dt>
+          <dd>{money(first.requested)}</dd>
+        </div>
+        <div>
+          <dt>Funded from cash flow</dt>
+          <dd>{money(first.toDebt + first.toGoals)}</dd>
+        </div>
+        <div>
+          <dt>Not funded</dt>
+          <dd>{money(first.shortfall)}</dd>
+        </div>
+      </dl>
       <p style={{ margin: 0 }}>{state}</p>
       <p className="small muted whatif-foot">
-        Assumes your recorded spending already includes your current debt
-        payments and bills. Each dollar goes to one place: a debt, a goal, or
-        general savings.
+        Figures for {monthName(1)}. {base.hasDebts ? `${debtNote} ` : ""}Extra
+        debt is funded first, then goals. Each dollar goes to one place: a debt,
+        a goal, or general savings.
       </p>
     </section>
   );
@@ -562,6 +627,7 @@ function OrbCompare({ result, unfunded }) {
 function GoalResults({ result, unfunded, openTask }) {
   const base = result.baseline.ledger.goals;
   const plan = result.scenario.ledger.goals;
+  const full = result.fullFunding?.goals ?? [];
   if (plan.length === 0)
     return (
       <Card title="Goals" unfunded={false}>
@@ -611,6 +677,15 @@ function GoalResults({ result, unfunded, openTask }) {
               Today's path: not projected (no recurring contribution recorded).
             </span>
             <span className="small">With this plan: {planText(g)}.</span>
+            {full[i] && full[i].reachedMonth !== g.reachedMonth && (
+              <span className="small muted">
+                Only if the missing money were found (unfunded hypothetical):{" "}
+                {full[i].reachedMonth === null
+                  ? "not within 10 years"
+                  : monthName(full[i].reachedMonth)}
+                .
+              </span>
+            )}
             <span className="small muted">
               Planning figure: about {money(base[i].required)} a month would
               finish it by the deadline.
@@ -662,6 +737,13 @@ function DebtResults({ result, unfunded, openTask }) {
         {saved > 0.5 ? ` (about ${money(saved)} less)` : ""}. Both use{" "}
         {result.levers.strategy === "snowball" ? "Snowball" : "Avalanche"}.
       </p>
+      {s.debtExtra < result.levers.extraDebt && (
+        <p className="small">
+          Only {money(s.debtExtra)} of the {money(result.levers.extraDebt)}{" "}
+          extra fits your cash flow every month, so payoff uses that. With the
+          full amount (unfunded hypothetical): {when(result.fullFunding ?? s)}.
+        </p>
+      )}
       <div className="table-wrap">
         <table>
           <thead>
@@ -775,11 +857,14 @@ function SavingsResults({ result, unfunded, years, setYears }) {
         </span>
       </div>
       <p className="small muted">
+        {unfunded ? "Only funded money is charted. " : ""}
         {!levers.growth
           ? "Growth is off, so these lines won't match Forecast's Expected line."
-          : debtFree && debtFree < months
-            ? `Today's path matches Forecast's Expected line until ${monthName(debtFree)}. After that, freed debt payments roll into savings, which Forecast doesn't model.`
-            : "With no levers, today's path follows Forecast's Expected line."}{" "}
+          : levers.debtRecorded === "no" && baseline.ledger.hasDebts
+            ? "Today's path is below Forecast's Expected line while debts are open, because unrecorded debt payments come out of the surplus."
+            : levers.debtRecorded === "yes" && debtFree && debtFree < months
+              ? `Today's path matches Forecast's Expected line until ${monthName(debtFree)}. After that, freed debt payments roll into savings, which Forecast doesn't model.`
+              : "With no levers, today's path follows Forecast's Expected line."}{" "}
         A goal's existing saved amount isn't added, since it may already be in
         your savings.
       </p>

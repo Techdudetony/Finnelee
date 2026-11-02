@@ -80,6 +80,7 @@ test("never changes localStorage or any financial record", async ({ page }) => {
   await page.locator("#whatif-cut-0").fill("50");
   await page.locator("#whatif-debt").fill("300");
   await page.getByLabel("Snowball (smallest balance first)").check();
+  await page.getByRole("radio", { name: "Yes" }).check();
   await page.locator("#whatif-income").fill("250");
   await page.getByLabel("Starting").selectOption({ index: 3 });
   await page.getByLabel(/Grow general savings/).uncheck();
@@ -102,11 +103,25 @@ test("labels an overcommitted plan as an unfunded hypothetical", async ({
   await openPage(page, "What-If");
   await page.locator("#whatif-savings").fill("10000");
   await expect(
-    page.getByText(/more than your estimated cash flow/),
+    page.getByText(/more than your estimated cash flow can fund/),
   ).toBeVisible();
-  await expect(page.locator(".whatif-tag").first()).toHaveText("Unfunded");
-  // Still projected: a goal date shows.
+  await expect(page.locator(".whatif-tag").first()).toHaveText("Unfunded plan");
+  await expect(
+    page
+      .getByText("Shows only what your estimated cash flow can fund.")
+      .first(),
+  ).toBeVisible();
+  // Requested, funded and not funded add up.
+  const flow = page.locator(".whatif-flow dd");
+  const value = async (i) =>
+    Number((await flow.nth(i).innerText()).replace(/[^0-9.]/g, ""));
+  // Requested is capped at what the goals still need ($8,050 in the sample data).
+  expect(await value(0)).toBe(8050);
+  expect((await value(1)) + (await value(2))).toBe(8050);
+  expect(await value(2)).toBeGreaterThan(0);
+  // Dates are from funded money, and the full-funding date is labeled.
   await expect(page.getByText(/Could be reached/).first()).toBeVisible();
+  await expect(page.getByText(/unfunded hypothetical/).first()).toBeVisible();
 });
 
 test("works by keyboard and announces results politely", async ({ page }) => {
@@ -131,13 +146,42 @@ test("adds the What-If lever on top of the saved Debt Planner extra", async ({
 }) => {
   await signUp(page);
   await openPage(page, "What-If");
-  await expect(page.getByText(/has no saved extra payment/)).toBeVisible();
+  await expect(page.getByText(/\$200 is only a suggestion/)).toBeVisible();
   await openPage(page, "Debt Planner");
+  // The $200 starting value is labeled a suggestion, never a plan.
+  await expect(
+    page.getByText(/is a suggestion, not your plan yet/),
+  ).toBeVisible();
   await page.getByLabel("Extra payment", { exact: true }).fill("150");
+  await expect(page.getByText("Saved as your plan")).toBeVisible();
   await page.getByRole("button", { name: "See it next to your goals" }).click();
   await expect(page.locator("#whatif-debt")).toBeFocused();
   await expect(
-    page.getByText(/on top of your Debt Planner extra of \$150/),
+    page.getByText(/on top of the \$150 extra saved as your plan/),
+  ).toBeVisible();
+});
+
+test("Debt Planner can save its suggestion as a plan, or clear the plan", async ({
+  page,
+}) => {
+  await signUp(page);
+  await openPage(page, "Debt Planner");
+  const settings = () =>
+    page.evaluate(() => {
+      const key = Object.keys(localStorage).find((k) =>
+        k.endsWith(".settings"),
+      );
+      return JSON.parse(localStorage.getItem(key));
+    });
+  expect((await settings()).debtPlanner).toBeUndefined();
+  await page.getByRole("button", { name: "Save $200.00 as my plan" }).click();
+  await expect
+    .poll(async () => (await settings()).debtPlanner?.extra)
+    .toBe(200);
+  await page.getByRole("button", { name: "Clear plan" }).click();
+  await expect.poll(async () => (await settings()).debtPlanner).toBeUndefined();
+  await expect(
+    page.getByText(/is a suggestion, not your plan yet/),
   ).toBeVisible();
 });
 
