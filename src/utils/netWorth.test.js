@@ -4,6 +4,7 @@ import {
   historySeries,
   isStale,
   kindLabel,
+  linkedDebt,
   liquidSavings,
   netWorthTotals,
   needsDebtConfirmation,
@@ -171,6 +172,56 @@ describe("netWorthTotals", () => {
       netWorthTotals([{ ...ACCOUNTS[0], balance: "" }], undefined).netWorth,
     ).toBe(0);
     expect(netWorthTotals(undefined, []).netWorth).toBe(0);
+  });
+
+  // The same car loan entered twice: as a debt and as a liability linked to it.
+  const carTwice = acct("Auto loan", "liability", "other", 11200);
+
+  it("counts a liability linked to a debt once, at the debt's balance", () => {
+    const linked = [...ACCOUNTS, { ...carTwice, debtId: "d1" }];
+    expect(netWorthTotals(linked, DEBTS)).toEqual(
+      netWorthTotals(ACCOUNTS, DEBTS),
+    );
+  });
+
+  it("matches links by id, even when stored as a number", () => {
+    const debts = [{ id: 7, name: "Car loan", balance: 11000 }];
+    const linked = [{ ...carTwice, debtId: "7" }];
+    expect(netWorthTotals(linked, debts).liabilities).toBe(11000);
+  });
+
+  it("counts the liability itself when its debt is gone or paid off", () => {
+    const linked = [{ ...carTwice, debtId: "d1" }];
+    expect(netWorthTotals(linked, []).liabilities).toBe(11200);
+    expect(
+      netWorthTotals(linked, [{ id: "d1", balance: 0 }]).liabilities,
+    ).toBe(11200);
+  });
+
+  it("records the corrected total in this month's snapshot", () => {
+    const linked = [...ACCOUNTS, { ...carTwice, debtId: "d1" }];
+    const doubled = {
+      netWorthHistory: { "2026-10": { assets: 41100.5, liabilities: 33100.25 } },
+    };
+    const fixed = recordSnapshot(doubled, linked, DEBTS, OCT);
+    expect(fixed.netWorthHistory["2026-10"].liabilities).toBe(21900.25);
+  });
+});
+
+describe("linkedDebt", () => {
+  const debt = DEBTS[0];
+  const liability = { ...ACCOUNTS[4], debtId: "d1" };
+
+  it("finds the open debt a liability is linked to", () => {
+    expect(linkedDebt(liability, DEBTS)).toBe(debt);
+  });
+
+  it("is null for unlinked rows, assets, and broken or closed links", () => {
+    expect(linkedDebt(ACCOUNTS[4], DEBTS)).toBeNull();
+    expect(linkedDebt({ ...ACCOUNTS[0], debtId: "d1" }, DEBTS)).toBeNull();
+    expect(linkedDebt({ ...liability, debtId: "nope" }, DEBTS)).toBeNull();
+    expect(linkedDebt(liability, [{ ...debt, balance: 0 }])).toBeNull();
+    expect(linkedDebt(liability, undefined)).toBeNull();
   });
 });
 

@@ -351,3 +351,29 @@ test("after midnight the runway shows the new day's dates and events together", 
   );
   await expect(runway(page).locator(".runway-list")).toContainText("Gym");
 });
+
+test("a liability linked to a debt counts once in net worth", async ({
+  page,
+}) => {
+  // The car loan entered again on Net Worth, with an older balance.
+  await editSlice(
+    page,
+    "accounts",
+    "return [...v, { id: 'auto', type: 'liability', kind: 'other', name: 'Auto loan', balance: 9200, updated: '2026-11-02' }]",
+  );
+  await nav(page, "Net Worth");
+  const netWorth = page.locator(".card", {
+    has: page.locator(".stat-label", { hasText: /^Net worth$/ }),
+  });
+  await expect(netWorth).toContainText("-$15,200.00"); // 3,000 − 9,000 − 9,200
+  await page.getByLabel("Same as Debt Planner debt").selectOption("car");
+  await expect(netWorth).toContainText("-$6,000.00"); // 3,000 − 9,000
+  await expect(page.locator(".row-details")).toContainText(
+    "Counted once in your net worth, using the Debt Planner balance for Car loan ($9,000.00).",
+  );
+  await expect(page.locator(".row-details")).toContainText(
+    "The balance here is $9,200.00",
+  );
+  await nav(page, "Dashboard");
+  await expect(page.getByText("-$6,000.00").first()).toBeVisible();
+});

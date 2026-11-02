@@ -21,6 +21,7 @@ import {
   historySeries,
   isStale,
   kindLabel,
+  linkedDebt,
   liquidSavings,
   netWorthTotals,
   needsDebtConfirmation,
@@ -360,7 +361,8 @@ function AccountTable({ title, rows, onBalance, onDelete, empty, details }) {
 /**
  * A liability's payment details, all optional: monthly payment (for Debt load), due day,
  * "Same as Debt Planner debt" (so one loan is counted once) and Mark paid. A linked
- * liability is marked paid on its debt instead, so the month is recorded in one place.
+ * liability is marked paid on its debt instead, so the month is recorded in one place,
+ * and only the debt's balance counts toward net worth.
  * Number boxes save only valid values (see OptionalNumber).
  */
 function LiabilityDetails({ account: a, debts, onChange }) {
@@ -368,6 +370,8 @@ function LiabilityDetails({ account: a, debts, onChange }) {
   const options = debtOptions(debts);
   const linked = options.find((o) => o.value === String(a.debtId));
   const broken = a.debtId != null && a.debtId !== '' && !linked;
+  const debt = linkedDebt(a, debts); // the debt whose balance counts instead of this one
+  const differs = debt && Number(a.balance) !== Number(debt.balance);
   return (
     <div className="obligation-fields">
       <div className="field-box">
@@ -440,6 +444,17 @@ function LiabilityDetails({ account: a, debts, onChange }) {
           />
         )}
       </div>
+      {debt && (
+        <p className="small muted" style={{ gridColumn: '1 / -1', margin: 0 }}>
+          Counted once in your net worth, using the Debt Planner balance for {debt.name} (
+          {formatCurrency(debt.balance)}).{' '}
+          {differs && (
+            <Status tone="warning">
+              The balance here is {formatCurrency(a.balance)}, so one of them is out of date.
+            </Status>
+          )}
+        </p>
+      )}
     </div>
   );
 }

@@ -3,6 +3,9 @@
 // accounts (own storage slice): [{ id, name, type: 'asset' | 'liability', kind, balance, updated, source }]
 //   - Debt Planner debts ALWAYS count as liabilities (read live), so loans and cards are
 //     never entered twice. Liability accounts are only for debts not in the planner.
+//   - A liability linked to an open debt (account.debtId, "Same as Debt Planner debt") is
+//     that debt, so only the debt's balance counts. A link to a deleted or paid-off debt
+//     is ignored and the liability counts on its own, as in obligations.js.
 //   - A financed asset is two rows: its market value here, its loan in the Debt Planner.
 //   - source: 'manual' for now; kept so a future bank integration can tell its rows apart.
 // settings.netWorthHistory: { '2026-10': { assets, liabilities } }
@@ -123,7 +126,25 @@ export function isStale(account, today = new Date()) {
 
 // ---------- Totals ----------
 
-/** { assets, accountLiabilities, debtLiabilities, liabilities, netWorth }. Net worth can be negative. */
+/**
+ * The open Debt Planner debt a liability is linked to, or null. Same rule as
+ * obligations.js: ids only, and a debt with no balance left doesn't count as a link.
+ */
+export function linkedDebt(account, debts = []) {
+  if (account?.type !== "liability" || account.debtId == null) return null;
+  const list = Array.isArray(debts) ? debts : [];
+  return (
+    list.find(
+      (d) =>
+        d && String(d.id) === String(account.debtId) && Number(d.balance) > 0,
+    ) ?? null
+  );
+}
+
+/**
+ * { assets, accountLiabilities, debtLiabilities, liabilities, netWorth }. Net worth can be
+ * negative. accountLiabilities leaves out liabilities linked to a debt: the debt counts.
+ */
 export function netWorthTotals(accounts, debts = []) {
   const list = readAccounts(accounts);
   const assets = sum(
@@ -131,7 +152,7 @@ export function netWorthTotals(accounts, debts = []) {
     balanceOf,
   );
   const accountLiabilities = sum(
-    list.filter((a) => a.type === "liability"),
+    list.filter((a) => a.type === "liability" && !linkedDebt(a, debts)),
     balanceOf,
   );
   const debtLiabilities = sum(debts, (d) => d.balance);
