@@ -26,6 +26,19 @@ const commands = buildCommands(PAGES);
 const labels = (query) => rankCommands(commands, query).map((c) => c.label);
 
 describe("buildCommands", () => {
+  it("adds Show Getting Started only when asked (while the checklist is hidden)", () => {
+    expect(commands.some((c) => c.action.type === "gettingStarted")).toBe(false);
+    const withIt = buildCommands(PAGES, { gettingStarted: true });
+    expect(withIt.at(-1)).toMatchObject({
+      label: "Show Getting Started",
+      group: "Help",
+      action: { type: "gettingStarted" },
+    });
+    expect(rankCommands(withIt, "checklist")[0].label).toBe(
+      "Show Getting Started",
+    );
+  });
+
   it("lists every page, then tasks, then Motion settings, then the tour", () => {
     expect(commands.slice(0, 10).map((c) => c.action)).toEqual(
       PAGES.map((p) => ({ type: "page", page: p.id })),

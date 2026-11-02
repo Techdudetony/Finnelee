@@ -89,13 +89,23 @@ const TOUR = {
   action: { type: "tour" },
 };
 
+/** Brings back the hidden Getting Started checklist (only offered while it's hidden). */
+const GETTING_STARTED = {
+  id: "help:getting-started",
+  label: "Show Getting Started",
+  group: "Help",
+  aliases: ["getting started", "checklist", "setup", "first steps"],
+  action: { type: "gettingStarted" },
+};
+
 /**
  * Every command, in the order shown when nothing is typed: pages, tasks, settings, then
  * help. pages: [{ id, label }] (App.jsx's PAGES). Each command: { id, label, group,
  * aliases, action } where action is { type: "page", page, focus? },
- * { type: "motion", level } or { type: "tour" }.
+ * { type: "motion", level }, { type: "tour" } or { type: "gettingStarted" }.
+ * gettingStarted: true adds "Show Getting Started" (utils/gettingStarted.js canRestore).
  */
-export function buildCommands(pages) {
+export function buildCommands(pages, { gettingStarted = false } = {}) {
   return [
     ...pages.map((p) => ({
       id: `page:${p.id}`,
@@ -119,6 +129,7 @@ export function buildCommands(pages) {
       action: { type: "motion", level },
     })),
     TOUR,
+    ...(gettingStarted ? [GETTING_STARTED] : []),
   ];
 }
 
