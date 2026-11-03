@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_CATEGORIES } from "../data/categories";
 import { projectSavings, simulateDebtPayoff } from "./finance";
+import { debtScore, healthScore } from "./health";
 import {
   HORIZON,
   ORB_MONTH,
@@ -676,5 +677,110 @@ describe("review round 1: edge cases", () => {
     expect(plan.rows[1].requested).toBe(50);
     expect(plan.rows[1].toGeneral).toBe(2800 - 50);
     expect(plan.rows[1].shortfall).toBe(0);
+  });
+});
+
+describe("Debt load at month 12 (review round 2)", () => {
+  // Debt load = required monthly payments ÷ recorded income; balances only decide open/closed.
+  const debtPillar = (h) => h.pillars.find((p) => p.id === "debt");
+  const LOAN = {
+    id: "loan",
+    name: "Loan",
+    balance: 90000,
+    apr: 5,
+    minPayment: 1500,
+  };
+  const CARD = {
+    id: "card",
+    name: "Card",
+    balance: 6000,
+    apr: 24,
+    minPayment: 300,
+  };
+
+  it("doesn't change with a partly repaid balance, so open debts keep today's balance", () => {
+    const at = (balance) =>
+      debtPillar(healthScore(data({ debts: [{ ...LOAN, balance }] }), TODAY));
+    const full = at(90000);
+    const tenth = at(9000);
+    expect(tenth.score).toBe(full.score);
+    expect(tenth.payments).toBe(full.payments);
+    expect(full.score).toBe(debtScore(1500 / 5000));
+  });
+
+  it("scores a partially repaid loan the same in both paths and today", () => {
+    const r = simulate(data({ debts: [LOAN] }), { extraDebt: 500 }, TODAY);
+    // The plan pays it down faster, but it is still open at month 12.
+    expect(r.scenario.ledger.debt.payoffOrder).toEqual([
+      { name: "Loan", month: r.scenario.ledger.debtFree },
+    ]);
+    expect(r.scenario.ledger.debtFree).toBeGreaterThan(ORB_MONTH);
+    expect(r.scenario.ledger.debt.timeline[ORB_MONTH].balance).toBeLessThan(
+      r.baseline.ledger.debt.timeline[ORB_MONTH].balance,
+    );
+    const score = debtPillar(r.today).score;
+    expect(debtPillar(r.baseline.orb).score).toBe(score);
+    expect(debtPillar(r.scenario.orb).score).toBe(score);
+  });
+
+  it("drops a fully paid-off loan's payment from Debt load", () => {
+    const small = {
+      id: "small",
+      name: "Small loan",
+      balance: 2000,
+      apr: 10,
+      minPayment: 200,
+    };
+    const r = simulate(data({ debts: [small, LOAN] }), ZERO_LEVERS, TODAY);
+    expect(r.baseline.ledger.debt.payoffOrder[0].name).toBe("Small loan");
+    expect(r.baseline.ledger.debt.payoffOrder[0].month).toBeLessThanOrEqual(
+      ORB_MONTH,
+    );
+    expect(debtPillar(r.today).payments).toBe(1700);
+    expect(debtPillar(r.baseline.orb).payments).toBe(1500); // the open loan only
+    expect(debtPillar(r.baseline.orb).score).toBe(debtScore(1500 / 5000));
+  });
+
+  it("handles several debts with different APRs, by strategy", () => {
+    const d = data({ debts: [LOAN, CARD] });
+    // Avalanche aims the $700 extra at the 24% card, which is paid off by month 12.
+    const plan = simulate(d, { extraDebt: 700 }, TODAY);
+    const base = plan.baseline;
+    expect(
+      base.ledger.debt.payoffOrder.find((p) => p.name === "Card").month,
+    ).toBeGreaterThan(ORB_MONTH);
+    expect(
+      plan.scenario.ledger.debt.payoffOrder.find((p) => p.name === "Card")
+        .month,
+    ).toBeLessThanOrEqual(ORB_MONTH);
+    expect(debtPillar(base.orb).score).toBe(debtScore(1800 / 5000));
+    expect(debtPillar(plan.scenario.orb).score).toBe(debtScore(1500 / 5000));
+    expect(debtPillar(plan.scenario.orb).payments).toBe(1500);
+    // The 24% warning goes with the card; the open loan's balance never moves the score.
+    expect(debtPillar(base.orb).warnings).toHaveLength(1);
+    expect(debtPillar(plan.scenario.orb).warnings).toHaveLength(0);
+    // Snowball aims at the smaller balance, which is the card here too.
+    const snow = simulate(d, { extraDebt: 700, strategy: "snowball" }, TODAY);
+    expect(debtPillar(snow.scenario.orb).score).toBe(debtScore(1500 / 5000));
+  });
+
+  it("keeps Debt load needing data when a payment is unknown, even after a payoff", () => {
+    const d = data({
+      debts: [{ ...LOAN, balance: 4000 }],
+      accounts: [
+        {
+          id: "a1",
+          type: "liability",
+          kind: "loan",
+          name: "Other loan",
+          balance: 2000,
+          updated: "2026-11-01",
+        },
+      ],
+    });
+    const r = simulate(d, { extraDebt: 500 }, TODAY);
+    expect(debtPillar(r.today).state).toBe("needs-data");
+    expect(debtPillar(r.baseline.orb).state).toBe("needs-data");
+    expect(debtPillar(r.scenario.orb).state).toBe("needs-data");
   });
 });

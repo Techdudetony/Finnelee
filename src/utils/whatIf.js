@@ -336,6 +336,12 @@ export const shortfall12 = (ledger) =>
  *     account (or the typed-in amount), keeping dates so "older" states stay
  *   - debts paid off by month 12: balance 0 on the debt and its linked liability, and
  *     their linked bills end
+ * Debts still open at month 12 keep today's balance ON PURPOSE. Debt load scores required
+ * monthly payments ÷ income (debtPillar + buildObligations in health.js / obligations.js),
+ * and a balance only decides whether a debt is open (> 0). The payoff engine keeps each
+ * minimum fixed while a debt is open, so a partly repaid debt owes the same payment and
+ * scores the same. Balances also feed the high-APR warning text, which never changes the
+ * score and isn't shown on the What-If page. Tests in whatIf.test.js lock this in.
  */
 export function orbInputs(
   data,
