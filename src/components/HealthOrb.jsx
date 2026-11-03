@@ -5,7 +5,7 @@ import { useColorScheme } from '../hooks/useColorScheme';
 import { useMotion } from '../hooks/useMotion';
 import { getPalette } from '../utils/colors';
 import { healthScore } from '../utils/health';
-import { MAX_DPR, createOrbLoop, drawOrb, orbSegments } from '../utils/orb';
+import { MAX_DPR, createOrbLoop, drawOrb, orbSegments, paintOrbLayers } from '../utils/orb';
 
 // Which page improves each pillar (the pillar's button opens it).
 const PILLAR_PAGE = {
@@ -203,6 +203,14 @@ function OrbCanvas({ health }) {
     canvas.width = ORB_SIZE * dpr;
     canvas.height = ORB_SIZE * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Ring, glass and highlights don't move: paint them once, not every frame.
+    const layers = paintOrbLayers({
+      size: ORB_SIZE,
+      segments,
+      colors,
+      dpr,
+      makeCanvas: (w, h) => Object.assign(document.createElement('canvas'), { width: w, height: h }),
+    });
 
     const loop = createOrbLoop({
       render: (progress, phase, lean) =>
@@ -214,6 +222,7 @@ function OrbCanvas({ health }) {
           progress,
           phase,
           lean,
+          layers,
         }),
       canAnimate: () => fullRef.current && visibleRef.current && !document.hidden,
       raf: (fn) => requestAnimationFrame(fn),

@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import { FILL_MS, FRAME_MS, createOrbLoop, drawOrb, easeOut, orbSegments } from './orb';
+import {
+  FILL_MS,
+  FRAME_MS,
+  createOrbLoop,
+  drawOrb,
+  easeOut,
+  orbSegments,
+  paintOrbLayers,
+  tracePolygonInCircle,
+} from './orb';
 
 const pillar = (id, state, score) => ({ id, state, score });
 
@@ -68,6 +77,8 @@ describe('drawOrb', () => {
       clip: record('clip'),
       setLineDash: record('setLineDash'),
       ellipse: record('ellipse'),
+      drawImage: record('drawImage'),
+      setTransform: record('setTransform'),
       createLinearGradient: () => ({ addColorStop: () => {} }),
       createRadialGradient: () => ({ addColorStop: () => {} }),
     };
@@ -104,6 +115,139 @@ describe('drawOrb', () => {
     drawOrb(ctx, { size: 200, score: 50, segments, colors, phase: 3 });
     const count = (name) => ctx.calls.filter(([n]) => n === name).length;
     expect(count('save')).toBe(count('restore'));
+  });
+
+  // Issue #25: the parts that never move are painted once, into two layers.
+  const layerCanvas = () => {
+    const ctx = fakeCtx();
+    return { ctx, getContext: () => ctx };
+  };
+  const made = [];
+  const layers = paintOrbLayers({
+    size: 200,
+    segments,
+    colors,
+    dpr: 2,
+    makeCanvas: (w, h) => {
+      made.push([w, h]);
+      return layerCanvas();
+    },
+  });
+  const count = (ctx, name) => ctx.calls.filter(([n]) => n === name).length;
+
+  it('paints the ring and glass under the liquid, the highlights over it', () => {
+    expect(made).toEqual([
+      [400, 400],
+      [400, 400],
+    ]);
+    expect(layers.under.ctx.calls[0]).toEqual(['setTransform', 2, 0, 0, 2, 0, 0]);
+    expect(count(layers.under.ctx, 'setLineDash')).toBeGreaterThan(0); // ring
+    expect(count(layers.over.ctx, 'ellipse')).toBe(1); // specular highlight
+    expect(count(layers.over.ctx, 'setLineDash')).toBe(0);
+  });
+
+  it('gives up on layers when a canvas has no 2D context', () => {
+    expect(paintOrbLayers({ size: 200, segments, colors, makeCanvas: () => null })).toBeNull();
+  });
+
+  it('after the fill, copies both layers and draws only the liquid', () => {
+    const ctx = fakeCtx();
+    drawOrb(ctx, { size: 200, score: 50, segments, colors, phase: 0, layers });
+    const images = ctx.calls.filter(([n]) => n === 'drawImage').map((c) => c[1]);
+    expect(images).toEqual([layers.under, layers.over]); // in that order
+    expect(count(ctx, 'setLineDash')).toBe(0); // no ring drawn live
+    expect(count(ctx, 'ellipse')).toBe(0); // no highlight drawn live
+  });
+
+  it('during the fill, draws the growing ring live and copies only the highlights', () => {
+    const ctx = fakeCtx();
+    drawOrb(ctx, { size: 200, score: 50, segments, colors, progress: 0.5, layers });
+    const images = ctx.calls.filter(([n]) => n === 'drawImage').map((c) => c[1]);
+    expect(images).toEqual([layers.over]);
+    expect(count(ctx, 'setLineDash')).toBeGreaterThan(0);
+  });
+
+  it('clips the bubbles only while one is crossing the glass edge', () => {
+    // Over a few seconds of waves: the crest is always clipped (1), and the bubbles too
+    // (2) only in the frames where one is rising in through the bottom of the sphere.
+    const clips = new Set();
+    for (let phase = 0; phase < 20; phase += 0.25) {
+      const ctx = fakeCtx();
+      drawOrb(ctx, { size: 200, score: 50, segments, colors, phase, layers });
+      clips.add(count(ctx, 'clip'));
+    }
+    expect([...clips].sort()).toEqual([1, 2]);
+  });
+});
+
+describe('tracePolygonInCircle', () => {
+  // Records the path: moveTo, lineTo and arc calls.
+  const pathOf = (points) => {
+    const calls = [];
+    const ctx = new Proxy({}, { get: (_, name) => (...args) => calls.push([name, ...args]) });
+    tracePolygonInCircle(ctx, points, 100, 50);
+    return calls.filter(([n]) => n !== 'beginPath');
+  };
+  const arcSweep = (calls) =>
+    calls.filter(([n]) => n === 'arc').reduce((t, [, , , , from, to]) => t + (to - from), 0);
+
+  it('is the whole circle when the polygon covers it', () => {
+    const calls = pathOf([
+      [0, 200],
+      [0, 0],
+      [200, 0],
+      [200, 200],
+    ]);
+    expect(calls).toEqual([['arc', 100, 100, 50, 0, Math.PI * 2]]);
+  });
+
+  it('is empty when the polygon misses the circle', () => {
+    expect(
+      pathOf([
+        [0, 40],
+        [0, 0],
+        [200, 0],
+        [200, 40],
+      ]),
+    ).toEqual([]);
+  });
+
+  it('is the polygon itself when it fits inside', () => {
+    const calls = pathOf([
+      [90, 110],
+      [90, 90],
+      [110, 90],
+      [110, 110],
+    ]);
+    expect(calls.map(([n]) => n)).toEqual(['moveTo', 'lineTo', 'lineTo', 'lineTo', 'closePath']);
+  });
+
+  it('a flat surface through the center keeps the lower half, closed along the circle', () => {
+    // The liquid at 50%: a level line at y = 100 across the bowl, closed along the bottom.
+    const calls = pathOf([
+      [40, 160],
+      [40, 100],
+      [160, 100],
+      [160, 160],
+    ]);
+    expect(calls[0][0]).toBe('moveTo');
+    expect(calls.at(-1)).toEqual(['closePath']);
+    expect(arcSweep(calls)).toBeCloseTo(Math.PI); // the bottom half of the circle
+    for (const [, x, y] of calls.filter(([n]) => n === 'lineTo' || n === 'moveTo')) {
+      expect(Math.hypot(x - 100, y - 100)).toBeLessThanOrEqual(50 + 1e-9); // never outside
+    }
+  });
+
+  it('a wave dipping below the bottom splits into separate pieces', () => {
+    // A low V: it enters the circle twice, so the path has two closed loops.
+    const calls = pathOf([
+      [40, 200],
+      [40, 80],
+      [100, 180],
+      [160, 80],
+      [160, 200],
+    ]);
+    expect(calls.filter(([n]) => n === 'closePath')).toHaveLength(2);
   });
 });
 

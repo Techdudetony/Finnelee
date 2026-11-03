@@ -52,26 +52,154 @@ const surface = (u, level, phase, amp, lean) =>
   Math.sin(u * 5.3 - phase * 1.4) * amp * 0.35 +
   u * lean * 9;
 
-// Traces a wave across the bowl and closes it along the bottom.
-function wavePath(ctx, c, r, y) {
-  ctx.beginPath();
-  ctx.moveTo(c - r, c + r);
-  for (let x = c - r; x <= c + r + 0.1; x += 3) ctx.lineTo(x, y((x - c) / r));
-  ctx.lineTo(c + r, c + r);
-  ctx.closePath();
+// A wave across the bowl, closed along the bottom: [[x, y], ...], clockwise on screen.
+function wavePoints(c, r, y) {
+  const points = [[c - r, c + r]];
+  for (let x = c - r; x <= c + r + 0.1; x += 3) points.push([x, y((x - c) / r)]);
+  points.push([c + r, c + r]);
+  return points;
 }
+
+const isInside = ([x, y], c, r) => (x - c) ** 2 + (y - c) ** 2 < r * r;
+
+/**
+ * The parts of a closed shape's edges that lie inside the circle (c, c, r), each as
+ * { points } from where it enters to where it leaves. Walked from a corner outside the
+ * circle, so every part has both ends on the circle.
+ */
+function insideRuns(points, c, r) {
+  const n = points.length;
+  const start = points.findIndex((p) => !isInside(p, c, r));
+  const runs = [];
+  let run = null;
+  for (let k = 0; k < n; k++) {
+    const p = points[(start + k) % n];
+    const q = points[(start + k + 1) % n];
+    const dx = q[0] - p[0];
+    const dy = q[1] - p[1];
+    const a = dx * dx + dy * dy;
+    const b = 2 * (dx * (p[0] - c) + dy * (p[1] - c));
+    const cc = (p[0] - c) ** 2 + (p[1] - c) ** 2 - r * r;
+    const disc = b * b - 4 * a * cc;
+    if (a === 0 || disc <= 0) continue; // misses the circle, or only touches it
+    const t0 = (-b - Math.sqrt(disc)) / (2 * a);
+    const t1 = (-b + Math.sqrt(disc)) / (2 * a);
+    if (t1 <= 0 || t0 >= 1) continue; // the edge stops short of the circle
+    if (t0 > 0) run = { points: [[p[0] + dx * t0, p[1] + dy * t0]] }; // enters
+    run ??= { points: [p] }; // p sat right on the circle
+    if (t1 < 1) {
+      run.points.push([p[0] + dx * t1, p[1] + dy * t1]); // leaves
+      runs.push(run);
+      run = null;
+    } else run.points.push(q); // q is inside: the run goes on
+  }
+  return runs;
+}
+
+/**
+ * Traces the part of a clockwise polygon that lies inside the circle (c, c, r): its
+ * edges where they're inside, joined by arcs of the circle. Filling this path looks the
+ * same as filling the polygon under a circle clip, without the clip's per-pixel cost
+ * (issue #25). Exported for tests.
+ */
+export function tracePolygonInCircle(ctx, points, c, r) {
+  const n = points.length;
+  const angle = ([x, y]) => Math.atan2(y - c, x - c);
+  ctx.beginPath();
+  if (points.every((p) => isInside(p, c, r))) {
+    // All corners inside: the polygon itself.
+    points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+    return;
+  }
+  const runs = insideRuns(points, c, r);
+
+  if (!runs.length) {
+    // No edge crosses: the whole circle is inside the polygon, or none of it is.
+    let wraps = false; // ray cast from the center
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const [xi, yi] = points[i];
+      const [xj, yj] = points[j];
+      if (yi > c !== yj > c && c < ((xj - xi) * (c - yi)) / (yj - yi) + xi) wraps = !wraps;
+    }
+    if (wraps) ctx.arc(c, c, r, 0, Math.PI * 2);
+    return;
+  }
+
+  // Each exit follows the circle clockwise to the nearest entry, until a loop closes.
+  const TAU2 = Math.PI * 2;
+  const entries = runs.map((u) => angle(u.points[0]));
+  const done = new Set();
+  for (let first = 0; first < runs.length; first++) {
+    if (done.has(first)) continue;
+    let i = first;
+    ctx.moveTo(...runs[i].points[0]);
+    do {
+      done.add(i);
+      runs[i].points.forEach((pt) => ctx.lineTo(...pt));
+      const from = angle(runs[i].points.at(-1));
+      let next = first;
+      let best = Infinity;
+      runs.forEach((_, j) => {
+        const turn = (((entries[j] - from) % TAU2) + TAU2) % TAU2;
+        if (turn < best) [best, next] = [turn, j];
+      });
+      ctx.arc(c, c, r, from, from + best);
+      i = next;
+    } while (i !== first && !done.has(i));
+    ctx.closePath();
+  }
+}
+
+// Shared sizes: center, ring radius and glass sphere radius.
+const geometry = (size) => {
+  const ringR = size / 2 - 8;
+  return { c: size / 2, ringR, r: ringR - 14 };
+};
 
 /**
  * Draws one frame. `progress` (0..1) is how far the fill has run; `phase` moves the
  * waves and bubbles, and `lean` (-1..1) tips the liquid toward the pointer.
  * colors: { series[], track, glassInner, glassEdge, rimShade, liquidBack, liquidTop,
  *           liquidBottom, crest, bubble, specular }
+ * layers (optional, from paintOrbLayers): the parts that never move, drawn once. With
+ * them, a frame after the fill only copies two images and draws the liquid (issue #25).
  */
-export function drawOrb(ctx, { size, score, segments, colors, progress = 1, phase = 0, lean = 0 }) {
-  const c = size / 2;
-  const ringR = size / 2 - 8;
-  const r = ringR - 14; // glass sphere radius
+export function drawOrb(
+  ctx,
+  { size, score, segments, colors, progress = 1, phase = 0, lean = 0, layers },
+) {
   ctx.clearRect(0, 0, size, size);
+  // The ring grows during the fill, so it is drawn live until the fill ends.
+  if (layers && progress >= 1) ctx.drawImage(layers.under, 0, 0, size, size);
+  else drawUnder(ctx, { size, segments, colors, progress });
+  drawLiquid(ctx, { size, score, colors, progress, phase, lean });
+  if (layers) ctx.drawImage(layers.over, 0, 0, size, size);
+  else drawOver(ctx, { size, colors });
+}
+
+/**
+ * Paints the still layers once, at the canvas's resolution: `under` (ring and glass,
+ * finished fill) and `over` (rim shade and highlights). makeCanvas(w, h) returns a
+ * canvas; null when it can't, and drawOrb then draws everything each frame.
+ */
+export function paintOrbLayers({ size, segments, colors, dpr = 1, makeCanvas }) {
+  const layer = (draw) => {
+    const canvas = makeCanvas(size * dpr, size * dpr);
+    const ctx = canvas?.getContext?.('2d');
+    if (!ctx) return null;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw(ctx);
+    return canvas;
+  };
+  const under = layer((ctx) => drawUnder(ctx, { size, segments, colors, progress: 1 }));
+  const over = layer((ctx) => drawOver(ctx, { size, colors }));
+  return under && over ? { under, over } : null;
+}
+
+// Ring segments and the glass sphere: everything behind the liquid.
+function drawUnder(ctx, { size, segments, colors, progress }) {
+  const { c, ringR, r } = geometry(size);
   ctx.lineCap = 'round';
 
   // Ring: a faint track, then each pillar's segment filled to its score.
@@ -101,19 +229,20 @@ export function drawOrb(ctx, { size, score, segments, colors, progress = 1, phas
   ctx.beginPath();
   ctx.arc(c, c, r, 0, TAU);
   ctx.fill();
+}
 
+// The liquid, clipped to the sphere: the only part that moves after the fill.
+function drawLiquid(ctx, { size, score, colors, progress, phase, lean }) {
+  const { c, r } = geometry(size);
   if (score != null) {
     // Liquid, clipped to the sphere.
     const level = c + r - 2 * r * (score / 100) * progress;
     const amp = 2.6 + 2.4 * Math.abs(lean);
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(c, c, r, 0, TAU);
-    ctx.clip();
 
     // Back wave: darker, out of step, gives the surface depth.
     ctx.fillStyle = colors.liquidBack;
-    wavePath(ctx, c, r, (u) => surface(u, level - 3, phase * 0.8 + 2, amp * 0.8, lean * 0.6));
+    const back = (u) => surface(u, level - 3, phase * 0.8 + 2, amp * 0.8, lean * 0.6);
+    tracePolygonInCircle(ctx, wavePoints(c, r, back), c, r);
     ctx.fill();
 
     // Front wave: deeper color toward the bottom.
@@ -122,22 +251,39 @@ export function drawOrb(ctx, { size, score, segments, colors, progress = 1, phas
     body.addColorStop(0, colors.liquidTop);
     body.addColorStop(1, colors.liquidBottom);
     ctx.fillStyle = body;
-    wavePath(ctx, c, r, front);
+    tracePolygonInCircle(ctx, wavePoints(c, r, front), c, r);
     ctx.fill();
 
-    // Bubbles rise from the bottom and pop at the surface.
-    ctx.fillStyle = colors.bubble;
+    // Bubbles rise from the bottom and pop at the surface. Clipped to the sphere only
+    // while one is still crossing its edge (the clip is the costly part).
+    const bubbles = [];
     for (const b of BUBBLES) {
       const t = (phase * b.speed + b.offset) % 1;
       const y = c + r - t * (c + r - level);
       const x = c + b.x * r + Math.sin(phase + b.offset * 9) * 2;
       if (y < front((x - c) / r) + 3) continue;
+      bubbles.push({ x, y, r: b.r });
+    }
+    const crossing = bubbles.some((b) => Math.hypot(b.x - c, b.y - c) + b.r > r);
+    ctx.save();
+    if (crossing) {
       ctx.beginPath();
-      ctx.arc(x, y, b.r, 0, TAU);
+      ctx.arc(c, c, r, 0, TAU);
+      ctx.clip();
+    }
+    ctx.fillStyle = colors.bubble;
+    for (const b of bubbles) {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, TAU);
       ctx.fill();
     }
+    ctx.restore();
 
-    // Bright crest where light catches the surface.
+    // Bright crest where light catches the surface (thin, so its clip costs little).
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(c, c, r, 0, TAU);
+    ctx.clip();
     ctx.strokeStyle = colors.crest;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -149,6 +295,12 @@ export function drawOrb(ctx, { size, score, segments, colors, progress = 1, phas
     ctx.stroke();
     ctx.restore();
   }
+}
+
+// Rim shade and highlights: everything in front of the liquid.
+function drawOver(ctx, { size, colors }) {
+  const { c, r } = geometry(size);
+  ctx.lineCap = 'round';
 
   // Rim shade: curves the glass so it reads as a sphere, not a disc.
   const rim = ctx.createRadialGradient(c, c, r * 0.6, c, c, r);
