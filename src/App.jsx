@@ -43,6 +43,7 @@ import Budget from './components/Budget';
 import DebtPlanner from './components/DebtPlanner';
 import Forecast from './components/Forecast';
 import Goals from './components/Goals';
+import WhatIf from './components/WhatIf';
 import Bills from './components/Bills';
 import Categories from './components/Categories';
 import Settings from './components/Settings';
@@ -56,6 +57,7 @@ const PAGES = [
   { id: 'budget', label: 'Budget', icon: 'budget', Component: Budget },
   { id: 'debt', label: 'Debt Planner', icon: 'debt', Component: DebtPlanner },
   { id: 'forecast', label: 'Forecast', icon: 'forecast', Component: Forecast },
+  { id: 'whatif', label: 'What-If', icon: 'whatif', Component: WhatIf },
   { id: 'goals', label: 'Goals', icon: 'goals', Component: Goals },
   { id: 'bills', label: 'Bills', icon: 'bills', Component: Bills },
   { id: 'categories', label: 'Categories', icon: 'categories', Component: Categories },

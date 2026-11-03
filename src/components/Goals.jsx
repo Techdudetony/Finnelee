@@ -53,6 +53,9 @@ export default function Goals({ store, openTask }) {
       <section className="card">
         <h2>New goal</h2>
         <p className="sub">Saving for everything at once? You need {formatCurrency(totalMonthly)}/month across all goals.</p>
+        {goals.length > 0 && (
+          <p className="small"><button type="button" className="btn" onClick={() => openTask('whatif', ['whatif-savings'], 'Save more for goals')}>Try a what-if</button></p>
+        )}
         <form className="form" onSubmit={addGoal}>
           <label className="field">Name<input data-focus-target="add-goal" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. New laptop" /></label>
           <label className="field">Target<input type="number" min="1" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} /></label>

@@ -39,6 +39,13 @@ const ICONS = {
       <path d="m15 10.5 5.5-5.5" strokeDasharray="1.5 2.5" />
     </>
   ),
+  // Today's path (dashed) and a plan branching off it
+  whatif: (
+    <>
+      <path d="M5 20.5v-6a4 4 0 0 1 4-4h9.5M15 7l3.5 3.5L15 14" />
+      <path d="M5 14.5v-11" strokeDasharray="1.5 2.5" />
+    </>
+  ),
   goals: <path d="M5.5 21V3.5M5.5 4h12l-2.5 4.25L17.5 12.5h-12" />,
   bills: (
     <>

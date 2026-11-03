@@ -16,11 +16,20 @@ import { dueDayProblem, setOptional } from '../utils/payments';
 
 const emptyDebt = { name: '', balance: '', apr: '', minPayment: '' };
 
-export default function DebtPlanner({ store }) {
+export default function DebtPlanner({ store, openTask }) {
   const { debts, setDebts, settings, setSettings } = store;
   const palette = getPalette(useColorScheme());
   const animate = useMotion() === 'full'; // charts draw in at Full motion only
-  const [extra, setExtra] = useState(200);
+  // Saved in settings.debtPlanner as the user's plan, which What-If's "today's path" uses.
+  // Until then $200 is only a suggestion to explore with: never treated as a commitment.
+  const planned = settings.debtPlanner?.extra; // undefined = no plan saved yet
+  const extra = planned ?? 200;
+  const setExtra = (value) => setSettings((s) => ({ ...s, debtPlanner: { ...s.debtPlanner, extra: value } }));
+  const clearPlan = () =>
+    setSettings((prev) => {
+      const { debtPlanner: _old, ...rest } = prev; // _old: removed on purpose
+      return rest;
+    });
   const [form, setForm] = useState(emptyDebt);
 
   // Run both strategies whenever debts or the extra payment change.
@@ -136,7 +145,20 @@ export default function DebtPlanner({ store }) {
               {/* A range slider and number box bound to the same state stay in sync automatically. */}
               <input type="range" min="0" max="2000" step="25" value={extra} onChange={(e) => setExtra(+e.target.value)} aria-label="Extra payment slider" />
               <input type="number" min="0" value={extra} onChange={(e) => setExtra(+e.target.value || 0)} style={{ width: 100 }} aria-label="Extra payment" />
+              <button type="button" className="btn" onClick={() => openTask('whatif', ['whatif-debt'], 'Pay extra on debt')}>See it next to your goals</button>
             </div>
+            {/* Suggestion vs plan: the same wording the What-If page uses. */}
+            {planned === undefined ? (
+              <p className="small" style={{ marginBottom: 0 }}>
+                {formatCurrency(extra)} is a suggestion, not your plan yet. What-If uses minimums only until you save an extra payment.{' '}
+                <button type="button" className="btn" onClick={() => setExtra(extra)}>Save {formatCurrency(extra)} as my plan</button>
+              </p>
+            ) : (
+              <p className="small" style={{ marginBottom: 0 }}>
+                <Status tone="good">Saved as your plan</Status> What-If's today's path includes this {formatCurrency(extra)} extra.{' '}
+                <button type="button" className="btn" onClick={clearPlan}>Clear plan</button>
+              </p>
+            )}
             {stuck && <Status tone="critical" as="p">A minimum payment doesn't cover its monthly interest. Without extra payments that debt never shrinks.</Status>}
           </section>
 

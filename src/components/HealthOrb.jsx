@@ -116,6 +116,9 @@ export default function HealthOrb({ store, goTo }) {
           <Icon name="info" />
           How this is scored
         </button>
+        <button type="button" className="btn" onClick={() => goTo('whatif')}>
+          See what could move your score
+        </button>
         <p className="small muted orb-disclosure">{health.disclosure}</p>
       </div>
       {showHow && <HowScored health={health} onClose={() => setShowHow(false)} />}
