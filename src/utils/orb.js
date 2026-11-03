@@ -60,39 +60,48 @@ function wavePoints(c, r, y) {
   return points;
 }
 
-const isInside = ([x, y], c, r) => (x - c) ** 2 + (y - c) ** 2 < r * r;
+const EPS = 1e-9; // corners this close to the circle count as on it
+const distance2 = ([x, y], c) => (x - c) ** 2 + (y - c) ** 2;
 
 /**
  * The parts of a closed shape's edges that lie inside the circle (c, c, r), each as
- * { points } from where it enters to where it leaves. Walked from a corner outside the
- * circle, so every part has both ends on the circle.
+ * { points } from where it enters to where it leaves. Walked from the corner farthest
+ * from the center (outside the circle), so every part has both ends on the circle. A
+ * corner exactly on the circle, or an edge that only touches it, ends a part there.
  */
 function insideRuns(points, c, r) {
   const n = points.length;
-  const start = points.findIndex((p) => !isInside(p, c, r));
+  let start = 0;
+  points.forEach((p, i) => distance2(p, c) > distance2(points[start], c) && (start = i));
   const runs = [];
   let run = null;
+  const end = () => {
+    if (run && run.points.length > 1) runs.push(run);
+    run = null;
+  };
   for (let k = 0; k < n; k++) {
     const p = points[(start + k) % n];
     const q = points[(start + k + 1) % n];
     const dx = q[0] - p[0];
     const dy = q[1] - p[1];
+    const at = (t) => (t <= 0 ? p : t >= 1 ? q : [p[0] + dx * t, p[1] + dy * t]);
     const a = dx * dx + dy * dy;
     const b = 2 * (dx * (p[0] - c) + dy * (p[1] - c));
-    const cc = (p[0] - c) ** 2 + (p[1] - c) ** 2 - r * r;
+    const cc = distance2(p, c) - r * r;
     const disc = b * b - 4 * a * cc;
-    if (a === 0 || disc <= 0) continue; // misses the circle, or only touches it
-    const t0 = (-b - Math.sqrt(disc)) / (2 * a);
-    const t1 = (-b + Math.sqrt(disc)) / (2 * a);
-    if (t1 <= 0 || t0 >= 1) continue; // the edge stops short of the circle
-    if (t0 > 0) run = { points: [[p[0] + dx * t0, p[1] + dy * t0]] }; // enters
-    run ??= { points: [p] }; // p sat right on the circle
-    if (t1 < 1) {
-      run.points.push([p[0] + dx * t1, p[1] + dy * t1]); // leaves
-      runs.push(run);
-      run = null;
-    } else run.points.push(q); // q is inside: the run goes on
+    // The stretch of this edge inside the circle, as t from..to (0 = p, 1 = q).
+    const from = a && disc > 0 ? Math.max(0, (-b - Math.sqrt(disc)) / (2 * a)) : 1;
+    const to = a && disc > 0 ? Math.min(1, (-b + Math.sqrt(disc)) / (2 * a)) : 0;
+    if (to - from <= EPS) {
+      end(); // misses the circle, only touches it, or leaves from a corner on it
+      continue;
+    }
+    if (from > EPS) end(); // a gap before this stretch: the last part ended on the circle
+    run ??= { points: [at(from)] }; // enters here (or at p, on the circle)
+    run.points.push(at(to));
+    if (to < 1 - EPS) end(); // leaves before q
   }
+  end();
   return runs;
 }
 
@@ -106,8 +115,8 @@ export function tracePolygonInCircle(ctx, points, c, r) {
   const n = points.length;
   const angle = ([x, y]) => Math.atan2(y - c, x - c);
   ctx.beginPath();
-  if (points.every((p) => isInside(p, c, r))) {
-    // All corners inside: the polygon itself.
+  if (points.every((p) => distance2(p, c) <= r * r * (1 + EPS))) {
+    // All corners inside (or on) the circle: the polygon itself.
     points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     ctx.closePath();
     return;

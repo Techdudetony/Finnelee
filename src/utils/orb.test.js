@@ -238,6 +238,123 @@ describe('tracePolygonInCircle', () => {
     }
   });
 
+  // ---- The traced shape matches "polygon under a circle clip", point by point ----
+
+  // Records a path, then flattens it (arcs into short steps) into closed loops.
+  const loopsOf = (points, c, r) => {
+    const loops = [];
+    let loop = null;
+    const ctx = {
+      beginPath() {},
+      moveTo: (x, y) => loops.push((loop = [[x, y]])),
+      lineTo: (x, y) => (loop ??= loops.push((loop = [])) && loop).push([x, y]),
+      closePath: () => (loop = null),
+      arc(cx, cy, rr, from, to) {
+        if (!loop) loops.push((loop = []));
+        const steps = Math.max(2, Math.ceil(Math.abs(to - from) / 0.02));
+        for (let i = 0; i <= steps; i++) {
+          const t = from + ((to - from) * i) / steps;
+          loop.push([cx + rr * Math.cos(t), cy + rr * Math.sin(t)]);
+        }
+      },
+    };
+    tracePolygonInCircle(ctx, points, c, r);
+    return loops;
+  };
+  // Nonzero winding (the canvas default fill rule) along one row: where each edge crosses
+  // y, and which way. A point at x is filled when the crossings left of it don't cancel.
+  const crossings = (loops, y) => {
+    const out = [];
+    for (const loop of loops)
+      for (let i = 0; i < loop.length; i++) {
+        const [x1, y1] = loop[i];
+        const [x2, y2] = loop[(i + 1) % loop.length];
+        if (y1 <= y !== y2 <= y)
+          out.push([x1 + ((y - y1) * (x2 - x1)) / (y2 - y1), y2 > y1 ? 1 : -1]);
+      }
+    return out.sort((a, b) => a[0] - b[0]);
+  };
+  const filledAt = (row, x) => row.reduce((w, [cx, d]) => (cx < x ? w + d : w), 0) !== 0;
+  const nearest = (row, x) => row.reduce((m, [cx]) => Math.min(m, Math.abs(cx - x)), Infinity);
+  /** Points (on a 1 px grid) where the traced fill and "polygon ∩ circle" disagree. */
+  const mismatches = (points, c = 100, r = 78) => {
+    const loops = loopsOf(points, c, r);
+    const bad = [];
+    for (let y = c - r - 4.071; y <= c + r + 4; y += 1) {
+      const traced = crossings(loops, y);
+      const shape = crossings([points], y);
+      for (let x = c - r - 4.123; x <= c + r + 4; x += 1) {
+        const d = Math.hypot(x - c, y - c);
+        // Skip points right on an edge, where antialiasing decides anyway.
+        if (Math.abs(d - r) < 0.05 || nearest(shape, x) < 0.05) continue;
+        if (filledAt(traced, x) !== (filledAt(shape, x) && d < r)) bad.push([x, y]);
+      }
+    }
+    return bad;
+  };
+
+  // The Orb's liquid outline: a surface line across the bowl, closed along its bottom.
+  // Same shape as drawLiquid's (two sine waves, tipped by lean, 3 px steps).
+  const liquid = (score, { phase = 0, lean = 0, c = 100, r = 78 } = {}) => {
+    const level = c + r - 2 * r * (score / 100);
+    const amp = 2.6 + 2.4 * Math.abs(lean);
+    const y = (u) =>
+      level +
+      Math.sin(u * 2.6 + phase) * amp +
+      Math.sin(u * 5.3 - phase * 1.4) * amp * 0.35 +
+      u * lean * 9;
+    const points = [[c - r, c + r]];
+    for (let x = c - r; x <= c + r + 0.1; x += 3) points.push([x, y((x - c) / r)]);
+    points.push([c + r, c + r]);
+    return points;
+  };
+
+  it('matches the clipped liquid at the score limits and in between', () => {
+    // phase 0 at score 0 puts a corner exactly on the circle's lowest point.
+    for (const score of [0, 1, 2, 50, 98, 99, 100])
+      for (const lean of [-1, 0, 0.4, 1])
+        for (let phase = 0; phase < 20; phase += 0.7)
+          expect(
+            mismatches(liquid(score, { phase, lean })),
+            `${score} ${lean} ${phase}`,
+          ).toEqual([]);
+  });
+
+  it('a flat surface exactly at the bottom or top only touches the circle', () => {
+    const flat = (y) => [
+      [10, 190],
+      [10, y],
+      [190, y],
+      [190, 190],
+    ];
+    expect(mismatches(flat(178))).toEqual([]); // tangent at the bottom: nothing inside
+    expect(mismatches(flat(22))).toEqual([]); // tangent at the top: the whole circle
+    expect(mismatches(flat(177.99))).toEqual([]); // a sliver at the bottom
+    expect(mismatches(flat(22.01))).toEqual([]); // all but a sliver at the top
+  });
+
+  it('handles corners that sit exactly on the circle', () => {
+    const on = (deg) => [
+      100 + 78 * Math.cos((deg * Math.PI) / 180),
+      100 + 78 * Math.sin((deg * Math.PI) / 180),
+    ];
+    // A square with all four corners on the circle: the square itself.
+    expect(mismatches([on(135), on(225), on(315), on(45)])).toEqual([]);
+    // One corner on the circle, the others outside.
+    expect(mismatches([[0, 200], on(180), [100, 60], [200, 200]])).toEqual([]);
+    // One corner on the circle, the others inside.
+    expect(mismatches([on(90), [70, 110], [100, 80], [130, 110]])).toEqual([]);
+    // A level line through two points on the circle, closed outside it.
+    expect(mismatches([[22, 190], [22, 100], [178, 100], [178, 190]])).toEqual([]);
+  });
+
+  it('handles edges that only touch the circle', () => {
+    // A triangle whose top edge is tangent to the circle at its lowest point.
+    expect(mismatches([[40, 178], [160, 178], [100, 240]])).toEqual([]);
+    // A tall shape whose side touches the circle at its rightmost point.
+    expect(mismatches([[178, 0], [178, 200], [300, 200], [300, 0]])).toEqual([]);
+  });
+
   it('a wave dipping below the bottom splits into separate pieces', () => {
     // A low V: it enters the circle twice, so the path has two closed loops.
     const calls = pathOf([
